@@ -11,6 +11,13 @@ const vehicleSchema = new mongoose.Schema({
   color:        { type: String },
   capacity:     { type: Number, default: 7 },
 
+  baseLocation: {
+    name:    { type: String },
+    address: { type: String },
+    lat:     { type: Number },
+    lng:     { type: Number }
+  },
+
   status: {
     type: String,
     enum: ['available', 'in_use', 'maintenance', 'inactive'],

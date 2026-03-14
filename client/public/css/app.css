@@ -1,17 +1,17 @@
 /* ============================================================
-   ZAK TRANSPORTATION INITIATIVE — Main Stylesheet
-   Branding: PERC Green #2E7D32 + Gold #FFC107
+   RYDEWORKS — Main Stylesheet
+   Branding: Midnight Navy #0A1628 + Teal #00D4C8
    ============================================================ */
 
 :root {
-  --green:       #2E7D32;
-  --green-dark:  #1B5E20;
-  --green-light: #4CAF50;
-  --green-pale:  #E8F5E9;
-  --gold:        #FFC107;
-  --gold-dark:   #FFA000;
-  --gold-light:  #FFE082;
-  --gold-pale:   #FFFDE7;
+  --green:       #00B4AA;
+  --green-dark:  #0A1628;
+  --green-light: #00D4C8;
+  --green-pale:  #E8FBFA;
+  --gold:        #00D4C8;
+  --gold-dark:   #00B4AA;
+  --gold-light:  #4AEAE0;
+  --gold-pale:   #E8FBFA;
   --white:       #FFFFFF;
   --gray-50:     #FAFAFA;
   --gray-100:    #F5F5F5;
@@ -54,7 +54,7 @@ body {
 /* ── SIDEBAR ─────────────────────────────────────────────── */
 .sidebar {
   width: var(--sidebar-w);
-  background: linear-gradient(180deg, var(--green-dark) 0%, var(--green) 60%, #236B27 100%);
+  background: linear-gradient(180deg, #0A1628 0%, #0F2040 55%, #162B52 100%);
   color: var(--white);
   display: flex;
   flex-direction: column;
@@ -438,14 +438,17 @@ textarea.form-input { resize: vertical; }
 .badge-completed  { background: var(--green-pale); color: var(--green); }
 .badge-canceled   { background: var(--danger-light); color: var(--danger); }
 .badge-pending    { background: var(--gray-200); color: var(--gray-700); }
-.badge-en_route   { background: #FEF3C7; color: #92400E; }
-.badge-aboard     { background: var(--green-pale); color: var(--green); }
+.badge-en_route   { background: #DBEAFE; color: #1D4ED8; }
+.badge-arrived    { background: #E0F2FE; color: #0369A1; }
+.badge-aboard     { background: #FFF7ED; color: #C2410C; }
 .badge-no_show    { background: var(--danger-light); color: var(--danger); }
 
 /* Stop status lights for dispatcher */
 .stop-light { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
 .stop-light.green  { background: var(--success); box-shadow: 0 0 6px var(--success); }
 .stop-light.yellow { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
+.stop-light.blue   { background: #2563EB; box-shadow: 0 0 6px #2563EB; }
+.stop-light.orange { background: #F59E0B; box-shadow: 0 0 6px #F59E0B; }
 .stop-light.red    { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
 .stop-light.gray   { background: var(--gray-400); }
 

@@ -8,6 +8,28 @@ const Partner = require('../models/Partner');
 const AccessCode = require('../models/AccessCode');
 const { authenticate, requireRole } = require('../middleware/auth');
 
+
+function geocodeAddress(address) {
+  return new Promise((resolve) => {
+    if (!address) return resolve(null);
+    const https = require('https');
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
+    https.get(url, { headers: { 'User-Agent': 'Rydeworks/1.0' } }, (res) => {
+      let data = '';
+      res.on('data', d => data += d);
+      res.on('end', () => {
+        try {
+          const j = JSON.parse(data);
+          resolve(j[0] ? { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) } : null);
+        } catch {
+          resolve(null);
+        }
+      });
+    }).on('error', () => resolve(null));
+  });
+}
+
+
 // All admin routes require authentication + admin or dispatcher role
 router.use(authenticate);
 
@@ -120,7 +142,12 @@ router.get('/vehicles', async (req, res) => {
 // POST /api/admin/vehicles
 router.post('/vehicles', requireRole('admin'), async (req, res) => {
   try {
-    const vehicle = new Vehicle({ ...req.body, organization: req.organizationId });
+    const payload = { ...req.body, organization: req.organizationId };
+    if (payload.baseLocation?.address && (!payload.baseLocation?.lat || !payload.baseLocation?.lng)) {
+      const coords = await geocodeAddress(payload.baseLocation.address);
+      if (coords) payload.baseLocation = { ...payload.baseLocation, ...coords };
+    }
+    const vehicle = new Vehicle(payload);
     await vehicle.save();
     res.status(201).json({ success: true, vehicle });
   } catch (err) {
@@ -131,9 +158,14 @@ router.post('/vehicles', requireRole('admin'), async (req, res) => {
 // PUT /api/admin/vehicles/:id
 router.put('/vehicles/:id', requireRole('admin'), async (req, res) => {
   try {
+    const payload = { ...req.body, updatedAt: Date.now() };
+    if (payload.baseLocation?.address && (!payload.baseLocation?.lat || !payload.baseLocation?.lng)) {
+      const coords = await geocodeAddress(payload.baseLocation.address);
+      if (coords) payload.baseLocation = { ...payload.baseLocation, ...coords };
+    }
     const vehicle = await Vehicle.findOneAndUpdate(
       { _id: req.params.id, organization: req.organizationId },
-      { ...req.body, updatedAt: Date.now() },
+      payload,
       { new: true }
     );
     if (!vehicle) return res.status(404).json({ success: false, error: 'Vehicle not found.' });

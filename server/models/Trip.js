@@ -118,7 +118,7 @@ tripSchema.pre('save', async function (next) {
     const date = new Date();
     const dateStr = date.toISOString().slice(0,10).replace(/-/g,'');
     const rand = uuidv4().substring(0,4).toUpperCase();
-    this.tripNumber = `ZAK-${dateStr}-${rand}`;
+    this.tripNumber = `RWK-${dateStr}-${rand}`;
   }
   next();
 });

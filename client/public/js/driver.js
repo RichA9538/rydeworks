@@ -1,5 +1,5 @@
 // ============================================================
-// ZAK TRANSPORT — Driver App JS
+// RYDEWORKS — Driver App JS
 // ============================================================
 
 ZakAuth.requireAuth();
@@ -8,11 +8,145 @@ const API = '';
 let currentTrip = null;
 let currentStopIndex = 0;
 let shiftStarted = false;
+let screenHistory = ['route'];
+let selectedMapTarget = null;
+
+const KNOWN_LOCATION_ALIASES = {
+  'perc st pete': '1523 16th St S, St. Petersburg, FL 33705',
+  'perc st. pete': '1523 16th St S, St. Petersburg, FL 33705',
+  'perc st petersburg': '1523 16th St S, St. Petersburg, FL 33705',
+  'perc clearwater': '12810 US Hwy 19 N, Clearwater, FL 33764'
+};
+
+function normalizeAddress(address) {
+  if (!address) return '';
+  const trimmed = String(address).trim();
+  const key = trimmed.toLowerCase();
+  if (KNOWN_LOCATION_ALIASES[key]) return KNOWN_LOCATION_ALIASES[key];
+  if (/\bperc st\.? pete\b/i.test(trimmed)) return '1523 16th St S, St. Petersburg, FL 33705';
+  if (/\bperc clearwater\b/i.test(trimmed)) return '12810 US Hwy 19 N, Clearwater, FL 33764';
+  return trimmed;
+}
+
+function sortStopsByOrder(stops = []) {
+  return [...stops].sort((a, b) => (a.stopOrder ?? 0) - (b.stopOrder ?? 0));
+}
+
+function isStopDone(stop) {
+  return ['completed', 'no_show', 'canceled'].includes(stop?.status);
+}
+
+function getRemainingStops(trip) {
+  return sortStopsByOrder(trip?.stops || []).filter(stop => !isStopDone(stop));
+}
+
+function getNextStopTimeValue(stop) {
+  if (!stop) return Number.MAX_SAFE_INTEGER;
+  const ts = stop.scheduledTime || stop.appointmentTime || stop.scheduledPickupTime || null;
+  const t = ts ? new Date(ts).getTime() : NaN;
+  return Number.isFinite(t) ? t : Number.MAX_SAFE_INTEGER;
+}
+
+function getTripPriority(trip) {
+  const remaining = getRemainingStops(trip);
+  const nextStop = remaining[0] || null;
+  const nextTime = getNextStopTimeValue(nextStop);
+  const isReturnTrip = /\[RETURN TRIP\]/i.test(String(trip?.notes || ''));
+  return {
+    inProgress: trip?.status === 'in_progress' ? 0 : 1,
+    nextTime,
+    isReturnTrip: isReturnTrip ? 1 : 0,
+    createdAt: trip?.createdAt ? new Date(trip.createdAt).getTime() : Number.MAX_SAFE_INTEGER
+  };
+}
+
+function compareTripsForDriver(a, b) {
+  const pa = getTripPriority(a);
+  const pb = getTripPriority(b);
+  return (pa.inProgress - pb.inProgress) || (pa.nextTime - pb.nextTime) || (pa.isReturnTrip - pb.isReturnTrip) || (pa.createdAt - pb.createdAt);
+}
+
+function getActiveStop(trip) {
+  return getRemainingStops(trip)[0] || null;
+}
+
+function getStopTypeLabel(stop) {
+  return stop?.type === 'dropoff' ? 'Drop-off' : 'Pickup';
+}
+
+function getStopAddress(stop) {
+  return normalizeAddress(stop?.address || (stop?.type === 'dropoff' ? stop?.dropoffAddress : stop?.pickupAddress) || '');
+}
+
+
+function getStopActionConfig(stop) {
+  const status = stop?.status || 'pending';
+  const isPickup = stop?.type !== 'dropoff';
+  const completeLabel = isPickup ? 'Pickup Complete' : 'Drop-off Complete';
+  const completeIcon = isPickup ? 'fas fa-user-check' : 'fas fa-flag-checkered';
+  if (['completed', 'no_show', 'canceled'].includes(status)) return [];
+  if (status === 'pending') {
+    return [{ status: 'en_route', label: 'En Route', icon: 'fas fa-car', style: 'background:var(--gold);color:var(--gray-900);' }];
+  }
+  if (status === 'en_route') {
+    return [
+      { status: 'en_route', label: 'En Route', icon: 'fas fa-car', style: 'background:#DBEAFE;color:#1D4ED8;opacity:0.9;' },
+      { status: 'arrived', label: 'Arrived', icon: 'fas fa-bell', style: 'background:#DBEAFE;color:#1D4ED8;' },
+      { status: 'completed', label: completeLabel, icon: completeIcon, style: '' }
+    ];
+  }
+  if (status === 'arrived' || status === 'aboard') {
+    return [{ status: 'completed', label: completeLabel, icon: completeIcon, style: '' }];
+  }
+  return [{ status: 'completed', label: completeLabel, icon: completeIcon, style: '' }];
+}
+
+function getRiderDisplayName(stop) {
+  return `${stop?.riderId?.firstName || 'Rider'} ${stop?.riderId?.lastName || ''}`.trim();
+}
+
+function findSelectedTargetIndex(stops = []) {
+  if (!selectedMapTarget?.address) return 0;
+  const normalizedTarget = normalizeAddress(selectedMapTarget.address);
+  const idx = stops.findIndex(stop => getStopAddress(stop) === normalizedTarget && (!selectedMapTarget.legType || stop.type === selectedMapTarget.legType));
+  return idx >= 0 ? idx : 0;
+}
+
+
+function getEasternDateString(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const map = Object.fromEntries(parts.filter(p => p.type !== 'literal').map(p => [p.type, p.value]));
+  return `${map.year}-${map.month}-${map.day}`;
+}
+
+
+function getShiftStorageKey() {
+  const user = ZakAuth.getUser() || {};
+  return `rydeworks_shift_started_${user._id || 'driver'}_${getEasternDateString()}`;
+}
+
+function persistShiftStarted(value) {
+  try {
+    if (value) localStorage.setItem(getShiftStorageKey(), '1');
+    else localStorage.removeItem(getShiftStorageKey());
+  } catch (e) {}
+}
+
+function hasPersistedShiftStarted() {
+  try {
+    return localStorage.getItem(getShiftStorageKey()) === '1';
+  } catch (e) {
+    return false;
+  }
+}
 
 // ── INIT ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   loadProfile();
   await loadTodayTrip();
+  if (!shiftStarted) {
+    showScreen('start', false);
+  }
   startLocationTracking();
 
   // Show "Switch to Dispatch" button for multi-role users
@@ -25,11 +159,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ── SCREEN NAVIGATION ─────────────────────────────────────
-function showScreen(name) {
+function showScreen(name, remember = true) {
+  if (!shiftStarted && ['route', 'map', 'end'].includes(name)) {
+    name = 'start';
+  }
+
+  const active = document.querySelector('.screen.active')?.id?.replace('screen-','');
+  if (remember && active && active !== name) screenHistory.push(name);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById(`screen-${name}`)?.classList.add('active');
   document.getElementById(`tab-${name}`)?.classList.add('active');
+  const backBtn = document.getElementById('backBtn');
+  if (backBtn) backBtn.style.display = ['route','start'].includes(name) ? 'none' : '';
+
+  const refreshBtn = document.getElementById('refreshBtn');
+  if (refreshBtn) refreshBtn.style.display = name === 'map' ? 'none' : '';
+}
+
+function goBack() {
+  if (screenHistory.length > 1) screenHistory.pop();
+  const prev = screenHistory[screenHistory.length - 1] || 'route';
+  showScreen(prev, false);
 }
 
 // ── PROFILE ───────────────────────────────────────────────
@@ -50,29 +201,43 @@ function loadProfile() {
 
 // ── LOAD TODAY'S TRIP ─────────────────────────────────────
 async function loadTodayTrip() {
-  const today = new Date().toISOString().split('T')[0];
-  const res = await ZakAuth.apiFetch(`/api/trips/driver/my-trips?date=${today}`);
+  const today = getEasternDateString();
+  const res = await ZakAuth.apiFetch('/api/trips/driver/my-trips');
 
   if (!res?.success || res.trips.length === 0) {
+    currentTrip = null;
+    shiftStarted = false;
+    persistShiftStarted(false);
     renderNoTrips();
     return;
   }
 
-  // Use the first active or scheduled trip
-  const trip = res.trips.find(t => t.status === 'in_progress') ||
-               res.trips.find(t => t.status === 'scheduled') ||
-               res.trips[0];
+  const actionableTrips = (res.trips || []).filter(t => !['canceled','completed'].includes(t.status));
+  if (actionableTrips.length === 0) {
+    currentTrip = null;
+    shiftStarted = false;
+    persistShiftStarted(false);
+    window.appTrips = [];
+    renderNoTrips();
+    return;
+  }
 
-  window.appTrips = res.trips;
+  const orderedTrips = [...actionableTrips].sort(compareTripsForDriver);
+  const trip = orderedTrips[0] || null;
+
+  window.appTrips = orderedTrips;
   currentTrip = trip;
-  shiftStarted = trip.status === 'in_progress';
+  shiftStarted = orderedTrips.some(t => t.status === 'in_progress') || hasPersistedShiftStarted();
 
-  // Update profile stats
-  document.getElementById('profileTripsToday').textContent = res.trips.length;
-  const totalRiders = res.trips.reduce((sum, t) => sum + (t.stops?.length || 0), 0);
+  document.getElementById('profileTripsToday').textContent = orderedTrips.length;
+  const totalRiders = orderedTrips.reduce((sum, t) => sum + (t.stops?.length || 0), 0);
   document.getElementById('profileRidersToday').textContent = totalRiders;
 
-  renderRoute(trip);
+  if (shiftStarted) {
+    renderRoute(trip);
+  } else {
+    renderPreShiftGate(trip, res.trips);
+  }
 }
 
 async function refreshTrips() {
@@ -84,16 +249,36 @@ async function refreshTrips() {
 }
 
 // ── RENDER ROUTE ──────────────────────────────────────────
+function renderPreShiftGate(trip, trips = []) {
+  const tripCount = trips.length;
+  const stopCount = (trip?.stops || []).length;
+  document.getElementById('routeContent').innerHTML = `
+    <div class="route-header">
+      <h3><i class="fas fa-user-clock"></i> Shift Not Started</h3>
+      <div class="route-meta">
+        <span><i class="fas fa-calendar-day"></i> ${tripCount} trip${tripCount !== 1 ? 's' : ''} assigned</span>
+        <span><i class="fas fa-map-pin"></i> ${stopCount} stop${stopCount !== 1 ? 's' : ''} queued</span>
+      </div>
+    </div>
+    <div class="signin-card">
+      <h2><i class="fas fa-play-circle" style="color:var(--green);"></i> Start Shift to View Assigned Rides</h2>
+      <p>Complete your pre-trip inspection and starting mileage before opening today’s route or the in-app map.</p>
+      <button class="btn-big btn-green" onclick="showScreen('start')">
+        <i class="fas fa-clipboard-check"></i> Go to Start Shift
+      </button>
+    </div>
+  `;
+}
+
 function renderRoute(trip) {
   const container = document.getElementById('routeContent');
   if (!trip) { renderNoTrips(); return; }
 
-  const stops = trip.stops || [];
-  const completedCount = stops.filter(s => ['completed','no_show','canceled'].includes(s.status)).length;
+  const stops = sortStopsByOrder(trip.stops || []);
+  const completedCount = stops.filter(isStopDone).length;
   const totalCount = stops.length;
-
-  // Find current active stop
-  currentStopIndex = stops.findIndex(s => !['completed','no_show','canceled'].includes(s.status));
+  const activeStop = getActiveStop(trip);
+  currentStopIndex = activeStop ? stops.findIndex(s => s._id === activeStop._id) : -1;
 
   let html = `
     <div class="route-header">
@@ -110,6 +295,14 @@ function renderRoute(trip) {
           </button>
         </div>
       ` : ''}
+      <div style="margin-top:8px;display:grid;gap:8px;">
+        <button onclick="setDriverAvailability(${ZakAuth.getUser()?.driverInfo?.isAvailable === false ? 'true':'false'})" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.25);border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;width:100%;">
+          <i class="fas fa-user-clock"></i> ${ZakAuth.getUser()?.driverInfo?.isAvailable === false ? 'Mark Available' : 'Mark Unavailable'}
+        </button>
+        <button onclick="showScreen('map');initDriverMap()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.25);border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;width:100%;">
+          <i class="fas fa-map"></i> Open In-App Map
+        </button>
+      </div>
       ${!['canceled','completed'].includes(trip.status) ? `
         <div style="margin-top:8px;">
           <button onclick="driverCancelTrip('${trip._id}')" style="background:transparent;color:#e53e3e;border:1px solid #e53e3e;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;width:100%;">
@@ -124,15 +317,24 @@ function renderRoute(trip) {
     html += `<div class="no-trips"><i class="fas fa-map-signs"></i><h3>No Stops</h3><p>This trip has no stops assigned yet.</p></div>`;
   } else {
     stops.forEach((stop, i) => {
-      const isCurrent = i === currentStopIndex && trip.status === 'in_progress';
-      const isDone = ['completed','no_show','canceled'].includes(stop.status);
+      const isCurrent = activeStop && stop._id === activeStop._id && trip.status === 'in_progress';
+      const isDone = isStopDone(stop);
+      const riderName = getRiderDisplayName(stop);
+      const currentAddress = getStopAddress(stop);
+      const pairedAddress = normalizeAddress(stop.pairedAddress || '');
+      const actionAddress = currentAddress.replace(/'/g, '&#39;');
+      const riderEscaped = riderName.replace(/'/g, '&#39;');
+      const stopLabel = getStopTypeLabel(stop);
+      const timeLabel = stop.type === 'pickup' ? 'Target pickup' : 'Target drop-off';
+      const timeValue = stop.type === 'pickup' ? stop.scheduledTime : (stop.appointmentTime || stop.scheduledTime);
 
       html += `
         <div class="stop-card ${isCurrent ? 'current' : ''} ${stop.status === 'completed' ? 'completed' : ''} ${stop.status === 'no_show' ? 'no_show' : ''}" id="stop-${stop._id}">
           <div class="stop-number">${i + 1}</div>
           <div class="stop-rider">
-            ${stop.riderId?.firstName || 'Rider'} ${stop.riderId?.lastName || ''}
-            ${isCurrent ? '<span style="font-size:12px;background:var(--gold);color:var(--gray-900);padding:2px 8px;border-radius:12px;margin-left:8px;">CURRENT</span>' : ''}
+            ${riderName}
+            <span style="font-size:12px;background:${stop.type === 'pickup' ? 'rgba(0,212,200,0.12)' : 'rgba(239,68,68,0.12)'};color:${stop.type === 'pickup' ? 'var(--green)' : 'var(--danger)'};padding:2px 8px;border-radius:12px;margin-left:8px;">${stopLabel}</span>
+            ${isCurrent ? '<span style="font-size:12px;background:var(--gold);color:var(--gray-900);padding:2px 8px;border-radius:12px;margin-left:8px;">NEXT</span>' : ''}
           </div>
           ${stop.riderId?.phone ? `
             <div class="stop-phone">
@@ -140,21 +342,23 @@ function renderRoute(trip) {
             </div>
           ` : ''}
           <div class="stop-address">
-            <i class="fas fa-map-pin"></i>
+            <i class="${stop.type === 'pickup' ? 'fas fa-map-pin' : 'fas fa-flag'}"></i>
             <div>
-              <div style="font-size:11px;color:var(--gray-500);font-weight:600;text-transform:uppercase;margin-bottom:2px;">Pickup</div>
-              <div>${stop.pickupAddress || 'No address'}</div>
+              <div style="font-size:11px;color:${stop.type === 'pickup' ? 'var(--gray-500)' : 'var(--danger)'};font-weight:600;text-transform:uppercase;margin-bottom:2px;">${stopLabel}</div>
+              <div>${currentAddress || 'No address'}</div>
             </div>
           </div>
-          <div class="stop-address" style="background:var(--danger-light);">
-            <i class="fas fa-flag" style="color:var(--danger);"></i>
-            <div>
-              <div style="font-size:11px;color:var(--danger);font-weight:600;text-transform:uppercase;margin-bottom:2px;">Drop-off</div>
-              <div>${stop.dropoffAddress || 'No address'}</div>
+          ${pairedAddress ? `
+            <div class="stop-address" style="background:${stop.type === 'pickup' ? 'var(--danger-light)' : 'var(--green-pale)'};">
+              <i class="${stop.type === 'pickup' ? 'fas fa-flag' : 'fas fa-map-pin'}" style="color:${stop.type === 'pickup' ? 'var(--danger)' : 'var(--green)'};"></i>
+              <div>
+                <div style="font-size:11px;color:${stop.type === 'pickup' ? 'var(--danger)' : 'var(--green)'};font-weight:600;text-transform:uppercase;margin-bottom:2px;">${stop.type === 'pickup' ? 'Later drop-off' : 'Original pickup'}</div>
+                <div>${pairedAddress}</div>
+              </div>
             </div>
-          </div>
-          ${stop.scheduledPickupTime ? `
-            <div class="stop-time"><i class="fas fa-clock"></i> Pickup: ${formatTime(stop.scheduledPickupTime)}${stop.appointmentTime ? ` → Appt: ${formatTime(stop.appointmentTime)}` : ''}</div>
+          ` : ''}
+          ${timeValue ? `
+            <div class="stop-time"><i class="fas fa-clock"></i> ${timeLabel}: ${formatTime(timeValue)}</div>
           ` : ''}
           ${stop.notes ? `<div class="stop-notes"><i class="fas fa-sticky-note"></i> ${stop.notes}</div>` : ''}
           ${stop.riderId?.notes ? `<div class="stop-notes"><i class="fas fa-info-circle"></i> ${stop.riderId.notes}</div>` : ''}
@@ -165,38 +369,23 @@ function renderRoute(trip) {
             </div>
           ` : `
             <div class="stop-actions">
-              ${stop.status === 'aboard' ? `
-                <button class="stop-btn stop-btn-nav" onclick="navigateTo('${stop.dropoffAddress}','')">
-                  <i class="fas fa-directions"></i> Navigate to Drop-off
+              <button class="stop-btn stop-btn-nav" onclick="navigateTo('${actionAddress}', '${stop.type}', '${riderEscaped}')">
+                <i class="fas fa-directions"></i> Navigate to ${stopLabel}
+              </button>
+              ${getStopActionConfig(stop).map(action => `
+                <button class="stop-btn ${action.status === 'completed' ? (stop.type === 'pickup' ? 'stop-btn-aboard' : 'stop-btn-done') : ''}" style="${action.style || ''}" ${stop.status === action.status ? 'disabled' : ''} onclick="${stop.status === action.status ? 'void(0)' : `updateStopStatus('${trip._id}','${stop._id}','${action.status}')`}">
+                  <i class="${action.icon}"></i> ${action.label}
                 </button>
-              ` : `
-                <button class="stop-btn stop-btn-nav" onclick="navigateTo('${stop.pickupAddress}','')">
-                  <i class="fas fa-directions"></i> Navigate to Pickup
-                </button>
-              `}
-              ${stop.status === 'pending' ? `
-                <button class="stop-btn" style="background:var(--gold);color:var(--gray-900);" onclick="updateStopStatus('${trip._id}','${stop._id}','en_route')">
-                  <i class="fas fa-car"></i> En Route
-                </button>
-              ` : ''}
+              `).join('')}
               ${stop.riderId?.phone ? `
                 <button class="stop-btn stop-btn-call" onclick="callRider('${stop.riderId.phone}')">
                   <i class="fas fa-phone"></i> Call
                 </button>
               ` : ''}
-              ${stop.status !== 'aboard' ? `
-                <button class="stop-btn stop-btn-aboard" onclick="updateStopStatus('${trip._id}','${stop._id}','aboard')">
-                  <i class="fas fa-user-check"></i> Rider Aboard
-                </button>
-              ` : `
-                <button class="stop-btn stop-btn-done" onclick="updateStopStatus('${trip._id}','${stop._id}','completed')">
-                  <i class="fas fa-flag-checkered"></i> Dropped Off
-                </button>
-              `}
               <button class="stop-btn stop-btn-noshow" onclick="confirmNoShow('${trip._id}','${stop._id}')">
                 <i class="fas fa-user-times"></i> No Show
               </button>
-              <button class="stop-btn" style="background:transparent;color:#e53e3e;border:1px solid #e53e3e;" onclick="confirmCancelLeg('${trip._id}','${stop._id}','${stop.riderName || (stop.riderId?.firstName || 'Rider')}')">
+              <button class="stop-btn" style="background:transparent;color:#e53e3e;border:1px solid #e53e3e;" onclick="confirmCancelLeg('${trip._id}','${stop._id}','${riderEscaped}')">
                 <i class="fas fa-times-circle"></i> Cancel Leg
               </button>
             </div>
@@ -206,8 +395,7 @@ function renderRoute(trip) {
     });
   }
 
-  // If all stops done, show end shift prompt
-  const allDone = stops.length > 0 && stops.every(s => ['completed','no_show','canceled'].includes(s.status));
+  const allDone = stops.length > 0 && stops.every(s => isStopDone(s));
   if (allDone && trip.status !== 'completed') {
     html += `
       <div style="background:var(--green-pale);border:2px solid var(--green-light);border-radius:var(--radius);padding:20px;text-align:center;margin-top:8px;">
@@ -230,6 +418,9 @@ function renderNoTrips() {
       <i class="fas fa-calendar-times"></i>
       <h3>No Trips Today</h3>
       <p>You have no trips scheduled for today.<br>Contact your dispatcher if you believe this is an error.</p>
+      <div style="margin-top:16px;">
+        <button class="btn-big btn-outline" onclick="setDriverAvailability(true)"><i class="fas fa-user-check"></i> Mark Available</button>
+      </div>
     </div>
   `;
 }
@@ -246,8 +437,10 @@ async function updateStopStatus(tripId, stopId, status) {
     renderRoute(res.trip);
 
     const messages = {
+      en_route:  '🚐 Driver marked en route',
+      arrived:   '📍 Arrived at stop',
       aboard:    '✅ Rider is aboard!',
-      completed: '🏁 Rider dropped off!',
+      completed: '🏁 Stop completed!',
       no_show:   '⚠️ No show recorded',
       canceled:  'Stop canceled'
     };
@@ -296,51 +489,31 @@ async function driverCancelTrip(tripId) {
 }
 
 // ── NAVIGATION ────────────────────────────────────────────
-function navigateTo(pickupAddress, dropoffAddress) {
-  // Build a route: current location -> pickup -> dropoff (if dropoff provided)
-  const pickup = pickupAddress || '';
-  const dropoff = dropoffAddress || '';
-  if (!pickup && !dropoff) { showToast('No address available', 'error'); return; }
-
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-
-  if (isIOS) {
-    // iOS: build Google Maps URL with waypoint (pickup) and destination (dropoff)
-    let googleMapsUrl, appleMapsUrl;
-    if (pickup && dropoff && pickup !== dropoff) {
-      // Route: current -> pickup -> dropoff
-      googleMapsUrl = `comgooglemaps://?waypoints=${encodeURIComponent(pickup)}&daddr=${encodeURIComponent(dropoff)}&directionsmode=driving`;
-      appleMapsUrl = `maps://?addr=${encodeURIComponent(pickup)}&daddr=${encodeURIComponent(dropoff)}&dirflg=d`;
-    } else {
-      const dest = pickup || dropoff;
-      googleMapsUrl = `comgooglemaps://?daddr=${encodeURIComponent(dest)}&directionsmode=driving`;
-      appleMapsUrl = `maps://?daddr=${encodeURIComponent(dest)}&dirflg=d`;
-    }
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.src = googleMapsUrl;
-    document.body.appendChild(iframe);
-    setTimeout(() => document.body.removeChild(iframe), 500);
-    setTimeout(() => { window.location.href = appleMapsUrl; }, 25);
+function navigateTo(address, legType = 'pickup', riderName = 'Rider') {
+  const normalized = normalizeAddress(address);
+  if (!normalized) { showToast('No address available', 'error'); return; }
+  selectedMapTarget = { address: normalized, legType, riderName };
+  showScreen('map');
+  initDriverMap();
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      lastKnownDriverLocation = [lat, lng];
+      try { localStorage.setItem('rydeworks_last_driver_loc', JSON.stringify(lastKnownDriverLocation)); } catch (e) {}
+      if (driverLocationMarker) driverLocationMarker.setLatLng([lat, lng]);
+      refreshDriverMap();
+    }, () => refreshDriverMap(), { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 });
   } else {
-    // Android: Google Maps web URL supports waypoints
-    let webUrl;
-    if (pickup && dropoff && pickup !== dropoff) {
-      webUrl = `https://www.google.com/maps/dir/?api=1&waypoints=${encodeURIComponent(pickup)}&destination=${encodeURIComponent(dropoff)}&travelmode=driving`;
-    } else {
-      const dest = pickup || dropoff;
-      webUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=driving`;
-    }
-    const intentUrl = webUrl.replace('https://', 'intent://').replace('www.google.com', 'maps.google.com') + '#Intent;scheme=https;package=com.google.android.apps.maps;end';
-    try {
-      window.location.href = intentUrl;
-    } catch (e) {
-      window.open(webUrl, '_blank');
-    }
-    setTimeout(() => {
-      if (!document.hidden) window.open(webUrl, '_blank');
-    }, 1500);
+    refreshDriverMap();
   }
+  showToast(`Opened in-app map for ${legType === 'dropoff' ? 'drop-off' : 'pickup'}`, 'success');
+}
+
+function clearSelectedMapTarget() {
+  selectedMapTarget = null;
+  const panel = document.getElementById('mapRoutePanel');
+  if (panel) panel.style.display = 'none';
+  refreshDriverMap();
 }
 
 function callRider(phone) {
@@ -384,9 +557,10 @@ async function startShift() {
   if (res?.success) {
     currentTrip = res.trip;
     shiftStarted = true;
+    persistShiftStarted(true);
     showToast('Shift started! Have a safe trip. 🚐', 'success');
-    showScreen('route');
     renderRoute(res.trip);
+    showScreen('route', false);
   } else {
     showToast(res?.error || 'Failed to start shift', 'error');
   }
@@ -407,11 +581,30 @@ async function endShift() {
   if (res?.success) {
     currentTrip = null;
     shiftStarted = false;
+    persistShiftStarted(false);
+    selectedMapTarget = null;
     showToast('Shift complete! Great work today. 🎉', 'success');
-    showScreen('route');
     renderNoTrips();
+    showScreen('start', false);
   } else {
     showToast(res?.error || 'Failed to end shift', 'error');
+  }
+}
+
+async function setDriverAvailability(isAvailable) {
+  const res = await ZakAuth.apiFetch('/api/trips/driver/availability', {
+    method: 'POST',
+    body: JSON.stringify({ isAvailable })
+  });
+  if (res?.success) {
+    const user = ZakAuth.getUser() || {};
+    user.driverInfo = { ...(user.driverInfo || {}), ...(res.user?.driverInfo || {}), isAvailable };
+    localStorage.setItem('zak_user', JSON.stringify(user));
+    loadProfile();
+    renderRoute(currentTrip);
+    showToast(isAvailable ? 'You are now marked available.' : 'You are marked unavailable.', 'success');
+  } else {
+    showToast(res?.error || 'Could not update availability.', 'error');
   }
 }
 
@@ -465,6 +658,7 @@ let driverMapInstance = null;
 let driverMapMarkers = [];
 let driverMapRouteLayer = null;
 let driverLocationMarker = null;
+let lastKnownDriverLocation = null;
 
 function initDriverMap() {
   // Only init once
@@ -474,6 +668,10 @@ function initDriverMap() {
     return;
   }
   driverMapInstance = L.map('driverMap', { zoomControl: true }).setView([27.9944, -81.7603], 10);
+  try {
+    const cached = JSON.parse(localStorage.getItem('rydeworks_last_driver_loc') || 'null');
+    if (Array.isArray(cached) && cached.length === 2) lastKnownDriverLocation = cached;
+  } catch (e) {}
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors',
     maxZoom: 18
@@ -481,11 +679,30 @@ function initDriverMap() {
 
   // Watch driver location and update marker
   if (navigator.geolocation) {
-    navigator.geolocation.watchPosition(pos => {
+    navigator.geolocation.getCurrentPosition(pos => {
       const { latitude: lat, longitude: lng } = pos.coords;
+      lastKnownDriverLocation = [lat, lng];
+      try { localStorage.setItem('rydeworks_last_driver_loc', JSON.stringify(lastKnownDriverLocation)); } catch (e) {}
       if (!driverLocationMarker) {
         const vanIcon = L.divIcon({
-          html: '<div style="background:#1B5E20;color:#FFC107;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid #FFC107;box-shadow:0 2px 8px rgba(0,0,0,0.4);">🚐</div>',
+          html: '<div style="background:#0A1628;color:#00D4C8;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid #00D4C8;box-shadow:0 2px 8px rgba(0,0,0,0.4);">🚐</div>',
+          iconSize: [36, 36], iconAnchor: [18, 18], className: ''
+        });
+        driverLocationMarker = L.marker([lat, lng], { icon: vanIcon, zIndexOffset: 1000 }).addTo(driverMapInstance);
+        driverLocationMarker.bindPopup('Your Location');
+      } else {
+        driverLocationMarker.setLatLng([lat, lng]);
+      }
+      refreshDriverMap();
+    }, () => {}, { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 });
+
+    navigator.geolocation.watchPosition(pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      lastKnownDriverLocation = [lat, lng];
+      try { localStorage.setItem('rydeworks_last_driver_loc', JSON.stringify(lastKnownDriverLocation)); } catch (e) {}
+      if (!driverLocationMarker) {
+        const vanIcon = L.divIcon({
+          html: '<div style="background:#0A1628;color:#00D4C8;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid #00D4C8;box-shadow:0 2px 8px rgba(0,0,0,0.4);">🚐</div>',
           iconSize: [36, 36], iconAnchor: [18, 18], className: ''
         });
         driverLocationMarker = L.marker([lat, lng], { icon: vanIcon, zIndexOffset: 1000 }).addTo(driverMapInstance);
@@ -494,6 +711,9 @@ function initDriverMap() {
         driverLocationMarker.setLatLng([lat, lng]);
       }
       sendLocationUpdate(lat, lng);
+      if (document.getElementById('screen-map')?.classList.contains('active')) {
+        refreshDriverMap();
+      }
     }, null, { enableHighAccuracy: true, maximumAge: 10000 });
   }
 
@@ -501,91 +721,144 @@ function initDriverMap() {
 }
 
 async function refreshDriverMap() {
+  const panel = document.getElementById('mapRoutePanel');
+  const titleEl = document.getElementById('mapRouteTitle');
+  const addrEl = document.getElementById('mapRouteAddress');
+
   if (!driverMapInstance || !window.appTrips || window.appTrips.length === 0) {
     document.getElementById('mapInfoBar').textContent = '📍 No trips to show';
+    if (panel) panel.style.display = 'none';
     return;
   }
 
-  // Clear old markers and route
   driverMapMarkers.forEach(m => driverMapInstance.removeLayer(m));
   driverMapMarkers = [];
   if (driverMapRouteLayer) { driverMapInstance.removeLayer(driverMapRouteLayer); driverMapRouteLayer = null; }
 
-  const trip = window.appTrips[0]; // Show first active trip
-  const stops = (trip.stops || []).filter(s => !['completed','no_show','canceled'].includes(s.status));
-  if (stops.length === 0) {
+  const trip = currentTrip || window.appTrips[0];
+  const remainingStops = getRemainingStops(trip);
+  if (remainingStops.length === 0) {
     document.getElementById('mapInfoBar').textContent = '✅ All stops completed';
+    if (panel) panel.style.display = 'none';
     return;
   }
 
-  // Geocode all stop addresses and place markers
   const bounds = [];
   const geocodeCache = {};
 
   async function geocode(address) {
-    if (!address) return null;
-    if (geocodeCache[address]) return geocodeCache[address];
-    try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`, { headers: { 'Accept-Language': 'en' } });
-      const d = await r.json();
-      if (d && d[0]) { geocodeCache[address] = [parseFloat(d[0].lat), parseFloat(d[0].lon)]; return geocodeCache[address]; }
-    } catch(e) {}
+    const normalized = normalizeAddress(address);
+    if (!normalized) return null;
+    if (geocodeCache[normalized]) return geocodeCache[normalized];
+    const queries = [normalized];
+    if (!/,\s*FL/i.test(normalized)) queries.push(`${normalized}, FL`);
+    for (const q of queries) {
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`, { headers: { 'Accept-Language': 'en' } });
+        const d = await r.json();
+        if (d && d[0]) {
+          geocodeCache[normalized] = [parseFloat(d[0].lat), parseFloat(d[0].lon)];
+          return geocodeCache[normalized];
+        }
+      } catch (e) {}
+    }
     return null;
   }
 
-  const waypoints = [];
-  for (let i = 0; i < stops.length; i++) {
-    const stop = stops[i];
-    const pickupCoords = await geocode(stop.pickupAddress);
-    const dropoffCoords = await geocode(stop.dropoffAddress);
+  const stopPoints = [];
+  for (let i = 0; i < remainingStops.length; i++) {
+    const stop = remainingStops[i];
+    const coords = (Number.isFinite(stop?.lat) && Number.isFinite(stop?.lng)) ? [stop.lat, stop.lng] : await geocode(getStopAddress(stop));
+    if (!coords) {
+      console.warn('Could not geocode stop address:', getStopAddress(stop));
+      continue;
+    }
+    stopPoints.push({ stop, coords });
+    bounds.push(coords);
 
-    if (pickupCoords) {
-      const pickupIcon = L.divIcon({
-        html: `<div style="background:#2E7D32;color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);">${i+1}</div>`,
-        iconSize: [28, 28], iconAnchor: [14, 14], className: ''
-      });
-      const m = L.marker(pickupCoords, { icon: pickupIcon }).addTo(driverMapInstance);
-      m.bindPopup(`<b>Stop ${i+1} Pickup</b><br>${stop.riderId?.firstName || 'Rider'} ${stop.riderId?.lastName || ''}<br>${stop.pickupAddress}`);
-      driverMapMarkers.push(m);
-      bounds.push(pickupCoords);
-      waypoints.push(pickupCoords);
-    }
-    if (dropoffCoords) {
-      const dropoffIcon = L.divIcon({
-        html: `<div style="background:#EF4444;color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);">D</div>`,
-        iconSize: [28, 28], iconAnchor: [14, 14], className: ''
-      });
-      const m = L.marker(dropoffCoords, { icon: dropoffIcon }).addTo(driverMapInstance);
-      m.bindPopup(`<b>Stop ${i+1} Drop-off</b><br>${stop.riderId?.firstName || 'Rider'} ${stop.riderId?.lastName || ''}<br>${stop.dropoffAddress}`);
-      driverMapMarkers.push(m);
-      bounds.push(dropoffCoords);
-      waypoints.push(dropoffCoords);
-    }
+    const isPickup = stop.type === 'pickup';
+    const markerIcon = L.divIcon({
+      html: `<div style="background:${isPickup ? '#0A1628' : '#EF4444'};color:white;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);">${i + 1}</div>`,
+      iconSize: [30, 30], iconAnchor: [15, 15], className: ''
+    });
+    const m = L.marker(coords, { icon: markerIcon }).addTo(driverMapInstance);
+    m.bindPopup(`<b>${getStopTypeLabel(stop)}</b><br>${getRiderDisplayName(stop)}<br>${getStopAddress(stop)}`);
+    driverMapMarkers.push(m);
   }
 
-  // Draw route line via OSRM
-  if (waypoints.length >= 2) {
-    try {
-      const coordStr = waypoints.map(([lat, lng]) => `${lng},${lat}`).join(';');
+  if (stopPoints.length === 0) {
+    document.getElementById('mapInfoBar').textContent = '📍 Could not locate remaining stops';
+    if (panel) panel.style.display = 'none';
+    return;
+  }
+
+  const activeIndex = findSelectedTargetIndex(remainingStops);
+  const activePoint = stopPoints[Math.min(activeIndex, stopPoints.length - 1)] || stopPoints[0];
+
+  if (panel && titleEl && addrEl) {
+    panel.style.display = '';
+    titleEl.textContent = `${getStopTypeLabel(activePoint.stop)} for ${getRiderDisplayName(activePoint.stop)}`;
+    addrEl.textContent = getStopAddress(activePoint.stop);
+  }
+
+  const orderedRoutePoints = [];
+  if (driverLocationMarker) {
+    const ll = driverLocationMarker.getLatLng();
+    orderedRoutePoints.push([ll.lat, ll.lng]);
+    bounds.push([ll.lat, ll.lng]);
+  } else if (lastKnownDriverLocation) {
+    orderedRoutePoints.push(lastKnownDriverLocation);
+    bounds.push(lastKnownDriverLocation);
+    const vanIcon = L.divIcon({
+      html: '<div style="background:#0A1628;color:#00D4C8;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid #00D4C8;box-shadow:0 2px 8px rgba(0,0,0,0.4);">🚐</div>',
+      iconSize: [36, 36], iconAnchor: [18, 18], className: ''
+    });
+    driverLocationMarker = L.marker(lastKnownDriverLocation, { icon: vanIcon, zIndexOffset: 1000 }).addTo(driverMapInstance);
+    driverLocationMarker.bindPopup('Your Location');
+  }
+  const prioritizedStops = [activePoint, ...stopPoints.filter(p => p !== activePoint)];
+  prioritizedStops.forEach(p => orderedRoutePoints.push(p.coords));
+
+  try {
+    if (orderedRoutePoints.length >= 2) {
+      const coordStr = orderedRoutePoints.map(([lat, lng]) => `${lng},${lat}`).join(';');
       const osrmRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson`);
       const osrmData = await osrmRes.json();
       if (osrmData.routes && osrmData.routes[0]) {
         driverMapRouteLayer = L.geoJSON(osrmData.routes[0].geometry, {
-          style: { color: '#2E7D32', weight: 4, opacity: 0.8, dashArray: '8,4' }
+          style: { color: '#00B4AA', weight: 6, opacity: 0.95 }
         }).addTo(driverMapInstance);
         const dist = (osrmData.routes[0].distance / 1609.34).toFixed(1);
         const mins = Math.round(osrmData.routes[0].duration / 60);
-        document.getElementById('mapInfoBar').textContent = `🗺 ${stops.length} stop${stops.length > 1 ? 's' : ''} · ${dist} mi · ~${mins} min`;
+        document.getElementById('mapInfoBar').textContent = `🧭 Next: ${getStopTypeLabel(activePoint.stop)} · ${remainingStops.length} stop${remainingStops.length > 1 ? 's' : ''} left · ${dist} mi · ~${mins} min`;
+      } else {
+        document.getElementById('mapInfoBar').textContent = `📍 ${remainingStops.length} stop${remainingStops.length > 1 ? 's' : ''} remaining`;
       }
-    } catch(e) {
-      document.getElementById('mapInfoBar').textContent = `📍 ${stops.length} stop${stops.length > 1 ? 's' : ''} remaining`;
+    } else {
+      document.getElementById('mapInfoBar').textContent = `📍 Next: ${getStopAddress(activePoint.stop)}`;
     }
+  } catch (e) {
+    if (orderedRoutePoints.length >= 2) {
+      driverMapRouteLayer = L.polyline(orderedRoutePoints, { color: '#00B4AA', weight: 4, opacity: 0.8, dashArray: '8,8' }).addTo(driverMapInstance);
+    }
+    document.getElementById('mapInfoBar').textContent = `📍 ${remainingStops.length} stop${remainingStops.length > 1 ? 's' : ''} remaining`;
   }
-
-  // Add driver location to bounds if available
-  if (driverLocationMarker) bounds.push(driverLocationMarker.getLatLng());
 
   if (bounds.length > 0) {
     driverMapInstance.fitBounds(bounds, { padding: [30, 30] });
   }
+}
+
+
+// ── HELPERS ───────────────────────────────────────────────
+function formatTime(d) {
+  if (!d) return '';
+  return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function showToast(msg, type = '') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = `toast show ${type}`;
+  setTimeout(() => toast.classList.remove('show'), 3500);
 }

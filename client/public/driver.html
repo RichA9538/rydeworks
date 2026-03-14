@@ -5,20 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#1B5E20">
-  <title>Zak Transport — Driver</title>
+  <meta name="theme-color" content="#0A1628">
+  <title>RydeWorks — Driver</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --green:       #2E7D32;
-      --green-dark:  #1B5E20;
-      --green-light: #4CAF50;
-      --green-pale:  #E8F5E9;
-      --gold:        #FFC107;
-      --gold-dark:   #FFA000;
-      --gold-pale:   #FFFDE7;
+        :root {
+      --green:       #00B4AA;
+      --green-dark:  #0A1628;
+      --green-light: #00D4C8;
+      --green-pale:  #E8FBFA;
+      --gold:        #00D4C8;
+      --gold-dark:   #00B4AA;
+      --gold-pale:   #E8FBFA;
       --white:       #FFFFFF;
       --gray-50:     #FAFAFA;
       --gray-100:    #F5F5F5;
@@ -26,13 +26,14 @@
       --gray-300:    #E0E0E0;
       --gray-500:    #9E9E9E;
       --gray-700:    #616161;
+      --gray-800:    #424242;
       --gray-900:    #212121;
       --danger:      #EF4444;
       --danger-light:#FEE2E2;
       --success:     #10B981;
       --warning:     #F59E0B;
       --radius:      14px;
-      --shadow:      0 4px 16px rgba(0,0,0,0.1);
+      --shadow:      0 4px 16px rgba(10,22,40,0.12);
     }
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { height: 100%; overflow: hidden; }
@@ -65,7 +66,7 @@
       padding-top: max(14px, env(safe-area-inset-top));
     }
     .app-header-left { display: flex; align-items: center; gap: 10px; }
-    .app-logo { width: 36px; height: 36px; background: var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--green-dark); }
+    .app-logo { width: 36px; height: 36px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); border-radius: 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
     .app-title { font-size: 16px; font-weight: 700; }
     .app-subtitle { font-size: 11px; color: rgba(255,255,255,0.7); }
     .header-actions { display: flex; gap: 8px; }
@@ -334,6 +335,35 @@
       pointer-events: none;
     }
 
+
+    .map-route-panel {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      left: 60px;
+      z-index: 1001;
+      background: rgba(255,255,255,0.96);
+      border: 1px solid rgba(10,22,40,0.08);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(10,22,40,0.14);
+      padding: 12px;
+    }
+    .map-route-title { font-size: 13px; font-weight: 700; color: var(--green-dark); margin-bottom: 4px; }
+    .map-route-address { font-size: 12px; color: var(--gray-700); line-height: 1.4; }
+    .map-route-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .map-route-actions button {
+      flex: 1;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+    }
+    .map-route-actions .primary { background: var(--green); color: var(--white); }
+    .map-route-actions .secondary { background: var(--gray-200); color: var(--gray-800); }
+
     /* ── DAMAGE REPORT ── */
     .damage-section { margin-top: 16px; }
     .damage-toggle { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
@@ -345,13 +375,14 @@
     <!-- Header -->
     <div class="app-header">
       <div class="app-header-left">
-        <div class="app-logo"><i class="fas fa-shuttle-van"></i></div>
+        <div class="app-logo"><img src="/img/rydeworks-mark.svg" alt="RydeWorks" style="width:22px;height:22px;"></div>
         <div>
-          <div class="app-title">Zak Transport</div>
+          <div class="app-title">RydeWorks</div>
           <div class="app-subtitle" id="headerSubtitle">Driver App</div>
         </div>
       </div>
       <div class="header-actions">
+        <button class="header-btn" id="backBtn" onclick="goBack()" title="Back" style="display:none"><i class="fas fa-arrow-left"></i></button>
         <button class="header-btn" id="switchToDispatchBtn" onclick="window.location.href='/app.html'" title="Switch to Dispatch Center" style="display:none"><i class="fas fa-desktop"></i></button>
         <button class="header-btn" id="refreshBtn" onclick="refreshTrips()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
       </div>
@@ -466,6 +497,15 @@
       <div class="screen" id="screen-map">
         <div id="driverMap"></div>
         <div class="map-info-bar" id="mapInfoBar">📍 Tap a stop to show route</div>
+        <div id="mapRoutePanel" class="map-route-panel" style="display:none;">
+          <div class="map-route-title" id="mapRouteTitle">Current navigation</div>
+          <div class="map-route-address" id="mapRouteAddress">Choose a stop to preview the next leg in-app.</div>
+          <div class="map-route-actions">
+            <button class="secondary" onclick="clearSelectedMapTarget()">Clear</button>
+            <button class="primary" onclick="showScreen('route')">Back to Trip</button>
+          </div>
+        </div>
+        <div style="position:absolute;top:12px;left:12px;z-index:1001;"><button class="header-btn" onclick="showScreen('route')" title="Back to route" style="background:rgba(10,22,40,0.85)"><i class="fas fa-arrow-left"></i></button></div>
       </div>
 
       <!-- ── PROFILE SCREEN ── -->

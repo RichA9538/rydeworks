@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RydeWorks — Dispatch Center</title>
+  <title>Zak Transportation — Dispatch Center</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
@@ -14,9 +14,11 @@
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <div class="sidebar-logo"><img src="img/rydeworks-mark.svg" alt="RydeWorks logo" style="width:100%;height:100%;border-radius:50%;display:block;"></div>
+      <div class="sidebar-logo">
+        <i class="fas fa-shuttle-van"></i>
+      </div>
       <div class="sidebar-title">
-        <h1>RydeWorks</h1>
+        <h1>Zak Transport</h1>
         <p>Dispatch Center</p>
       </div>
       <button class="sidebar-toggle" id="sidebarToggle"><i class="fas fa-bars"></i></button>
@@ -167,24 +169,6 @@
             <div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
           </div>
         </div>
-
-        <!-- Live Fleet Snapshot -->
-        <div class="card">
-          <div class="card-header">
-            <h3><i class="fas fa-map-marked-alt"></i> Fleet Snapshot</h3>
-            <button class="btn btn-sm btn-secondary" onclick="showView('map')">Open Live Map</button>
-          </div>
-          <div class="card-body">
-            <div id="dashboardMap" style="height:260px;border-radius:12px;overflow:hidden;background:#eef2f7;"></div>
-            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--gray-600);">
-              <span><span class="stop-light green"></span> Available</span>
-              <span><span class="stop-light blue"></span> En Route</span>
-              <span><span class="stop-light orange"></span> Passenger On Board</span>
-              <span><span class="stop-light gray"></span> Break / Unavailable</span>
-              <span><span class="stop-light red"></span> Needs Attention</span>
-            </div>
-          </div>
-        </div>
       </div>
     </section>
 
@@ -232,11 +216,6 @@
 
             <div id="ridersList">
               <!-- Rider rows added dynamically -->
-            </div>
-
-            <div id="riderPaymentState" style="display:none;margin:12px 0 4px 0;padding:12px 14px;border:1px solid var(--gray-200);border-radius:12px;background:#f8fafc;">
-              <div style="font-weight:700;margin-bottom:6px;">Selected Rider Payment Status</div>
-              <div id="riderPaymentStateText" style="font-size:14px;color:var(--gray-700);"></div>
             </div>
 
             <!-- Payment -->
@@ -815,8 +794,6 @@
           <option value="">No vehicle assigned</option>
         </select>
       </div>
-      <div class="form-group"><label class="form-label">Vehicle Home Base</label><input type="text" class="form-input" id="editVehBaseAddress" placeholder="Street, City, FL ZIP"></div>
-      <div class="form-group"><label class="form-label">Base Label</label><input type="text" class="form-input" id="editVehBaseName" placeholder="e.g. South Yard, Clearwater Hub"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('addUserModal')">Cancel</button>
@@ -1002,8 +979,6 @@
         <div class="form-group"><label class="form-label">Year</label><input type="number" class="form-input" id="vehYear" placeholder="2022"></div>
       </div>
       <div class="form-group"><label class="form-label">Passenger Capacity</label><input type="number" class="form-input" id="vehCapacity" value="7"></div>
-      <div class="form-group"><label class="form-label">Vehicle Home Base</label><input type="text" class="form-input" id="vehBaseAddress" placeholder="Street, City, FL ZIP"></div>
-      <div class="form-group"><label class="form-label">Base Label</label><input type="text" class="form-input" id="vehBaseName" placeholder="e.g. South Yard, Clearwater Hub"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('addVehicleModal')">Cancel</button>
@@ -1151,8 +1126,6 @@
           </select>
         </div>
       </div>
-      <div class="form-group"><label class="form-label">Vehicle Home Base</label><input type="text" class="form-input" id="editVehBaseAddress" placeholder="Street, City, FL ZIP"></div>
-      <div class="form-group"><label class="form-label">Base Label</label><input type="text" class="form-input" id="editVehBaseName" placeholder="e.g. South Yard, Clearwater Hub"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('editVehicleModal')">Cancel</button>

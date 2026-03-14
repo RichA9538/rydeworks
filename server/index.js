@@ -233,15 +233,15 @@ const seedInitialData = async () => {
         {
           name: 'PERC St. Pete',
           address: '1523 16th St S, St. Petersburg, FL 33705',
-          lat: 27.7531,
-          lng: -82.6652,
-          isDefault: true
+          lat: 27.7542,
+          lng: -82.6537,
+          isDefault: false
         },
         {
           name: 'PERC Clearwater',
-          address: 'Clearwater, FL',
-          lat: 27.9659,
-          lng: -82.8001,
+          address: '12810 US Hwy 19 N, Clearwater, FL 33764',
+          lat: 27.8924,
+          lng: -82.7265,
           isDefault: false
         }
       ],
@@ -264,18 +264,56 @@ const seedInitialData = async () => {
       ],
       plan: 'professional'
     });
+
     console.log('✅ PERC organization created');
+  }
+
+  // Keep demo PERC locations current if they already exist
+  let orgTouched = false;
+  if (org?.homeBases?.length) {
+    for (const b of org.homeBases) {
+      if (b.name === 'PERC St. Pete') {
+        if (b.address !== '1523 16th St S, St. Petersburg, FL 33705' || b.lat !== 27.7542 || b.lng !== -82.6537 || b.isDefault) {
+          b.address = '1523 16th St S, St. Petersburg, FL 33705';
+          b.lat = 27.7542;
+          b.lng = -82.6537;
+          b.isDefault = false;
+          orgTouched = true;
+        }
+      }
+      if (b.name === 'PERC Clearwater') {
+        if (b.address !== '12810 US Hwy 19 N, Clearwater, FL 33764' || b.lat !== 27.8924 || b.lng !== -82.7265) {
+          b.address = '12810 US Hwy 19 N, Clearwater, FL 33764';
+          b.lat = 27.8924;
+          b.lng = -82.7265;
+          orgTouched = true;
+        }
+      }
+    }
+  }
+  if (orgTouched) {
+    await org.save();
+    console.log('✅ Updated stored PERC base addresses');
   }
 
   // Create vehicles
   const van1 = await Vehicle.findOne({ organization: org._id, name: 'Van 1' });
   if (!van1) {
     await Vehicle.create([
-      { organization: org._id, name: 'Van 1', make: 'Chevrolet', model: 'Express', capacity: 7, status: 'available' },
-      { organization: org._id, name: 'Van 2', make: 'Chevrolet', model: 'Express', capacity: 7, status: 'available' }
+      { organization: org._id, name: 'Van 1', make: 'Chevrolet', model: 'Express', capacity: 7, status: 'available', baseLocation: { name: 'PERC St. Pete', address: '1523 16th St S, St. Petersburg, FL 33705', lat: 27.7531, lng: -82.6652 } },
+      { organization: org._id, name: 'Van 2', make: 'Chevrolet', model: 'Express', capacity: 7, status: 'available', baseLocation: { name: 'PERC Clearwater', address: '12810 US Hwy 19 N, Clearwater, FL 33764', lat: 27.8898, lng: -82.7275 } }
     ]);
     console.log('✅ Vehicles created');
   }
+
+  await Vehicle.updateMany(
+    { organization: org._id, 'baseLocation.name': 'PERC St. Pete' },
+    { $set: { 'baseLocation.address': '1523 16th St S, St. Petersburg, FL 33705', 'baseLocation.lat': 27.7542, 'baseLocation.lng': -82.6537 } }
+  );
+  await Vehicle.updateMany(
+    { organization: org._id, 'baseLocation.name': 'PERC Clearwater' },
+    { $set: { 'baseLocation.address': '12810 US Hwy 19 N, Clearwater, FL 33764', 'baseLocation.lat': 27.8924, 'baseLocation.lng': -82.7265 } }
+  );
 
   // Create super admin (Rich)
   const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || 'rich@alvarezassociatesfl.com';

@@ -1,12 +1,12 @@
 const mongoose = require('mongoose');
 // Riders are clients/passengers — separate from User accounts
-// riderId is the human-readable unique ID shown in the UI (e.g. PER-0001)
+// riderId is the human-readable unique ID shown in the UI (e.g. RWK-0001)
 // anonymousId is kept for backward-compat with grant reports
 const riderSchema = new mongoose.Schema({
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
 
-  // Human-readable unique ID: first 3 letters of org slug + zero-padded sequence
-  // e.g. PER-0001, ZAK-0003, HOP-0012
+  // Human-readable unique ID: reporting prefix + zero-padded sequence
+  // e.g. RWK-0001, PER-0003
   riderId: { type: String, unique: true, sparse: true },
 
   // Legacy anonymous identifier for grant reporting (kept for existing records, no longer set on new riders)

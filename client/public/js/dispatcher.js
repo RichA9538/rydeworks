@@ -1,5 +1,5 @@
 // ============================================================
-// ZAK TRANSPORT — Dispatcher Dashboard JS
+// RYDEWORKS — Dispatcher Dashboard JS
 // ============================================================
 
 // Auth guard
@@ -10,12 +10,107 @@ if (!ZakAuth.hasRole('dispatcher') && !ZakAuth.hasRole('admin') && !ZakAuth.hasR
 
 const API = '';
 let dispatchMap = null;
+let dashboardMap = null;
 let driverMarkers = {};
 let stopMarkers = [];
 let routeLines = [];
+let dashboardVehicleMarkers = [];
+let dashboardBaseMarkers = [];
 const geocodeCache = {};
 let appData = { drivers: [], vehicles: [], grants: [], partners: [], org: null };
+let currentSelectedRiderState = null;
+
+function getSelectedVehicleBase() {
+  const vehicleId = document.getElementById('tripVehicle')?.value;
+  if (!vehicleId) return null;
+  const v = (appData.vehicles || []).find(x => x._id === vehicleId);
+  return v?.baseLocation || null;
+}
+
+function getPrimaryRiderIndex() {
+  const firstRow = document.querySelector('.rider-row');
+  return firstRow ? firstRow.id.replace('riderRow-', '') : '0';
+}
+
+function showRiderPaymentState(state) {
+  const box = document.getElementById('riderPaymentState');
+  const txt = document.getElementById('riderPaymentStateText');
+  if (!box || !txt) return;
+  if (!state) {
+    box.style.display = 'none';
+    txt.textContent = '';
+    currentSelectedRiderState = null;
+    return;
+  }
+  currentSelectedRiderState = state;
+  const bits = [];
+  bits.push(`Rider ID: ${state.riderId || '—'}`);
+  bits.push(`Payment: ${state.paymentModeLabel || 'Not set'}`);
+  if (state.freeRideActive) bits.push(`Free Ride Active Until: ${state.freeRideExpiresAtLabel}`);
+  else bits.push('Free Ride: None active');
+  if (state.subscriptionStatusLabel) bits.push(`Wallet: ${state.subscriptionStatusLabel}`);
+  box.style.display = 'block';
+  txt.textContent = bits.join(' • ');
+}
+
+function parseDisplayedFare() {
+  const raw = document.getElementById('fareAmount')?.textContent || '';
+  const n = Number(String(raw).replace(/[^0-9.]/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function refreshFareAfterPaymentChange() {
+  const idx = getPrimaryRiderIndex();
+  if (idx == null) return;
+  const destEl = document.getElementById(`riderDest-${idx}`);
+  if (destEl?.value?.trim()) onDestinationBlur(idx);
+}
+
 let riderCount = 0;
+
+function getEasternDateString(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const map = Object.fromEntries(parts.filter(p => p.type !== 'literal').map(p => [p.type, p.value]));
+  return `${map.year}-${map.month}-${map.day}`;
+}
+
+function getEasternNoonISOString(dateStr) {
+  const testDate = new Date(`${dateStr}T12:00:00`);
+  const offset = testDate.toLocaleString('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' }).includes('EDT') ? '-04:00' : '-05:00';
+  return `${dateStr}T12:00:00${offset}`;
+}
+
+function getDerivedTripStatus(trip) {
+  if (!trip) return 'scheduled';
+  if (trip.status === 'canceled' || trip.status === 'completed') return trip.status;
+  const stops = trip.stops || [];
+  if (stops.some(s => s.status === 'aboard')) return 'aboard';
+  if (stops.some(s => s.status === 'arrived')) return 'arrived';
+  if (stops.some(s => s.status === 'en_route')) return 'en_route';
+  if (trip.status === 'in_progress') return 'in_progress';
+  return 'scheduled';
+}
+
+function getVehicleMapState(driver, trip) {
+  const derived = getDerivedTripStatus(trip);
+  if (derived === 'aboard') return { key: 'aboard', label: 'Passenger On Board', color: '#f59e0b' };
+  if (derived === 'arrived' || derived === 'en_route' || derived === 'in_progress') return { key: 'en_route', label: 'En Route', color: '#2563eb' };
+  if (driver?.driverInfo?.isAvailable === false) return { key: 'break', label: 'Break / Unavailable', color: '#6b7280' };
+  return { key: 'available', label: 'Available', color: '#10b981' };
+}
+
+function summarizeTripPath(trip) {
+  const pickups = (trip.stops || []).filter(s => s.type === 'pickup');
+  const dropoffs = (trip.stops || []).filter(s => s.type === 'dropoff');
+  const firstPickup = pickups[0];
+  const lastDropoff = dropoffs[dropoffs.length - 1];
+  return { riderCount: pickups.length, pickupLabel: firstPickup?.address || 'Pickup not set', dropoffLabel: lastDropoff?.address || 'Drop-off not set' };
+}
+
+function formatShortAddress(value) {
+  if (!value) return '—';
+  return String(value).split(',').slice(0, 2).join(',');
+}
 
 // ── INIT ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -37,7 +132,7 @@ function updateDateDisplay() {
   }
   // Set today as default date for trip scheduling
   const tripDateEl = document.getElementById('tripDate');
-  if (tripDateEl) tripDateEl.value = new Date().toISOString().split('T')[0];
+  if (tripDateEl) tripDateEl.value = getEasternDateString();
 }
 
 function hideAdminOnlyIfNeeded() {
@@ -188,17 +283,29 @@ function populateFormDropdowns() {
   }
 }
 
+document.addEventListener('change', (e) => {
+  if (e.target?.id === 'tripVehicle') {
+    const v = (appData.vehicles || []).find(x => x._id === e.target.value);
+    const baseSel = document.getElementById('tripHomeBase');
+    if (baseSel) baseSel.value = v?.baseLocation?.name || '';
+    refreshFareAfterPaymentChange();
+  }
+  if (e.target?.id === 'tripHomeBase') {
+    refreshFareAfterPaymentChange();
+  }
+});
+
 // ── DASHBOARD ─────────────────────────────────────────────
 async function loadDashboard() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getEasternDateString();
   const res = await ZakAuth.apiFetch(`/api/trips?date=${today}`);
   if (!res?.success) return;
 
   const trips = res.trips || [];
-  const active = trips.filter(t => t.status === 'in_progress');
+  const active = trips.filter(t => ['in_progress','en_route','arrived','aboard'].includes(getDerivedTripStatus(t)));
   const completed = trips.filter(t => t.status === 'completed');
-  const totalFare = trips.reduce((sum, t) => sum + (t.payment?.totalFare || 0), 0);
-  const riderCount = trips.reduce((sum, t) => sum + (t.stops?.length || 0), 0);
+  const totalFare = trips.reduce((sum, t) => sum + (Number(t.payment?.actualFare || t.payment?.estimatedFare || 0)), 0);
+  const riderCount = trips.reduce((sum, t) => sum + ((t.stops || []).filter(s => s.type === 'pickup').length || 0), 0);
 
   document.getElementById('stat-today').textContent = trips.length;
   document.getElementById('stat-active').textContent = active.length;
@@ -213,15 +320,19 @@ async function loadDashboard() {
     listEl.innerHTML = trips.map(t => {
       const firstPickup = t.stops?.find(s => s.type === 'pickup');
       const timeStr = firstPickup?.scheduledTime ? formatTime(firstPickup.scheduledTime) : '';
+      const summary = summarizeTripPath(t);
+      const liveStatus = getDerivedTripStatus(t);
       return `
       <div class="trip-row" onclick="viewTrip('${t._id}')">
-        <div class="trip-row-info">
+        <div class="trip-row-info" style="display:grid;gap:4px;">
           <span class="trip-driver"><i class="fas fa-user"></i> ${t.driver?.firstName || 'Unassigned'} ${t.driver?.lastName || ''}</span>
           <span class="trip-vehicle"><i class="fas fa-shuttle-van"></i> ${t.vehicle?.name || 'No vehicle'}</span>
-          <span class="trip-stops"><i class="fas fa-map-pin"></i> ${t.stops?.length || 0} stop(s)</span>
+          <span class="trip-stops"><i class="fas fa-users"></i> ${summary.riderCount} rider${summary.riderCount !== 1 ? 's' : ''}</span>
+          <span class="trip-stops"><i class="fas fa-arrow-up"></i> ${formatShortAddress(summary.pickupLabel)}</span>
+          <span class="trip-stops"><i class="fas fa-arrow-down"></i> ${formatShortAddress(summary.dropoffLabel)}</span>
           ${timeStr ? `<span style="color:var(--green);font-size:13px;"><i class="fas fa-clock"></i> ${timeStr}</span>` : ''}
         </div>
-        <div>${statusBadge(t.status)}</div>
+        <div>${statusBadge(liveStatus)}</div>
       </div>
     `;
     }).join('');
@@ -233,8 +344,17 @@ async function loadDashboard() {
     driverEl.innerHTML = '<div class="empty-state"><i class="fas fa-id-badge"></i><p>No drivers configured</p></div>';
   } else {
     driverEl.innerHTML = appData.drivers.map(d => {
-      const activeTrip = trips.find(t => t.driver?._id === d._id && t.status === 'in_progress');
+      const activeTrip = trips.find(t => t.driver?._id === d._id && ['in_progress','en_route','arrived','aboard'].includes(getDerivedTripStatus(t)));
       const todayTrips = trips.filter(t => t.driver?._id === d._id);
+      const lastCompleted = todayTrips
+        .filter(t => t.status === 'completed' && t.driverLog?.endTime)
+        .sort((a,b) => new Date(b.driverLog.endTime) - new Date(a.driverLog.endTime))[0];
+      const minsSinceDone = lastCompleted?.driverLog?.endTime ? Math.round((Date.now() - new Date(lastCompleted.driverLog.endTime)) / 60000) : null;
+      let statusHtml = '<span class="badge badge-pending"><span class="stop-light gray"></span> No Trips</span>';
+      if (activeTrip) { const mapState = getVehicleMapState(d, activeTrip); statusHtml = `<span class="badge badge-in_progress"><span class="stop-light ${mapState.key === 'aboard' ? 'orange' : 'blue'}"></span> ${mapState.label}</span>`; }
+      else if (todayTrips.length > 0 && d.driverInfo?.isAvailable === false && minsSinceDone !== null && minsSinceDone > 30) statusHtml = '<span class="badge badge-pending"><span class="stop-light gray"></span> Check In</span>';
+      else if (todayTrips.length > 0 && d.driverInfo?.isAvailable === false) statusHtml = '<span class="badge badge-pending"><span class="stop-light gray"></span> Unavailable</span>';
+      else if (todayTrips.length > 0) statusHtml = '<span class="badge badge-completed"><span class="stop-light green"></span> Available</span>';
       return `
         <div class="driver-status-row">
           <div class="user-avatar" style="width:36px;height:36px;font-size:13px;background:var(--green);color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
@@ -244,18 +364,14 @@ async function loadDashboard() {
             <div style="font-weight:600;font-size:14px;">${d.firstName} ${d.lastName}</div>
             <div style="font-size:12px;color:var(--gray-500);">${d.driverInfo?.vehicleAssigned?.name || 'No vehicle assigned'}</div>
           </div>
-          <div>
-            ${activeTrip
-              ? '<span class="badge badge-in_progress"><span class="stop-light yellow"></span> On Route</span>'
-              : todayTrips.length > 0
-                ? '<span class="badge badge-completed"><span class="stop-light green"></span> Available</span>'
-                : '<span class="badge badge-pending"><span class="stop-light gray"></span> No Trips</span>'
-            }
-          </div>
+          <div>${statusHtml}</div>
         </div>
       `;
     }).join('');
   }
+
+  initDashboardMap();
+  loadMapTrips();
 }
 
 async function refreshActiveTrips() {
@@ -366,29 +482,33 @@ async function onRiderSelect(idx) {
   const val = sel?.value;
 
   if (val === 'new') {
+    showRiderPaymentState(null);
     openAddRiderModal();
     return;
   }
 
-  if (!val) return;
+  if (!val) {
+    showRiderPaymentState(null);
+    return;
+  }
 
-  // Fetch the latest rider record directly so we always have current data
   const res = await ZakAuth.apiFetch(`/api/trips/riders/${val}`);
   if (!res?.success) return;
   const r = res.rider;
 
-  // Auto-fill pickup address with rider's home address
   const pickupEl = document.getElementById(`riderPickup-${idx}`);
   if (pickupEl && r.homeAddress) {
     pickupEl.value = r.homeAddress;
     saveAddressToMemory(r.homeAddress);
   }
 
-  // Auto-fill rider notes if the notes field is empty
   const notesEl = document.getElementById(`riderNoteInline-${idx}`);
   if (notesEl && !notesEl.value && r.notes) {
     notesEl.value = r.notes;
   }
+
+  showRiderPaymentState(res.paymentState || null);
+  refreshFareAfterPaymentChange();
 }
 
 function removeRiderRow(idx) {
@@ -411,18 +531,15 @@ function onPaymentTypeChange() {
   document.getElementById('grantSelectGroup').style.display  = type === 'grant'     ? 'block' : 'none';
   document.getElementById('partnerSelectGroup').style.display= type === 'partner'   ? 'block' : 'none';
   document.getElementById('freeRideGroup').style.display     = type === 'free_ride' ? 'block' : 'none';
-  // When free ride code is selected, always force fare to $0.00
   if (type === 'free_ride') {
     document.getElementById('fareAmount').textContent = '$0.00';
     document.getElementById('fareZone').textContent   = 'Free Ride';
     document.getElementById('fareDisplay').style.borderColor = '#28a745';
     document.getElementById('fareDisplay').style.color       = '#155724';
   } else {
-    // Reset fare display styling for non-free-ride payment types
     document.getElementById('fareDisplay').style.borderColor = '';
     document.getElementById('fareDisplay').style.color       = '';
-    document.getElementById('fareAmount').textContent = '$0.00';
-    document.getElementById('fareZone').textContent   = '';
+    refreshFareAfterPaymentChange();
   }
 }
 
@@ -440,17 +557,15 @@ async function onDestinationBlur(idx) {
   const destEl = document.getElementById(`riderDest-${idx}`);
   const dest   = destEl?.value?.trim();
   if (!dest || dest.length < 5) return;
-  // Use selected home base or fall back to the default one
   let homeBaseName = document.getElementById('tripHomeBase')?.value;
   if (!homeBaseName) {
-    const defaultBase = appData.org?.homeBases?.find(b => b.isDefault) || appData.org?.homeBases?.[0];
-    homeBaseName = defaultBase?.name || '';
-    // Auto-select it in the dropdown
+    const vehicleBase = getSelectedVehicleBase();
+    homeBaseName = vehicleBase?.name || '';
     const baseSel = document.getElementById('tripHomeBase');
     if (baseSel && homeBaseName) baseSel.value = homeBaseName;
   }
-  if (!homeBaseName) {
-    document.getElementById('fareAmount').textContent = 'Set home base first';
+  if (!homeBaseName && !(document.getElementById(`riderPickup-${idx}`)?.value?.trim())) {
+    document.getElementById('fareAmount').textContent = 'Set vehicle base or pickup';
     return;
   }
   const tripType = document.getElementById(`riderTripType-${idx}`)?.value || 'round_trip';
@@ -653,13 +768,13 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
     }
 
     // Payment
-    const payment = { type: paymentType };
+    const payment = { type: paymentType, estimatedFare: parseDisplayedFare() };
     if (paymentType === 'grant')     payment.grantId   = document.getElementById('grantSelect')?.value;
     if (paymentType === 'partner')   payment.partnerId = document.getElementById('partnerSelect')?.value;
     if (paymentType === 'free_ride') payment.freeRideCode = document.getElementById('freeRideCode')?.value;
 
     const body = {
-      tripDate: new Date(tripDate).toISOString(),
+      tripDate: getEasternNoonISOString(tripDate),
       driver, vehicle, homeBase, notes,
       stops, payment
     };
@@ -705,7 +820,7 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
       }
       if (hasReturnTrip && returnTripStops.length > 0) {
         const returnBody = {
-          tripDate: new Date(tripDate).toISOString(),
+          tripDate: getEasternNoonISOString(tripDate),
           driver, vehicle, homeBase,
           notes: `[RETURN TRIP] ${notes || ''}`.trim(),
           stops: returnTripStops,
@@ -868,7 +983,7 @@ async function loadTrips() {
       <td>${t.driver?.firstName || '—'} ${t.driver?.lastName || ''}</td>
       <td>${t.vehicle?.name || '—'}</td>
       <td>${riderCount} rider${riderCount !== 1 ? 's' : ''}${isReturn ? ' <span style="font-size:10px;background:#e3f2fd;color:#1565c0;padding:1px 5px;border-radius:4px;font-weight:600;">RETURN</span>' : ''}</td>
-      <td>${statusBadge(t.status)}</td>
+      <td>${statusBadge(getDerivedTripStatus(t))}</td>
       <td>${t.payment?.estimatedFare ? '$' + t.payment.estimatedFare.toFixed(2) : '—'}</td>
       <td>
         <button class="btn btn-sm btn-secondary" onclick="viewTrip('${t._id}')"><i class="fas fa-eye"></i></button>
@@ -887,13 +1002,13 @@ async function viewTrip(tripId) {
   body.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
       <div><strong>Date:</strong> ${formatDate(t.tripDate)}</div>
-      <div><strong>Status:</strong> ${statusBadge(t.status)}</div>
+      <div><strong>Status:</strong> ${statusBadge(getDerivedTripStatus(t))}</div>
       <div><strong>Driver:</strong> ${t.driver?.firstName || '—'} ${t.driver?.lastName || ''}</div>
       <div><strong>Vehicle:</strong> ${t.vehicle?.name || '—'}</div>
       <div><strong>Home Base:</strong> ${t.homeBase || '—'}</div>
       <div><strong>Payment:</strong> ${t.payment?.type || '—'}</div>
     </div>
-    <h4 style="margin-bottom:12px;color:var(--green);">Stops</h4>
+    <h4 style="margin-bottom:12px;color:var(--green);">Pickup & Drop-off Timeline</h4>
     ${(t.stops || []).map((s, i) => `
       <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;padding:14px;margin-bottom:10px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -1149,68 +1264,91 @@ async function geocodeForMap(address) {
 }
 
 async function loadMapTrips() {
-  if (!dispatchMap) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = getEasternDateString();
   const res = await ZakAuth.apiFetch(`/api/trips?date=${today}`);
   if (!res?.success) return;
 
-  // Clear old markers and route lines
-  Object.values(driverMarkers).forEach(m => dispatchMap.removeLayer(m));
-  driverMarkers = {};
-  stopMarkers.forEach(m => dispatchMap.removeLayer(m));
-  stopMarkers = [];
-  routeLines.forEach(l => dispatchMap.removeLayer(l));
-  routeLines = [];
+  const trips = res.trips || [];
 
-  for (const trip of res.trips) {
+  if (dispatchMap) {
+    Object.values(driverMarkers).forEach(m => dispatchMap.removeLayer(m));
+    driverMarkers = {};
+    stopMarkers.forEach(m => dispatchMap.removeLayer(m));
+    stopMarkers = [];
+    routeLines.forEach(l => dispatchMap.removeLayer(l));
+    routeLines = [];
+  }
+  if (dashboardMap) {
+    dashboardVehicleMarkers.forEach(m => dashboardMap.removeLayer(m));
+    dashboardVehicleMarkers = [];
+  }
+
+  const bounds = [];
+  for (const trip of trips) {
     if (!trip.driver) continue;
-
-    // Driver van marker (live GPS location)
     const loc = trip.driver.driverInfo?.currentLocation;
+    const mapState = getVehicleMapState(trip.driver, trip);
     if (loc?.lat && loc?.lng) {
-      const vanIcon = trip.status === 'in_progress' ? '🚐' : '🚌';
-      const marker = L.marker([loc.lat, loc.lng], {
-        icon: L.divIcon({
-          className: '',
-          html: `<div style="background:var(--gold);color:var(--gray-900);padding:6px 10px;border-radius:8px;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.3);">${vanIcon} ${trip.driver.firstName}</div>`,
-          iconAnchor: [0, 0]
-        })
-      }).addTo(dispatchMap);
-      const nextStop = (trip.stops || []).find(s => s.status === 'pending' || s.status === 'en_route');
-      marker.bindPopup(`<strong>${trip.driver.firstName} ${trip.driver.lastName}</strong><br>Vehicle: ${trip.vehicle?.name || '—'}<br>Status: ${trip.status}${nextStop ? '<br>Next stop: ' + nextStop.address : ''}`);
-      driverMarkers[trip._id] = marker;
+      const popupHtml = `<strong>${trip.driver.firstName} ${trip.driver.lastName}</strong><br>Vehicle: ${trip.vehicle?.name || '—'}<br>Status: ${mapState.label}`;
+      if (dispatchMap) {
+        const marker = L.marker([loc.lat, loc.lng], {
+          icon: L.divIcon({ className: '', html: `<div style="background:${mapState.color};color:white;padding:6px 10px;border-radius:8px;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.3);white-space:nowrap;">🚐 ${trip.vehicle?.name || trip.driver.firstName}</div>`, iconAnchor: [0,0] })
+        }).addTo(dispatchMap);
+        marker.bindPopup(popupHtml);
+        driverMarkers[trip._id] = marker;
+      }
+      if (dashboardMap) {
+        const dot = L.circleMarker([loc.lat, loc.lng], { radius: 8, color: mapState.color, fillColor: mapState.color, fillOpacity: 0.95, weight: 2 }).addTo(dashboardMap);
+        dot.bindPopup(popupHtml);
+        dashboardVehicleMarkers.push(dot);
+      }
+      bounds.push([loc.lat, loc.lng]);
     }
 
-    // Geocode stops and show markers + route line
-    const stopCoords = [];
-    for (const stop of (trip.stops || [])) {
-      let coords = (stop.lat && stop.lng) ? { lat: stop.lat, lng: stop.lng } : await geocodeForMap(stop.address);
-      if (!coords) continue;
-      stopCoords.push(coords);
-      const isPickup = stop.type === 'pickup';
-      const isDone = ['completed', 'no_show', 'canceled'].includes(stop.status);
-      const bgColor = isDone ? '#aaa' : isPickup ? '#27ae60' : '#e74c3c';
-      const icon = isPickup ? '⬆' : '⬇';
-      const sm = L.marker([coords.lat, coords.lng], {
-        icon: L.divIcon({
-          className: '',
-          html: `<div style="background:${bgColor};color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid white;">${icon}</div>`,
-          iconSize: [28, 28],
-          iconAnchor: [14, 14]
-        })
-      }).addTo(dispatchMap);
-      const riderName = stop.riderName || (stop.riderId ? (stop.riderId.firstName + ' ' + stop.riderId.lastName) : 'Rider');
-      sm.bindPopup(`<strong>${isPickup ? 'Pickup' : 'Drop-off'}</strong><br>${riderName}<br>${stop.address}<br>Status: ${stop.status}`);
-      stopMarkers.push(sm);
-    }
-
-    // Draw dashed route line connecting stops in order
-    if (stopCoords.length >= 2) {
-      const latlngs = stopCoords.map(c => [c.lat, c.lng]);
-      const line = L.polyline(latlngs, { color: '#3498db', weight: 3, opacity: 0.7, dashArray: '8,6' }).addTo(dispatchMap);
-      routeLines.push(line);
+    if (dispatchMap) {
+      const stopCoords = [];
+      for (const stop of (trip.stops || [])) {
+        const coords = (stop.lat && stop.lng) ? { lat: stop.lat, lng: stop.lng } : await geocodeForMap(stop.address);
+        if (!coords) continue;
+        stopCoords.push(coords);
+        bounds.push([coords.lat, coords.lng]);
+        const isPickup = stop.type === 'pickup';
+        const isDone = ['completed','no_show','canceled'].includes(stop.status);
+        const bgColor = isDone ? '#9ca3af' : isPickup ? '#10b981' : '#ef4444';
+        const icon = isPickup ? '⬆' : '⬇';
+        const sm = L.marker([coords.lat, coords.lng], {
+          icon: L.divIcon({ className: '', html: `<div style="background:${bgColor};color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid white;">${icon}</div>`, iconSize: [28,28], iconAnchor: [14,14] })
+        }).addTo(dispatchMap);
+        const riderName = stop.riderName || (stop.riderId ? (stop.riderId.firstName + ' ' + stop.riderId.lastName) : 'Rider');
+        sm.bindPopup(`<strong>${isPickup ? 'Pickup' : 'Drop-off'}</strong><br>${riderName}<br>${stop.address}<br>Status: ${stop.status}`);
+        stopMarkers.push(sm);
+      }
+      if (stopCoords.length >= 2) {
+        const latlngs = stopCoords.map(c => [c.lat, c.lng]);
+        const line = L.polyline(latlngs, { color: '#0ea5e9', weight: 3, opacity: 0.75, dashArray: '8,6' }).addTo(dispatchMap);
+        routeLines.push(line);
+      }
     }
   }
+
+  if (dispatchMap && bounds.length) dispatchMap.fitBounds(bounds, { padding: [24,24], maxZoom: 12 });
+  if (dashboardMap && bounds.length) dashboardMap.fitBounds(bounds, { padding: [18,18], maxZoom: 11 });
+}
+
+function initDashboardMap() {
+  if (dashboardMap || !document.getElementById('dashboardMap')) return;
+  dashboardMap = L.map('dashboardMap', { zoomControl: false, attributionControl: false }).setView([27.7731, -82.6398], 10);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(dashboardMap);
+  if (appData.org?.homeBases) {
+    appData.org.homeBases.forEach(base => {
+      if (base.lat && base.lng) {
+        const marker = L.circleMarker([base.lat, base.lng], { radius: 6, color: '#14b8a6', fillColor: '#14b8a6', fillOpacity: 1, weight: 2 }).addTo(dashboardMap);
+        marker.bindPopup(`<strong>${base.name}</strong><br>${base.address || ''}`);
+        dashboardBaseMarkers.push(marker);
+      }
+    });
+  }
+  loadMapTrips();
 }
 
 // ── RIDERS ────────────────────────────────────────────────
@@ -1488,7 +1626,7 @@ async function generateCodes() {
   const riderSel = document.getElementById('codeRider');
   if (riderSel) {
     riderSel.innerHTML = '<option value="">— Unassigned —</option>';
-    const ridersRes = await ZakAuth.apiFetch('/api/riders');
+    const ridersRes = await ZakAuth.apiFetch('/api/trips/riders');
     if (ridersRes?.success) {
       ridersRes.riders.forEach(r => {
         const opt = document.createElement('option');
@@ -1896,16 +2034,76 @@ async function saveVehicle() {
 }
 
 // ── REPORTS ───────────────────────────────────────────────
-function generateReport(type) {
-  showToast(`Generating ${type} report... (coming soon)`, 'success');
+async function generateReport(type) {
+  try {
+    const today = getEasternDateString();
+    const monthStart = `${today.slice(0,7)}-01`;
+    const res = await ZakAuth.apiFetch(`/api/trips?dateFrom=${monthStart}&dateTo=${today}`);
+    if (!res?.success) {
+      showToast(res?.error || 'Could not generate report.', 'error');
+      return;
+    }
+    const trips = res.trips || [];
+    let rows = [];
+    let filename = `rydeworks-${type}-report-${today}.csv`;
+    if (type === 'trips') {
+      rows = [['Trip #','Date','Driver','Vehicle','Status','Stops','Estimated Fare']].concat(trips.map(t => [
+        t.tripNumber || '',
+        formatDate(t.tripDate),
+        `${t.driver?.firstName || 'Unassigned'} ${t.driver?.lastName || ''}`.trim(),
+        t.vehicle?.name || '',
+        t.status || '',
+        t.stops?.length || 0,
+        Number(t.payment?.estimatedFare || t.payment?.actualFare || 0).toFixed(2)
+      ]));
+    } else if (type === 'driver') {
+      const map = new Map();
+      trips.forEach(t => {
+        const key = t.driver?._id || 'unassigned';
+        const name = `${t.driver?.firstName || 'Unassigned'} ${t.driver?.lastName || ''}`.trim();
+        const item = map.get(key) || { name, trips: 0, riders: 0, revenue: 0 };
+        item.trips += 1;
+        item.riders += (t.stops || []).filter(s => s.type === 'pickup').length;
+        item.revenue += Number(t.payment?.actualFare || t.payment?.estimatedFare || 0);
+        map.set(key, item);
+      });
+      rows = [['Driver','Trips','Riders','Revenue']].concat([...map.values()].map(v => [v.name, v.trips, v.riders, v.revenue.toFixed(2)]));
+    } else if (type === 'revenue') {
+      rows = [['Date','Trip #','Payment Type','Status','Amount']].concat(trips.map(t => [formatDate(t.tripDate), t.tripNumber || '', t.payment?.type || 'none', t.status || '', Number(t.payment?.actualFare || t.payment?.estimatedFare || 0).toFixed(2)]));
+    } else {
+      const riderCounts = new Map();
+      trips.forEach(t => (t.stops || []).forEach(s => {
+        if (s.type !== 'pickup') return;
+        const riderKey = s.riderId?._id || s.riderId || `${t.tripNumber}-${s.stopOrder}`;
+        const anon = `RID-${String(riderCounts.size + 1).padStart(4, '0')}`;
+        riderCounts.set(riderKey, anon);
+      }));
+      rows = [['Metric','Value'],['Trips', trips.length],['Completed Trips', trips.filter(t => t.status === 'completed').length],['Canceled Trips', trips.filter(t => t.status === 'canceled').length],['Unique Riders', riderCounts.size],['Estimated Revenue', trips.reduce((sum,t)=>sum + Number(t.payment?.actualFare || t.payment?.estimatedFare || 0),0).toFixed(2)]];
+      filename = `rydeworks-grant-summary-${today}.csv`;
+    }
+    const csv = rows.map(row => row.map(v => `"${String(v ?? '').replaceAll('"','""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast('Report downloaded.', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('Could not generate report.', 'error');
+  }
 }
 
 // ── HELPERS ───────────────────────────────────────────────
 function statusBadge(status) {
   const labels = {
     scheduled: 'Scheduled', in_progress: 'In Progress', completed: 'Completed',
-    canceled: 'Canceled', pending: 'Pending', en_route: 'En Route',
-    aboard: 'Aboard', no_show: 'No Show', available: 'Available',
+    canceled: 'Canceled', pending: 'Pending', en_route: 'En Route', arrived: 'Arrived',
+    aboard: 'Passenger On Board', no_show: 'No Show', available: 'Available',
     used: 'Used', expired: 'Expired', revoked: 'Revoked'
   };
   return `<span class="badge badge-${status}">${labels[status] || status}</span>`;
@@ -2168,6 +2366,8 @@ function editVehicle(vehicleId) {
   document.getElementById('editVehYear').value     = v.year || '';
   document.getElementById('editVehCapacity').value = v.capacity || 7;
   document.getElementById('editVehStatus').value   = v.status || 'available';
+  document.getElementById('editVehBaseAddress').value = v.baseLocation?.address || '';
+  document.getElementById('editVehBaseName').value = v.baseLocation?.name || '';
   openModal('editVehicleModal');
 }
 
@@ -2180,10 +2380,12 @@ async function saveEditVehicle() {
   const year     = parseInt(document.getElementById('editVehYear').value) || null;
   const capacity = parseInt(document.getElementById('editVehCapacity').value) || 7;
   const status   = document.getElementById('editVehStatus').value;
+  const baseAddress = document.getElementById('editVehBaseAddress').value.trim();
+  const baseName = document.getElementById('editVehBaseName').value.trim();
   if (!name) { showToast('Vehicle name is required.', 'error'); return; }
   const res = await ZakAuth.apiFetch(`/api/admin/vehicles/${id}`, {
     method: 'PUT',
-    body: JSON.stringify({ name, licensePlate: plate, make, model, year, capacity, status })
+    body: JSON.stringify({ name, licensePlate: plate, make, model, year, capacity, status, baseLocation: baseAddress ? { address: baseAddress, name: baseName || name + ' Base' } : null })
   });
   if (res?.success) {
     showToast('Vehicle updated!', 'success');
