@@ -7,11 +7,19 @@ import router from "./routes/index.js";
 
 const app: Express = express();
 
-// Connect to MongoDB
-connectMongoDB().catch((err) => {
-  console.error('Failed to connect to MongoDB:', err.message);
-  process.exit(1);
-});
+// Connect to MongoDB with retry — never exit the process on connection failure
+// so the HTTP healthcheck always has a chance to respond.
+(function startMongo(attempt = 1) {
+  connectMongoDB()
+    .then(() => console.log('✅ MongoDB ready'))
+    .catch((err) => {
+      const delay = Math.min(5000 * attempt, 30000);
+      console.error(
+        `⚠️  MongoDB connection attempt ${attempt} failed: ${err.message}. Retrying in ${delay / 1000}s…`
+      );
+      setTimeout(() => startMongo(attempt + 1), delay);
+    });
+})();
 
 const allowedOrigins = [
   'https://rydeworks.com',
