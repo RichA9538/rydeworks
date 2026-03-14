@@ -3,1225 +3,532 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Rydeworks — Dispatch. Simplified.</title>
-  <meta name="description" content="Rydeworks is dispatch software built for nonprofits and social service organizations. Manage rides, drivers, and riders — all in one place." />
-  <meta property="og:title" content="Rydeworks — Dispatch. Simplified." />
-  <meta property="og:description" content="Dispatch software built for nonprofits. Manage rides, drivers, and riders — all in one place." />
-  <meta property="og:image" content="https://d2xsxph8kpxj0f.cloudfront.net/310519663333346691/kBjZ5CbguNth9oC5Zrke9i/rydeworks-logo-full-gxPiBaUPXC7ixFR4k6eJix.png" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230A1628'/><polygon points='20,20 40,20 70,50 40,80 20,80 50,50' fill='%2300B4AA'/><polygon points='35,20 55,20 85,50 55,80 35,80 65,50' fill='%2300D4C8'/></svg>" />
+  <title>RydeWorks — Nonprofit Transport, Beautifully Solved</title>
+  <meta name="description" content="RydeWorks is dispatch software built for nonprofits. Manage rides, drivers, and riders — route optimization, flexible payments, real-time tracking. Built for impact." />
+  <meta property="og:title" content="RydeWorks — Nonprofit Transport, Beautifully Solved" />
+  <meta property="og:description" content="A complete dispatch platform for organizations managing fleets, drivers, and riders." />
+  <meta property="og:image" content="/img/logo-mark.png" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230A1628'/><polygon points='20,18 42,18 70,50 42,82 20,82 50,50' fill='%2300B4AA'/><polygon points='36,18 58,18 86,50 58,82 36,82 66,50' fill='%2300D4C8'/></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --navy: #0A1628;
-      --navy-mid: #0F2040;
-      --navy-light: #162B52;
-      --teal: #00D4C8;
-      --teal-dark: #00B4AA;
-      --teal-light: #4AEAE0;
-      --white: #FFFFFF;
-      --gray-100: #F0F4F8;
-      --gray-200: #E2E8F0;
-      --gray-500: #718096;
-      --gray-700: #2D3748;
+      --bg:          hsl(224, 71%, 4%);
+      --bg-card:     rgba(255,255,255,0.04);
+      --primary:     hsl(173, 100%, 41%);
+      --primary-dim: hsla(173, 100%, 41%, 0.15);
+      --primary-glow:hsla(173, 100%, 41%, 0.25);
+      --muted:       hsla(210,40%,98%,0.45);
+      --white:       hsl(210,40%,98%);
+      --border:      rgba(255,255,255,0.10);
+      --radius-xl:   1.5rem;
     }
 
     html { scroll-behavior: smooth; }
 
     body {
-      font-family: 'Inter', sans-serif;
-      background: var(--white);
-      color: var(--gray-700);
+      background: var(--bg);
+      color: var(--white);
+      font-family: 'DM Sans', sans-serif;
       line-height: 1.6;
+      overflow-x: hidden;
     }
+
+    .font-display { font-family: 'Outfit', sans-serif; }
 
     /* ── NAV ── */
     nav {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 100;
-      background: rgba(10, 22, 40, 0.95);
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid rgba(0, 212, 200, 0.15);
-      padding: 0 5%;
-      height: 70px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+      background: hsla(224, 71%, 4%, 0.70);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-bottom: 1px solid var(--border);
+      height: 80px; display: flex; align-items: center;
     }
-
-    .nav-logo {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      text-decoration: none;
+    .nav-inner {
+      max-width: 1280px; margin: 0 auto; padding: 0 24px;
+      width: 100%; display: flex; align-items: center; justify-content: space-between;
     }
-
-    .nav-logo-icon {
-      width: 36px;
-      height: 36px;
+    .nav-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+    .nav-brand img { width: 32px; height: 32px; object-fit: contain; }
+    .nav-brand span {
+      font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.375rem;
+      letter-spacing: -0.5px; color: var(--white);
     }
-
-    .nav-logo-text {
-      font-family: 'Montserrat', sans-serif;
-      font-weight: 700;
-      font-size: 1.3rem;
-      color: var(--white);
-      letter-spacing: -0.5px;
-    }
-
-    .nav-logo-text span { color: var(--teal); }
-
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 32px;
-      list-style: none;
-    }
-
+    .nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
     .nav-links a {
-      color: rgba(255,255,255,0.75);
-      text-decoration: none;
-      font-size: 0.9rem;
-      font-weight: 500;
-      transition: color 0.2s;
+      font-size: 0.875rem; font-weight: 500; color: var(--muted);
+      text-decoration: none; transition: color 0.2s;
     }
-
-    .nav-links a:hover { color: var(--teal); }
-
-    .nav-cta {
-      background: var(--teal);
-      color: var(--navy) !important;
-      padding: 8px 20px;
-      border-radius: 6px;
-      font-weight: 700 !important;
-      transition: background 0.2s, transform 0.1s !important;
+    .nav-links a:hover { color: var(--white); }
+    .nav-actions { display: flex; align-items: center; gap: 12px; }
+    .btn-ghost {
+      font-size: 0.875rem; font-weight: 500; color: var(--muted);
+      text-decoration: none; transition: color 0.2s; display: none;
     }
-
-    .nav-cta:hover {
-      background: var(--teal-light) !important;
-      transform: translateY(-1px);
+    .btn-ghost:hover { color: var(--white); }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--primary); color: hsl(224,71%,4%);
+      font-weight: 600; font-size: 0.875rem; border-radius: 999px;
+      padding: 8px 20px; text-decoration: none; border: none; cursor: pointer;
+      box-shadow: 0 8px 24px var(--primary-glow);
+      transition: opacity 0.2s, transform 0.2s;
     }
+    .btn-primary:hover { opacity: 0.92; transform: translateY(-1px); }
 
     /* ── HERO ── */
     .hero {
-      min-height: 100vh;
-      background: var(--navy);
-      display: flex;
-      align-items: center;
-      padding: 100px 5% 80px;
-      position: relative;
-      overflow: hidden;
+      position: relative; padding: 160px 24px 96px; text-align: center;
+      overflow: hidden; min-height: 90vh; display: flex; align-items: center;
     }
-
-    .hero::before {
-      content: '';
-      position: absolute;
-      top: -200px; right: -200px;
-      width: 700px; height: 700px;
-      background: radial-gradient(circle, rgba(0,212,200,0.08) 0%, transparent 70%);
-      pointer-events: none;
+    .hero-bg {
+      position: absolute; inset: 0; z-index: 0;
     }
-
-    .hero::after {
-      content: '';
-      position: absolute;
-      bottom: -100px; left: -100px;
-      width: 500px; height: 500px;
-      background: radial-gradient(circle, rgba(0,180,170,0.06) 0%, transparent 70%);
-      pointer-events: none;
+    .hero-bg img {
+      width: 100%; height: 100%; object-fit: cover;
+      opacity: 0.45; mix-blend-mode: screen;
     }
-
-    .hero-inner {
-      max-width: 1200px;
-      margin: 0 auto;
-      width: 100%;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 80px;
-      align-items: center;
+    .hero-bg-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to bottom, hsla(224,71%,4%,0.3) 0%, hsla(224,71%,4%,0.7) 60%, hsl(224,71%,4%) 100%);
     }
-
+    .hero-glow {
+      position: absolute; top: 25%; left: 50%; transform: translateX(-50%);
+      width: 800px; height: 400px;
+      background: var(--primary-dim); border-radius: 9999px;
+      filter: blur(120px); pointer-events: none; z-index: 1;
+    }
+    .hero-content {
+      position: relative; z-index: 2;
+      max-width: 1280px; margin: 0 auto; width: 100%;
+    }
     .hero-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(0,212,200,0.1);
-      border: 1px solid rgba(0,212,200,0.3);
-      color: var(--teal);
-      font-size: 0.8rem;
-      font-weight: 600;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      padding: 6px 14px;
-      border-radius: 100px;
-      margin-bottom: 24px;
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 4px 14px; border-radius: 999px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10);
+      color: var(--primary); font-size: 0.875rem; font-weight: 500; margin-bottom: 32px;
     }
-
-    .hero-badge::before {
-      content: '';
-      width: 6px; height: 6px;
-      background: var(--teal);
-      border-radius: 50%;
+    .hero-badge-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--primary);
       animation: pulse 2s infinite;
     }
-
     @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(1.3); }
+      0%,100% { opacity: 1; } 50% { opacity: 0.4; }
     }
-
     .hero h1 {
-      font-family: 'Montserrat', sans-serif;
-      font-size: clamp(2.2rem, 4vw, 3.4rem);
-      font-weight: 800;
-      color: var(--white);
-      line-height: 1.15;
-      margin-bottom: 24px;
-      letter-spacing: -1px;
+      font-family: 'Outfit', sans-serif; font-weight: 700;
+      font-size: clamp(2.5rem, 8vw, 5.5rem);
+      line-height: 1.05; letter-spacing: -1px;
+      color: var(--white); max-width: 900px; margin: 0 auto;
     }
-
-    .hero h1 span { color: var(--teal); }
-
+    .hero h1 .gradient-text {
+      background: linear-gradient(90deg, var(--primary), hsl(173,70%,70%), hsl(210,80%,65%));
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
+    }
     .hero p {
-      font-size: 1.15rem;
-      color: rgba(255,255,255,0.7);
-      margin-bottom: 40px;
-      line-height: 1.7;
-      max-width: 480px;
+      margin-top: 28px; font-size: 1.2rem; color: var(--muted);
+      max-width: 640px; margin-left: auto; margin-right: auto; margin-top: 28px;
     }
-
-    .hero-actions {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
+    .hero-ctas {
+      margin-top: 48px; display: flex; flex-wrap: wrap;
+      align-items: center; justify-content: center; gap: 16px;
     }
-
-    .btn-primary {
-      background: var(--teal);
-      color: var(--navy);
-      padding: 14px 32px;
-      border-radius: 8px;
-      font-weight: 700;
-      font-size: 1rem;
-      text-decoration: none;
-      transition: all 0.2s;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
+    .btn-hero-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--primary); color: hsl(224,71%,4%);
+      font-family: 'Outfit', sans-serif; font-weight: 700;
+      font-size: 1rem; border-radius: 999px; padding: 14px 32px;
+      text-decoration: none; border: none; cursor: pointer;
+      box-shadow: 0 12px 32px var(--primary-glow);
+      transition: opacity 0.2s, transform 0.2s; min-width: 220px; justify-content: center;
     }
-
-    .btn-primary:hover {
-      background: var(--teal-light);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(0,212,200,0.3);
+    .btn-hero-primary:hover { opacity: 0.92; transform: translateY(-2px); }
+    .btn-hero-outline {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15);
+      color: var(--white); font-family: 'Outfit', sans-serif; font-weight: 600;
+      font-size: 1rem; border-radius: 999px; padding: 14px 32px;
+      text-decoration: none; cursor: pointer;
+      transition: background 0.2s, transform 0.2s; min-width: 220px; justify-content: center;
     }
+    .btn-hero-outline:hover { background: rgba(255,255,255,0.10); transform: translateY(-2px); }
 
-    .btn-secondary {
-      background: transparent;
-      color: var(--white);
-      padding: 14px 32px;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 1rem;
-      text-decoration: none;
-      border: 1px solid rgba(255,255,255,0.25);
-      transition: all 0.2s;
+    /* Social proof */
+    .social-proof {
+      margin-top: 64px; display: flex; flex-wrap: wrap;
+      align-items: center; justify-content: center; gap: 24px;
+      font-size: 0.875rem; color: var(--muted);
     }
-
-    .btn-secondary:hover {
-      border-color: var(--teal);
-      color: var(--teal);
+    .avatars { display: flex; align-items: center; }
+    .avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      border: 2px solid var(--bg); display: flex; align-items: center;
+      justify-content: center; font-weight: 700; font-size: 0.7rem; color: white;
+      margin-left: -8px;
     }
+    .avatar:first-child { margin-left: 0; }
+    .divider-v { width: 1px; height: 16px; background: rgba(255,255,255,0.10); }
+    .stars { display: flex; align-items: center; gap: 2px; }
+    .star { color: #f59e0b; font-size: 16px; }
 
-    .hero-visual {
-      position: relative;
+    /* ── SECTIONS ── */
+    section { padding: 112px 24px; position: relative; z-index: 2; }
+    .section-inner { max-width: 1280px; margin: 0 auto; }
+    .section-header { text-align: center; margin-bottom: 64px; }
+    .section-header h2 {
+      font-family: 'Outfit', sans-serif; font-weight: 700;
+      font-size: clamp(2rem, 5vw, 3.25rem); color: var(--white); margin-bottom: 16px;
     }
+    .section-header p { color: var(--muted); font-size: 1.1rem; max-width: 480px; margin: 0 auto; }
 
-    .hero-mockup {
-      background: var(--navy-mid);
-      border: 1px solid rgba(0,212,200,0.2);
-      border-radius: 16px;
-      padding: 24px;
-      box-shadow: 0 40px 80px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,212,200,0.1);
-    }
-
-    .mockup-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-    }
-
-    .mockup-dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-    }
-
-    .mockup-title {
-      color: rgba(255,255,255,0.5);
-      font-size: 0.8rem;
-      margin-left: 8px;
-    }
-
-    .mockup-stat-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin-bottom: 20px;
-    }
-
-    .mockup-stat {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 10px;
-      padding: 14px;
-      text-align: center;
-    }
-
-    .mockup-stat-num {
-      font-family: 'Montserrat', sans-serif;
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--teal);
-    }
-
-    .mockup-stat-label {
-      font-size: 0.7rem;
-      color: rgba(255,255,255,0.4);
-      margin-top: 2px;
-    }
-
-    .mockup-trip-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      margin-bottom: 8px;
-      background: rgba(255,255,255,0.03);
-    }
-
-    .mockup-trip-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    .mockup-trip-info { flex: 1; }
-
-    .mockup-trip-name {
-      font-size: 0.8rem;
-      color: rgba(255,255,255,0.8);
-      font-weight: 500;
-    }
-
-    .mockup-trip-addr {
-      font-size: 0.7rem;
-      color: rgba(255,255,255,0.35);
-    }
-
-    .mockup-trip-badge {
-      font-size: 0.65rem;
-      font-weight: 600;
-      padding: 3px 8px;
-      border-radius: 100px;
-    }
-
-    /* ── SOCIAL PROOF BAR ── */
-    .proof-bar {
-      background: var(--navy-mid);
-      border-top: 1px solid rgba(0,212,200,0.1);
-      border-bottom: 1px solid rgba(0,212,200,0.1);
-      padding: 20px 5%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 48px;
-      flex-wrap: wrap;
-    }
-
-    .proof-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      color: rgba(255,255,255,0.5);
-      font-size: 0.85rem;
-    }
-
-    .proof-item svg { color: var(--teal); flex-shrink: 0; }
-
-    /* ── FEATURES ── */
-    .features {
-      padding: 100px 5%;
-      background: var(--white);
-    }
-
-    .section-label {
-      text-align: center;
-      font-size: 0.8rem;
-      font-weight: 700;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--teal-dark);
-      margin-bottom: 16px;
-    }
-
-    .section-title {
-      text-align: center;
-      font-family: 'Montserrat', sans-serif;
-      font-size: clamp(1.8rem, 3vw, 2.6rem);
-      font-weight: 800;
-      color: var(--navy);
-      margin-bottom: 16px;
-      letter-spacing: -0.5px;
-    }
-
-    .section-sub {
-      text-align: center;
-      color: var(--gray-500);
-      font-size: 1.05rem;
-      max-width: 560px;
-      margin: 0 auto 64px;
-      line-height: 1.7;
-    }
-
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 32px;
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-
+    /* ── FEATURES GRID ── */
+    #features { background: var(--bg); }
+    .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
     .feature-card {
-      background: var(--gray-100);
-      border-radius: 16px;
-      padding: 36px 32px;
-      border: 1px solid var(--gray-200);
-      transition: all 0.3s;
-      position: relative;
-      overflow: hidden;
+      background: var(--bg-card);
+      backdrop-filter: blur(24px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl); padding: 32px;
+      transition: border-color 0.4s;
     }
-
-    .feature-card::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 3px;
-      background: linear-gradient(90deg, var(--teal-dark), var(--teal-light));
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-
-    .feature-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 20px 40px rgba(0,0,0,0.08);
-      border-color: rgba(0,212,200,0.3);
-    }
-
-    .feature-card:hover::before { opacity: 1; }
-
+    .feature-card:hover { border-color: rgba(0,209,193,0.4); }
     .feature-icon {
-      width: 52px; height: 52px;
-      background: var(--navy);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 20px;
+      width: 56px; height: 56px; border-radius: 1rem;
+      display: flex; align-items: center; justify-content: center; margin-bottom: 24px;
     }
-
-    .feature-icon svg { color: var(--teal); }
-
     .feature-card h3 {
-      font-family: 'Montserrat', sans-serif;
-      font-size: 1.15rem;
-      font-weight: 700;
-      color: var(--navy);
-      margin-bottom: 10px;
+      font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.2rem;
+      color: var(--white); margin-bottom: 12px;
     }
+    .feature-card p { color: var(--muted); font-size: 0.9rem; line-height: 1.7; }
 
-    .feature-card p {
-      color: var(--gray-500);
-      font-size: 0.95rem;
-      line-height: 1.65;
-    }
+    /* color variants */
+    .icon-blue  { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .icon-teal  { background: var(--primary-dim);     color: var(--primary); }
+    .icon-purple{ background: rgba(168,85,247,0.15);  color: #c084fc; }
+    .icon-cyan  { background: rgba(20,184,166,0.15);  color: #2dd4bf; }
+    .icon-orange{ background: rgba(249,115,22,0.15);  color: #fb923c; }
+    .icon-green { background: rgba(34,197,94,0.15);   color: #4ade80; }
 
     /* ── HOW IT WORKS ── */
-    .how-it-works {
-      padding: 100px 5%;
-      background: var(--navy);
-    }
-
-    .how-it-works .section-title { color: var(--white); }
-    .how-it-works .section-sub { color: rgba(255,255,255,0.55); }
-
-    .steps-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 40px;
-      max-width: 1000px;
-      margin: 0 auto;
-      position: relative;
-    }
-
-    .step {
-      text-align: center;
-      position: relative;
-    }
-
-    .step-num {
-      width: 56px; height: 56px;
-      background: rgba(0,212,200,0.1);
-      border: 2px solid var(--teal);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: 'Montserrat', sans-serif;
-      font-size: 1.3rem;
-      font-weight: 800;
-      color: var(--teal);
-      margin: 0 auto 20px;
-    }
-
-    .step h3 {
-      font-family: 'Montserrat', sans-serif;
-      font-weight: 700;
-      color: var(--white);
-      margin-bottom: 10px;
-      font-size: 1.05rem;
-    }
-
-    .step p {
-      color: rgba(255,255,255,0.5);
-      font-size: 0.9rem;
-      line-height: 1.6;
-    }
-
-    /* ── PRICING ── */
-    .pricing {
-      padding: 100px 5%;
-      background: var(--gray-100);
-    }
-
-    .pricing-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 32px;
-      max-width: 1000px;
-      margin: 0 auto;
-    }
-
-    .pricing-card {
-      background: var(--white);
-      border-radius: 20px;
-      padding: 40px 36px;
-      border: 2px solid var(--gray-200);
-      position: relative;
-      transition: all 0.3s;
-    }
-
-    .pricing-card.featured {
-      border-color: var(--teal);
-      background: var(--navy);
-      transform: scale(1.03);
-      box-shadow: 0 24px 60px rgba(0,212,200,0.2);
-    }
-
-    .pricing-badge {
-      position: absolute;
-      top: -14px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--teal);
-      color: var(--navy);
-      font-size: 0.75rem;
-      font-weight: 700;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      padding: 5px 16px;
-      border-radius: 100px;
-      white-space: nowrap;
-    }
-
-    .pricing-plan {
-      font-family: 'Montserrat', sans-serif;
-      font-size: 0.85rem;
-      font-weight: 700;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: var(--teal-dark);
-      margin-bottom: 12px;
-    }
-
-    .pricing-card.featured .pricing-plan { color: var(--teal); }
-
-    .pricing-price {
-      font-family: 'Montserrat', sans-serif;
-      font-size: 2.8rem;
-      font-weight: 800;
-      color: var(--navy);
-      line-height: 1;
-      margin-bottom: 4px;
-    }
-
-    .pricing-card.featured .pricing-price { color: var(--white); }
-
-    .pricing-period {
-      font-size: 0.85rem;
-      color: var(--gray-500);
-      margin-bottom: 28px;
-    }
-
-    .pricing-card.featured .pricing-period { color: rgba(255,255,255,0.5); }
-
-    .pricing-features {
-      list-style: none;
-      margin-bottom: 32px;
-    }
-
-    .pricing-features li {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 0.9rem;
-      color: var(--gray-700);
-      padding: 7px 0;
-      border-bottom: 1px solid var(--gray-100);
-    }
-
-    .pricing-card.featured .pricing-features li {
-      color: rgba(255,255,255,0.8);
-      border-bottom-color: rgba(255,255,255,0.07);
-    }
-
-    .pricing-features li::before {
-      content: '✓';
-      color: var(--teal-dark);
-      font-weight: 700;
-      flex-shrink: 0;
-    }
-
-    .pricing-card.featured .pricing-features li::before { color: var(--teal); }
-
-    .btn-pricing {
-      display: block;
-      text-align: center;
-      padding: 13px;
-      border-radius: 8px;
-      font-weight: 700;
-      font-size: 0.95rem;
-      text-decoration: none;
-      transition: all 0.2s;
-    }
-
-    .btn-pricing-outline {
-      border: 2px solid var(--navy);
-      color: var(--navy);
-    }
-
-    .btn-pricing-outline:hover {
-      background: var(--navy);
-      color: var(--white);
-    }
-
-    .btn-pricing-filled {
-      background: var(--teal);
-      color: var(--navy);
-    }
-
-    .btn-pricing-filled:hover {
-      background: var(--teal-light);
-      transform: translateY(-1px);
-    }
-
-    /* ── TESTIMONIAL ── */
-    .testimonial {
-      padding: 100px 5%;
-      background: var(--white);
-    }
-
-    .testimonial-inner {
-      max-width: 800px;
-      margin: 0 auto;
-      text-align: center;
-    }
-
-    .quote-mark {
-      font-size: 5rem;
-      color: var(--teal);
-      line-height: 0.5;
-      font-family: Georgia, serif;
-      margin-bottom: 24px;
-      display: block;
-    }
-
-    .quote-text {
-      font-size: 1.3rem;
-      color: var(--navy);
-      font-style: italic;
-      line-height: 1.7;
-      margin-bottom: 32px;
-    }
-
-    .quote-author {
-      font-weight: 700;
-      color: var(--navy);
-    }
-
-    .quote-org {
-      color: var(--gray-500);
-      font-size: 0.9rem;
-    }
-
-    /* ── CTA SECTION ── */
-    .cta-section {
-      padding: 100px 5%;
-      background: var(--navy);
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .cta-section::before {
-      content: '';
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      width: 800px; height: 400px;
-      background: radial-gradient(ellipse, rgba(0,212,200,0.08) 0%, transparent 70%);
+    #how-it-works { background: transparent; }
+    #how-it-works::before {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(to bottom, var(--bg), hsla(173,100%,41%,0.05), var(--bg));
       pointer-events: none;
     }
-
-    .cta-section h2 {
-      font-family: 'Montserrat', sans-serif;
-      font-size: clamp(1.8rem, 3vw, 2.8rem);
-      font-weight: 800;
-      color: var(--white);
-      margin-bottom: 16px;
-      letter-spacing: -0.5px;
+    .steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; }
+    .step { text-align: center; }
+    .step-num {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: var(--primary-dim); border: 1px solid rgba(0,209,193,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.25rem;
+      color: var(--primary); margin: 0 auto 20px;
     }
-
-    .cta-section p {
-      color: rgba(255,255,255,0.6);
-      font-size: 1.05rem;
-      margin-bottom: 40px;
-      max-width: 500px;
-      margin-left: auto;
-      margin-right: auto;
+    .step h3 {
+      font-family: 'Outfit', sans-serif; font-weight: 700;
+      font-size: 1.1rem; color: var(--white); margin-bottom: 8px;
     }
+    .step p { color: var(--muted); font-size: 0.875rem; line-height: 1.7; }
 
-    /* ── DEMO MODAL ── */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.7);
-      z-index: 1000;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
+    /* ── CTA ── */
+    #contact { background: var(--bg); }
+    .contact-intro { max-width: 640px; margin: 0 auto 48px; }
+    .contact-intro h2 {
+      font-family: 'Outfit', sans-serif; font-weight: 700;
+      font-size: clamp(2rem, 4vw, 3.25rem); color: var(--white); margin-bottom: 16px;
     }
-
-    .modal-overlay.active { display: flex; }
-
-    .modal {
-      background: var(--white);
-      border-radius: 20px;
-      padding: 48px;
-      max-width: 520px;
-      width: 100%;
-      position: relative;
-      box-shadow: 0 40px 80px rgba(0,0,0,0.3);
+    .contact-intro p { color: var(--muted); font-size: 1.1rem; }
+    .contact-intro a { color: var(--primary); text-decoration: none; }
+    .contact-intro a:hover { text-decoration: underline; }
+    .booking-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    .booking-card {
+      display: block; text-decoration: none;
+      background: var(--bg-card);
+      backdrop-filter: blur(24px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl); padding: 32px;
+      transition: border-color 0.3s, transform 0.3s;
+      text-align: left;
     }
-
-    .modal-close {
-      position: absolute;
-      top: 20px; right: 20px;
-      background: none;
-      border: none;
-      font-size: 1.5rem;
-      cursor: pointer;
-      color: var(--gray-500);
-      line-height: 1;
+    .booking-card:hover { border-color: rgba(0,209,193,0.5); transform: translateY(-4px); }
+    .booking-type {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; margin-bottom: 8px;
     }
-
-    .modal h2 {
-      font-family: 'Montserrat', sans-serif;
-      font-size: 1.6rem;
-      font-weight: 800;
-      color: var(--navy);
-      margin-bottom: 8px;
+    .booking-card h3 {
+      font-family: 'Outfit', sans-serif; font-weight: 700;
+      font-size: 1.2rem; color: var(--white); margin-bottom: 10px;
     }
-
-    .modal p {
-      color: var(--gray-500);
-      margin-bottom: 28px;
-      font-size: 0.95rem;
-    }
-
-    .form-group {
-      margin-bottom: 18px;
-    }
-
-    .form-group label {
-      display: block;
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--navy);
-      margin-bottom: 6px;
-    }
-
-    .form-group input,
-    .form-group select,
-    .form-group textarea {
-      width: 100%;
-      padding: 11px 14px;
-      border: 1.5px solid var(--gray-200);
-      border-radius: 8px;
-      font-size: 0.95rem;
-      font-family: 'Inter', sans-serif;
-      color: var(--navy);
-      transition: border-color 0.2s;
-      background: var(--white);
-    }
-
-    .form-group input:focus,
-    .form-group select:focus,
-    .form-group textarea:focus {
-      outline: none;
-      border-color: var(--teal-dark);
-    }
-
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-
-    .btn-submit {
-      width: 100%;
-      padding: 14px;
-      background: var(--teal);
-      color: var(--navy);
-      border: none;
-      border-radius: 8px;
-      font-weight: 700;
-      font-size: 1rem;
-      cursor: pointer;
-      font-family: 'Inter', sans-serif;
-      transition: all 0.2s;
-      margin-top: 8px;
-    }
-
-    .btn-submit:hover {
-      background: var(--teal-light);
-      transform: translateY(-1px);
-    }
-
-    .form-success {
-      display: none;
-      text-align: center;
-      padding: 20px 0;
-    }
-
-    .form-success .success-icon {
-      font-size: 3rem;
-      margin-bottom: 16px;
-    }
-
-    .form-success h3 {
-      font-family: 'Montserrat', sans-serif;
-      font-weight: 700;
-      color: var(--navy);
-      font-size: 1.3rem;
-      margin-bottom: 8px;
-    }
-
-    .form-success p {
-      color: var(--gray-500);
-      margin-bottom: 0;
+    .booking-card p { color: var(--muted); font-size: 0.875rem; line-height: 1.7; margin-bottom: 20px; }
+    .booking-cta {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 0.875rem; font-weight: 600; color: var(--primary);
     }
 
     /* ── FOOTER ── */
     footer {
-      background: var(--navy);
-      border-top: 1px solid rgba(255,255,255,0.06);
-      padding: 60px 5% 40px;
+      border-top: 1px solid var(--border); background: var(--bg);
+      padding: 48px 24px; position: relative; z-index: 10;
     }
-
     .footer-inner {
-      max-width: 1200px;
-      margin: 0 auto;
-      display: grid;
-      grid-template-columns: 2fr 1fr 1fr;
-      gap: 60px;
-      margin-bottom: 48px;
+      max-width: 1280px; margin: 0 auto;
+      display: flex; flex-wrap: wrap; align-items: center;
+      justify-content: space-between; gap: 24px;
     }
+    .footer-brand { display: flex; align-items: center; gap: 10px; }
+    .footer-brand img { width: 24px; height: 24px; object-fit: contain; opacity: 0.7; }
+    .footer-brand span { font-size: 0.875rem; color: var(--muted); }
+    .footer-brand a { color: var(--primary); text-decoration: none; }
+    .footer-brand a:hover { text-decoration: underline; }
+    .footer-links { display: flex; align-items: center; gap: 24px; }
+    .footer-links a { font-size: 0.875rem; color: var(--muted); text-decoration: none; transition: color 0.2s; }
+    .footer-links a:hover { color: var(--white); }
 
-    .footer-brand p {
-      color: rgba(255,255,255,0.45);
-      font-size: 0.9rem;
-      line-height: 1.7;
-      margin-top: 16px;
-      max-width: 280px;
-    }
-
-    .footer-col h4 {
-      font-family: 'Montserrat', sans-serif;
-      font-size: 0.8rem;
-      font-weight: 700;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: rgba(255,255,255,0.4);
-      margin-bottom: 16px;
-    }
-
-    .footer-col ul { list-style: none; }
-
-    .footer-col ul li { margin-bottom: 10px; }
-
-    .footer-col ul li a {
-      color: rgba(255,255,255,0.6);
-      text-decoration: none;
-      font-size: 0.9rem;
-      transition: color 0.2s;
-    }
-
-    .footer-col ul li a:hover { color: var(--teal); }
-
-    .footer-bottom {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding-top: 28px;
-      border-top: 1px solid rgba(255,255,255,0.06);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-
-    .footer-bottom p {
-      color: rgba(255,255,255,0.3);
-      font-size: 0.8rem;
-    }
-
-    .footer-bottom a {
-      color: rgba(255,255,255,0.3);
-      text-decoration: none;
-      font-size: 0.8rem;
-    }
-
-    .footer-bottom a:hover { color: var(--teal); }
+    /* ── ANIMATIONS ── */
+    .fade-up { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .fade-up.visible { opacity: 1; transform: translateY(0); }
+    .delay-1 { transition-delay: 0.1s; }
+    .delay-2 { transition-delay: 0.2s; }
+    .delay-3 { transition-delay: 0.3s; }
+    .delay-4 { transition-delay: 0.45s; }
 
     /* ── RESPONSIVE ── */
-    @media (max-width: 768px) {
-      .hero-inner { grid-template-columns: 1fr; gap: 48px; }
-      .hero-visual { display: none; }
-      .nav-links { display: none; }
-      .footer-inner { grid-template-columns: 1fr; gap: 32px; }
-      .pricing-card.featured { transform: none; }
-      .form-row { grid-template-columns: 1fr; }
+    @media (max-width: 900px) {
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+      .steps-grid { grid-template-columns: repeat(2, 1fr); }
+      .booking-grid { grid-template-columns: 1fr; }
     }
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .btn-ghost { display: none !important; }
+      .features-grid { grid-template-columns: 1fr; }
+      .steps-grid { grid-template-columns: 1fr; }
+      .divider-v { display: none; }
+    }
+    @media (min-width: 640px) { .btn-ghost { display: block; } }
   </style>
 </head>
 <body>
 
 <!-- ── NAVIGATION ── -->
 <nav>
-  <a href="#" class="nav-logo">
-    <img src="/img/rydeworks-mark.svg" class="nav-logo-icon" alt="RydeWorks" />
-    <span class="nav-logo-text">Ryde<span>works</span></span>
-  </a>
-  <ul class="nav-links">
-    <li><a href="#features">Features</a></li>
-    <li><a href="#how-it-works">How It Works</a></li>
-    <li><a href="#pricing">Pricing</a></li>
-    <li><a href="https://rydeworks.com/login.html">Sign In</a></li>
-    <li><a href="#" class="nav-cta" onclick="openDemo(event)">Request a Demo</a></li>
-  </ul>
+  <div class="nav-inner">
+    <a href="#" class="nav-brand">
+      <img src="/img/logo-mark.png" alt="RydeWorks" />
+      <span>RydeWorks</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#how-it-works">How It Works</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ul>
+    <div class="nav-actions">
+      <a href="/login.html" class="btn-ghost">Sign In</a>
+      <a href="https://cal.com/rich-alvarez-x7b4oz/free-discovery-call" target="_blank" rel="noopener noreferrer" class="btn-primary">Get Demo</a>
+    </div>
+  </div>
 </nav>
 
 <!-- ── HERO ── -->
 <section class="hero">
-  <div class="hero-inner">
-    <div class="hero-content">
-      <div class="hero-badge">Now Available</div>
-      <h1>Dispatch software <span>built for nonprofits.</span></h1>
-      <p>Rydeworks gives social service organizations a simple, powerful way to manage transportation — rides, drivers, riders, and reporting — all in one place.</p>
-      <div class="hero-actions">
-        <a href="#" class="btn-primary" onclick="openDemo(event)">
-          Request a Demo
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        </a>
-        <a href="#features" class="btn-secondary">See How It Works</a>
-        <a href="https://cal.com/rich-alvarez-x7b4oz/full-working-meeting" target="_blank" class="btn-secondary" style="border-color:rgba(0,212,200,0.4);color:var(--teal)">Book a Consultation</a>
-      </div>
+  <div class="hero-bg">
+    <img src="/img/hero-bg.png" alt="" />
+    <div class="hero-bg-overlay"></div>
+  </div>
+  <div class="hero-glow"></div>
+
+  <div class="hero-content">
+    <div class="hero-badge fade-up">
+      <span class="hero-badge-dot"></span>
+      Built for nonprofits. Loved by dispatchers.
     </div>
-    <div class="hero-visual">
-      <div class="hero-mockup">
-        <div class="mockup-header">
-          <div class="mockup-dot" style="background:#ff5f57"></div>
-          <div class="mockup-dot" style="background:#febc2e"></div>
-          <div class="mockup-dot" style="background:#28c840"></div>
-          <span class="mockup-title">Rydeworks Dispatch — Today's Rides</span>
+
+    <h1 class="fade-up delay-1">
+      Nonprofit transport,<br />
+      <span class="gradient-text">beautifully solved.</span>
+    </h1>
+
+    <p class="fade-up delay-2">
+      A complete dispatch platform for organizations managing fleets, drivers, and riders.
+      Route optimization, flexible payments, real-time tracking — built for impact.
+    </p>
+
+    <div class="hero-ctas fade-up delay-3">
+      <a href="/login.html" class="btn-hero-primary">
+        Launch Dispatch
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+      <a href="https://cal.com/rich-alvarez-x7b4oz/free-discovery-call" target="_blank" rel="noopener noreferrer" class="btn-hero-outline">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 014.5 12 19.79 19.79 0 011.15 3.4 2 2 0 013.13 1.22h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L7.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+        Free Discovery Call
+      </a>
+    </div>
+
+    <div class="social-proof fade-up delay-4">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="avatars">
+          <div class="avatar" style="background:#3b82f6;margin-left:0">M</div>
+          <div class="avatar" style="background:#14b8a6">A</div>
+          <div class="avatar" style="background:#a855f7">G</div>
+          <div class="avatar" style="background:#f97316">B</div>
         </div>
-        <div class="mockup-stat-row">
-          <div class="mockup-stat">
-            <div class="mockup-stat-num">12</div>
-            <div class="mockup-stat-label">Rides Today</div>
-          </div>
-          <div class="mockup-stat">
-            <div class="mockup-stat-num">3</div>
-            <div class="mockup-stat-label">Active Drivers</div>
-          </div>
-          <div class="mockup-stat">
-            <div class="mockup-stat-num">$284</div>
-            <div class="mockup-stat-label">Est. Revenue</div>
-          </div>
+        <span>Trusted by nonprofits nationwide</span>
+      </div>
+      <div class="divider-v"></div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="stars">
+          <span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span>
         </div>
-        <div class="mockup-trip-row">
-          <div class="mockup-trip-dot" style="background:#00D4C8"></div>
-          <div class="mockup-trip-info">
-            <div class="mockup-trip-name">Maria S. — PER-0042</div>
-            <div class="mockup-trip-addr">PERC St. Pete → St. Anthony's Hospital</div>
-          </div>
-          <span class="mockup-trip-badge" style="background:rgba(0,212,200,0.15);color:#00D4C8">En Route</span>
-        </div>
-        <div class="mockup-trip-row">
-          <div class="mockup-trip-dot" style="background:#f6ad55"></div>
-          <div class="mockup-trip-info">
-            <div class="mockup-trip-name">James T. — PER-0018</div>
-            <div class="mockup-trip-addr">PERC Clearwater → Pinellas Workforce</div>
-          </div>
-          <span class="mockup-trip-badge" style="background:rgba(246,173,85,0.15);color:#f6ad55">Scheduled</span>
-        </div>
-        <div class="mockup-trip-row">
-          <div class="mockup-trip-dot" style="background:#68d391"></div>
-          <div class="mockup-trip-info">
-            <div class="mockup-trip-name">Angela R. — PER-0031</div>
-            <div class="mockup-trip-addr">Home → PERC St. Pete (Return)</div>
-          </div>
-          <span class="mockup-trip-badge" style="background:rgba(104,211,145,0.15);color:#68d391">Completed</span>
-        </div>
+        <span>5.0 from PERC team</span>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ── SOCIAL PROOF BAR ── -->
-<div class="proof-bar" style="background:var(--navy-mid)">
-  <div class="proof-item">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-    Built for social service organizations
-  </div>
-  <div class="proof-item">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-    Grant-ready reporting built in
-  </div>
-  <div class="proof-item">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-    HIPAA-conscious data handling
-  </div>
-  <div class="proof-item">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-    Setup in under 30 minutes
-  </div>
-</div>
-
 <!-- ── FEATURES ── -->
-<section class="features" id="features">
-  <div class="section-label">Features</div>
-  <h2 class="section-title">Everything your team needs.<br>Nothing you don't.</h2>
-  <p class="section-sub">Rydeworks was designed from the ground up for organizations that run transportation programs — not adapted from enterprise software that costs 10x more.</p>
-
-  <div class="features-grid">
-    <div class="feature-card">
-      <div class="feature-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      </div>
-      <h3>Smart Dispatch Board</h3>
-      <p>Schedule and manage rides in real time. Assign drivers, track trip status, and see your full day at a glance — all from one screen.</p>
+<section id="features">
+  <div class="section-inner">
+    <div class="section-header">
+      <h2>Everything your team needs</h2>
+      <p>Three dashboards, one platform. Built for dispatchers, drivers, and riders.</p>
     </div>
-    <div class="feature-card">
-      <div class="feature-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon icon-blue">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        </div>
+        <h3>Smart Route Optimization</h3>
+        <p>Multi-stop OSRM routing sequences trips for maximum efficiency — automatically. Save fuel and driver hours every single day.</p>
       </div>
-      <h3>Rider Management</h3>
-      <p>Every rider gets a unique ID. Track trip history, notes, accessibility needs, and contact info. Partner org riders get their org's prefix automatically.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      <div class="feature-card">
+        <div class="feature-icon icon-teal">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </div>
+        <h3>Driver App Built-In</h3>
+        <p>One-tap status updates, pre-trip inspections, turn-by-turn guidance and live itineraries on any phone. No hardware required.</p>
       </div>
-      <h3>Fleet & Driver Tracking</h3>
-      <p>Manage your vehicles and drivers in one place. Track mileage, assign vehicles to trips, and keep driver records current.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <div class="feature-card">
+        <div class="feature-icon icon-purple">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h3>Flexible Payments</h3>
+        <p>Stripe cards, Apple Pay, Cash App, Venmo, or 30-day free-ride codes. Built for banked and unbanked riders alike.</p>
       </div>
-      <h3>Flexible Billing</h3>
-      <p>Charge by the ride or bill weekly. Accept Square, Stripe, ACH, or cash. Issue free ride codes for community outreach. Works with your existing payment setup.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <div class="feature-card">
+        <div class="feature-icon icon-cyan">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        </div>
+        <h3>Rider Self-Service</h3>
+        <p>Riders can request trips, track arrival times, and manage their profile from a simple mobile-friendly portal.</p>
       </div>
-      <h3>Grant-Ready Reporting</h3>
-      <p>Export trip logs, rider counts, mileage, and revenue data formatted for grant reporting. Never scramble for numbers at the end of a grant period again.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      <div class="feature-card">
+        <div class="feature-icon icon-orange">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        </div>
+        <h3>Reporting &amp; Grants</h3>
+        <p>Exportable trip logs, mileage summaries, and rider reports ready for grant compliance reporting.</p>
       </div>
-      <h3>White-Label Portals</h3>
-      <p>Each partner organization gets their own branded portal with their logo and colors. Your brand stays in the background — their experience stays front and center.</p>
+      <div class="feature-card">
+        <div class="feature-icon icon-green">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+        </div>
+        <h3>Multi-Tenant Ready</h3>
+        <p>Each nonprofit gets their own branded subdomain, isolated data, and custom fare zones. Scale from 1 org to 100.</p>
+      </div>
     </div>
   </div>
 </section>
 
 <!-- ── HOW IT WORKS ── -->
-<section class="how-it-works" id="how-it-works">
-  <div class="section-label" style="color:var(--teal)">How It Works</div>
-  <h2 class="section-title">Up and running in four steps.</h2>
-  <p class="section-sub">No IT department required. If you can use email, you can use Rydeworks.</p>
-
-  <div class="steps-grid">
-    <div class="step">
-      <div class="step-num">1</div>
-      <h3>Request a Demo</h3>
-      <p>We'll walk you through the platform and answer every question your team has.</p>
+<section id="how-it-works">
+  <div class="section-inner">
+    <div class="section-header">
+      <h2>Up and running in days</h2>
+      <p>We handle the setup. You handle the mission.</p>
     </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <h3>We Set You Up</h3>
-      <p>We configure your portal, import your riders, and set up your home bases — usually in one day.</p>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <h3>Train Your Team</h3>
-      <p>A 30-minute walkthrough is all most dispatchers need. We provide written guides too.</p>
-    </div>
-    <div class="step">
-      <div class="step-num">4</div>
-      <h3>Start Dispatching</h3>
-      <p>Go live on day one. We're available by phone and email whenever you need us.</p>
+    <div class="steps-grid">
+      <div class="step">
+        <div class="step-num">01</div>
+        <h3>Discovery Call</h3>
+        <p>We learn your org's needs, fleet size, and service area in a free 30-min call.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h3>Custom Setup</h3>
+        <p>We configure your subdomain, fare zones, home bases, and onboard your team.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h3>Train &amp; Launch</h3>
+        <p>A 90-minute working session gets your dispatchers and drivers live and confident.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <h3>Ongoing Support</h3>
+        <p>Monthly strategy calls keep you optimized and growing. We're a partner, not a vendor.</p>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- ── SEE IT IN ACTION ── -->
-<section class="see-in-action" id="see-in-action" style="background:#0a1628;padding:80px 0;">
-  <div class="container" style="max-width:1200px;margin:0 auto;padding:0 24px;">
-    <div class="section-label" style="color:#2dd4bf;text-align:center;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">Platform Preview</div>
-    <h2 class="section-title" style="color:#fff;text-align:center;font-size:2.2rem;font-weight:700;margin-bottom:12px;">See Rydeworks in action.</h2>
-    <p class="section-sub" style="color:#94a3b8;text-align:center;font-size:1.05rem;max-width:600px;margin:0 auto 56px;">Purpose-built for nonprofits and human services organizations — two powerful views, one seamless platform.</p>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start;">
-
-      <!-- Dispatch View -->
-      <div style="text-align:center;">
-        <div style="background:#1e2d45;border-radius:16px;padding:24px;margin-bottom:24px;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
-          <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663333346691/kBjZ5CbguNth9oC5Zrke9i/dispatch-mockup-LmzBjNwFCLpQiNonrpfwZw.webp" alt="Rydeworks Dispatch Center" style="width:100%;border-radius:10px;display:block;">
+<!-- ── CONTACT / BOOKING ── -->
+<section id="contact">
+  <div class="section-inner">
+    <div class="contact-intro" style="text-align:center;">
+      <h2>Ready to transform your transport?</h2>
+      <p>
+        Choose the conversation that fits where you are. All meetings with
+        <strong style="color:var(--white)">Rich Alvarez</strong> of
+        <a href="https://alvarezassociatesfl.com" target="_blank" rel="noopener noreferrer">Alvarez &amp; Associates</a>.
+      </p>
+    </div>
+    <div class="booking-grid">
+      <a href="https://cal.com/rich-alvarez-x7b4oz/free-discovery-call" target="_blank" rel="noopener noreferrer" class="booking-card">
+        <div class="feature-icon icon-green" style="width:48px;height:48px;border-radius:12px;margin-bottom:20px;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 014.5 12 19.79 19.79 0 011.15 3.4 2 2 0 013.13 1.22h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L7.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
         </div>
-        <h3 style="color:#fff;font-size:1.3rem;font-weight:700;margin-bottom:10px;">Dispatch Center</h3>
-        <p style="color:#94a3b8;font-size:0.95rem;line-height:1.6;">Schedule and manage trips, track drivers in real time, monitor daily metrics, manage riders and grants — all from one clean dashboard. Built for dispatchers and program administrators.</p>
-      </div>
+        <div class="booking-type" style="color:#4ade80;">Free · 30 min</div>
+        <h3>Discovery Call</h3>
+        <p>Tell us about your org. We'll show you how RydeWorks fits and answer every question you have.</p>
+        <span class="booking-cta">
+          Book now
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+        </span>
+      </a>
 
-      <!-- Driver View -->
-      <div style="text-align:center;">
-        <div style="background:#1e2d45;border-radius:16px;padding:24px;margin-bottom:24px;box-shadow:0 20px 60px rgba(0,0,0,0.4);display:flex;justify-content:center;">
-          <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663333346691/kBjZ5CbguNth9oC5Zrke9i/driver-mockup-GASaTwbrYEAgyi77zzRmo3.webp" alt="Rydeworks Driver App" style="width:55%;border-radius:10px;display:block;">
+      <a href="https://cal.com/rich-alvarez-x7b4oz/strategy-consult" target="_blank" rel="noopener noreferrer" class="booking-card" style="border-color:rgba(0,209,193,0.2);">
+        <div class="feature-icon icon-teal" style="width:48px;height:48px;border-radius:12px;margin-bottom:20px;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         </div>
-        <h3 style="color:#fff;font-size:1.3rem;font-weight:700;margin-bottom:10px;">Driver App</h3>
-        <p style="color:#94a3b8;font-size:0.95rem;line-height:1.6;">Drivers see their assigned route, start and complete trips, mark no-shows, and cancel rides on behalf of passengers — all from their phone. No app download required.</p>
-      </div>
+        <div class="booking-type" style="color:var(--primary);">Paid · 60 min</div>
+        <h3>Strategy Consultation</h3>
+        <p>Deep dive into your workflow, fleet, and rider base. Walk away with a custom implementation roadmap.</p>
+        <span class="booking-cta">
+          Book now
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+        </span>
+      </a>
 
+      <a href="https://cal.com/rich-alvarez-x7b4oz/full-working-meeting" target="_blank" rel="noopener noreferrer" class="booking-card">
+        <div class="feature-icon icon-blue" style="width:48px;height:48px;border-radius:12px;margin-bottom:20px;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+        </div>
+        <div class="booking-type" style="color:#60a5fa;">Working · 90 min</div>
+        <h3>Full Working Session</h3>
+        <p>Hands-on setup, team training, and live launch of your RydeWorks instance. We build it together.</p>
+        <span class="booking-cta">
+          Book now
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+        </span>
+      </a>
     </div>
-
-    <!-- Alvarez & Associates credit -->
-    <div style="text-align:center;margin-top:56px;padding-top:32px;border-top:1px solid #1e2d45;">
-      <p style="color:#64748b;font-size:0.9rem;">Rydeworks is a product of <a href="https://alvarezassociatesfl.com" target="_blank" rel="noopener" style="color:#2dd4bf;text-decoration:none;font-weight:600;">Alvarez &amp; Associates LLC</a> — a Florida-based consulting firm specializing in nonprofit operations, grant management, and technology solutions.</p>
-    </div>
-
-  </div>
-</section>
-
-<!-- ── PRICING ── -->
-<section id="pricing" style="padding:100px 5%;background:var(--white);text-align:center">
-  <div class="section-label">Pricing</div>
-  <h2 class="section-title">Pricing built around your organization.</h2>
-  <p class="section-sub" style="max-width:640px;margin:0 auto 48px">Every nonprofit operates differently — different fleet sizes, funding structures, and reporting requirements. We don't believe in one-size-fits-all tiers. Schedule a free consultation and we'll walk you through exactly what Rydeworks would look like for your organization.</p>
-
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:32px;max-width:900px;margin:0 auto 48px">
-    <div style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:16px;padding:36px 28px;text-align:left">
-      <div style="width:48px;height:48px;background:var(--navy);border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:18px">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00D4C8" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-      </div>
-      <h3 style="font-family:'Montserrat',sans-serif;font-weight:700;color:var(--navy);margin-bottom:10px;font-size:1.1rem">Implementation</h3>
-      <p style="color:var(--gray-500);font-size:0.95rem;line-height:1.65">One-time setup fee covers custom configuration, data migration, staff onboarding, and go-live support.</p>
-    </div>
-    <div style="background:var(--navy);border:1px solid rgba(0,212,200,0.2);border-radius:16px;padding:36px 28px;text-align:left">
-      <div style="width:48px;height:48px;background:rgba(0,212,200,0.1);border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:18px">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00D4C8" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-      </div>
-      <h3 style="font-family:'Montserrat',sans-serif;font-weight:700;color:var(--white);margin-bottom:10px;font-size:1.1rem">Monthly License</h3>
-      <p style="color:rgba(255,255,255,0.6);font-size:0.95rem;line-height:1.65">Ongoing access to the platform, all updates, grant-ready reporting, and dedicated support — priced for your scale.</p>
-    </div>
-    <div style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:16px;padding:36px 28px;text-align:left">
-      <div style="width:48px;height:48px;background:var(--navy);border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:18px">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00D4C8" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      </div>
-      <h3 style="font-family:'Montserrat',sans-serif;font-weight:700;color:var(--navy);margin-bottom:10px;font-size:1.1rem">Rider-Based Licensing</h3>
-      <p style="color:var(--gray-500);font-size:0.95rem;line-height:1.65">Pricing scales with the number of active riders in your program — so you only pay for what you use.</p>
-    </div>
-  </div>
-
-  <div style="display:flex;gap:1.25rem;justify-content:center;flex-wrap:wrap">
-    <a href="https://cal.com/rich-alvarez-x7b4oz/full-working-meeting" target="_blank" class="btn-primary" style="display:inline-flex;align-items:center;gap:0.5rem">
-      Schedule a Free Consultation
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 17l4 4 4-4M12 12V21M3 9a9 9 0 1 1 18 0"/></svg>
-    </a>
-    <a href="#" onclick="openDemo(event)" style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.875rem 2rem;border:2px solid rgba(0,180,170,0.4);border-radius:8px;color:var(--teal-dark);font-weight:600;text-decoration:none;transition:all 0.2s" onmouseover="this.style.background='rgba(0,212,200,0.07)'" onmouseout="this.style.background='transparent'">
-      Request a Demo First
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-    </a>
-  </div>
-  <p style="margin-top:1.5rem;color:var(--gray-500);font-size:0.88rem">No commitment required &mdash; we'll answer your questions and show you the platform in action.</p>
-</section>
-
-<!-- ── TESTIMONIAL ── -->
-<section class="testimonial">
-  <div class="testimonial-inner">
-    <span class="quote-mark">"</span>
-    <p class="quote-text">Rydeworks took what used to be a two-hour morning process — scheduling rides, calling drivers, tracking who went where — and turned it into something we can do in 20 minutes. Our grant reporting alone used to take days. Now it takes minutes.</p>
-    <div class="quote-author">Rich Alvarez</div>
-    <div class="quote-org">Executive Director, PERC — Pinellas Ex-offender Re-entry Coalition</div>
-  </div>
-</section>
-
-<!-- ── CTA ── -->
-<section class="cta-section">
-  <h2>Ready to simplify your dispatch?</h2>
-  <p>Join organizations across Florida using Rydeworks to move people forward.</p>
-  <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
-    <a href="#" class="btn-primary" onclick="openDemo(event)" style="display:inline-flex">
-      Request a Demo Today
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-    </a>
-    <a href="https://cal.com/rich-alvarez-x7b4oz/full-working-meeting" target="_blank" style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.875rem 2rem;border:2px solid rgba(0,212,200,0.5);border-radius:8px;color:var(--teal);font-weight:600;text-decoration:none;transition:all 0.2s" onmouseover="this.style.background='rgba(0,212,200,0.1)'" onmouseout="this.style.background='transparent'">
-      Book a Consultation
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 17l4 4 4-4M12 12V21M3 9a9 9 0 1 1 18 0"/></svg>
-    </a>
   </div>
 </section>
 
@@ -1229,163 +536,23 @@
 <footer>
   <div class="footer-inner">
     <div class="footer-brand">
-      <a href="#" class="nav-logo" style="text-decoration:none">
-        <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
-          <rect width="36" height="36" rx="8" fill="#0A1628"/>
-          <polygon points="6,8 14,8 24,18 14,28 6,28 16,18" fill="#00B4AA"/>
-          <polygon points="13,8 21,8 31,18 21,28 13,28 23,18" fill="#00D4C8"/>
-        </svg>
-        <span class="nav-logo-text">Ryde<span>works</span></span>
-      </a>
-      <p>Dispatch software built for nonprofits and social service organizations.</p>
+      <img src="/img/logo-mark.png" alt="RydeWorks" />
+      <span>© 2026 <a href="https://alvarezassociatesfl.com" target="_blank" rel="noopener noreferrer">Alvarez &amp; Associates</a> · RydeWorks is a DBA of Alvarez &amp; Associates</span>
     </div>
-    <div class="footer-col">
-      <h4>Product</h4>
-      <ul>
-        <li><a href="#features">Features</a></li>
-        <li><a href="#pricing">Pricing</a></li>
-        <li><a href="#how-it-works">How It Works</a></li>
-        <li><a href="#" onclick="openDemo(event)">Request a Demo</a></li>
-      </ul>
-    </div>
-    <div class="footer-col">
-      <h4>Company</h4>
-      <ul>
-        <li><a href="https://alvarezassociatesfl.com" target="_blank">About Us</a></li>
-        <li><a href="https://rydeworks.com/login.html">Dispatcher Login</a></li>
-        <li><a href="mailto:rich@alvarezassociatesfl.com">Contact Us</a></li>
-      </ul>
-    </div>
-  </div>
-  <div class="footer-bottom">
-    <p>&copy; 2026 Rydeworks™. All rights reserved.</p>
-    <div style="display:flex;gap:24px">
-      <a href="#">Privacy Policy</a>
-      <a href="#">Terms of Service</a>
+    <div class="footer-links">
+      <a href="/login.html">Dispatcher Login</a>
+      <a href="/book">Rider Portal</a>
+      <a href="mailto:rich@alvarezassociatesfl.com">Contact</a>
     </div>
   </div>
 </footer>
 
-<!-- ── DEMO MODAL ── -->
-<div class="modal-overlay" id="demoModal" onclick="closeDemoOnOverlay(event)">
-  <div class="modal">
-    <button class="modal-close" onclick="closeDemo()">×</button>
-    <div id="demoForm">
-      <h2>Request a Demo</h2>
-      <p>Tell us a little about your organization and we'll reach out within one business day to schedule a walkthrough.</p>
-      <div class="form-row">
-        <div class="form-group">
-          <label>First Name *</label>
-          <input type="text" id="demoFirst" placeholder="Jane" required />
-        </div>
-        <div class="form-group">
-          <label>Last Name *</label>
-          <input type="text" id="demoLast" placeholder="Smith" required />
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Organization Name *</label>
-        <input type="text" id="demoOrg" placeholder="Hope House of Tampa Bay" required />
-      </div>
-      <div class="form-group">
-        <label>Work Email *</label>
-        <input type="email" id="demoEmail" placeholder="jane@yourorg.org" required />
-      </div>
-      <div class="form-group">
-        <label>Phone Number</label>
-        <input type="tel" id="demoPhone" placeholder="(727) 555-1234" />
-      </div>
-      <div class="form-group">
-        <label>How many rides do you schedule per week?</label>
-        <select id="demoVolume">
-          <option value="">Select an estimate</option>
-          <option>Less than 25</option>
-          <option>25–100</option>
-          <option>100–300</option>
-          <option>300+</option>
-        </select>
-      </div>
-      <button class="btn-submit" onclick="submitDemo()">Request My Demo →</button>
-    </div>
-    <div class="form-success" id="demoSuccess">
-      <div class="success-icon">🎉</div>
-      <h3>You're on the list!</h3>
-      <p>We'll reach out within one business day to schedule your personalized demo. Talk soon!</p>
-    </div>
-  </div>
-</div>
-
 <script>
-  function openDemo(e) {
-    if (e) e.preventDefault();
-    document.getElementById('demoModal').classList.add('active');
-    document.body.style.overflow = 'hidden';
-  }
-
-  function closeDemo() {
-    document.getElementById('demoModal').classList.remove('active');
-    document.body.style.overflow = '';
-  }
-
-  function closeDemoOnOverlay(e) {
-    if (e.target === document.getElementById('demoModal')) closeDemo();
-  }
-
-  function submitDemo() {
-    const first = document.getElementById('demoFirst').value.trim();
-    const last = document.getElementById('demoLast').value.trim();
-    const org = document.getElementById('demoOrg').value.trim();
-    const email = document.getElementById('demoEmail').value.trim();
-
-    if (!first || !last || !org || !email) {
-      alert('Please fill in all required fields.');
-      return;
-    }
-
-    // Send demo request to the server
-    fetch('/api/demo-request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: `${first} ${last}`,
-        organization: org,
-        email,
-        phone: document.getElementById('demoPhone').value.trim(),
-        volume: document.getElementById('demoVolume').value
-      })
-    }).catch(() => {}); // Fire and forget — show success regardless
-
-    document.getElementById('demoForm').style.display = 'none';
-    document.getElementById('demoSuccess').style.display = 'block';
-  }
-
-  // Phone formatting
-  document.getElementById('demoPhone').addEventListener('input', function(e) {
-    let v = e.target.value.replace(/\D/g, '').slice(0, 10);
-    if (v.length >= 6) v = `(${v.slice(0,3)}) ${v.slice(3,6)}-${v.slice(6)}`;
-    else if (v.length >= 3) v = `(${v.slice(0,3)}) ${v.slice(3)}`;
-    else if (v.length > 0) v = `(${v}`;
-    e.target.value = v;
-  });
-
-  // Smooth scroll for nav links
-  document.querySelectorAll('a[href^="#"]').forEach(a => {
-    a.addEventListener('click', e => {
-      const target = document.querySelector(a.getAttribute('href'));
-      if (target) {
-        e.preventDefault();
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    });
-  });
-
-  // Nav background on scroll
-  window.addEventListener('scroll', () => {
-    const nav = document.querySelector('nav');
-    nav.style.background = window.scrollY > 50
-      ? 'rgba(10, 22, 40, 0.98)'
-      : 'rgba(10, 22, 40, 0.95)';
-  });
+  // Scroll-triggered fade-up animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
 </script>
 </body>
 </html>
