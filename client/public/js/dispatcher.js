@@ -268,37 +268,22 @@ function populateFormDropdowns() {
     });
   }
 
-  // Payment type dropdown — fill optgroups with grants and partners
-  const grantOptGroup = document.getElementById('grantOptGroup');
-  if (grantOptGroup) {
-    grantOptGroup.innerHTML = '';
-    appData.grants.forEach(g => {
-      const opt = document.createElement('option');
-      opt.value = `grant_${g._id}`;
-      opt.textContent = g.name;
-      grantOptGroup.appendChild(opt);
-    });
-  }
-  const partnerOptGroup = document.getElementById('partnerOptGroup');
-  if (partnerOptGroup) {
-    partnerOptGroup.innerHTML = '';
-    appData.partners.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = `partner_${p._id}`;
-      opt.textContent = p.name;
-      partnerOptGroup.appendChild(opt);
-    });
-  }
-  // Keep the hidden legacy grant/partner selects in sync for any other code that reads them
+  // Grant funded sub-dropdown (appears when "Grant Funded" is selected as payment type)
   const grantSel = document.getElementById('grantSelect');
   if (grantSel) {
     grantSel.innerHTML = '<option value="">Select grant...</option>';
-    appData.grants.forEach(g => { grantSel.innerHTML += `<option value="${g._id}">${g.name}</option>`; });
+    appData.grants.forEach(g => {
+      grantSel.innerHTML += `<option value="${g._id}">${g.name}</option>`;
+    });
   }
+
+  // Partner Agency sub-dropdown (appears when "Partner Agency" is selected as payment type)
   const partnerSel = document.getElementById('partnerSelect');
   if (partnerSel) {
     partnerSel.innerHTML = '<option value="">Select partner...</option>';
-    appData.partners.forEach(p => { partnerSel.innerHTML += `<option value="${p._id}">${p.name}</option>`; });
+    appData.partners.forEach(p => {
+      partnerSel.innerHTML += `<option value="${p._id}">${p.name}</option>`;
+    });
   }
 
   // User vehicle dropdown
@@ -569,13 +554,11 @@ function onTripTypeChange(idx) {
 
 // Payment type toggle
 function onPaymentTypeChange() {
-  const raw = document.getElementById('paymentType').value;
-  const isFreeRide = raw === 'free_ride';
-  // Grant/partner are now embedded as optgroups — hide the legacy separate selects
-  document.getElementById('grantSelectGroup').style.display   = 'none';
-  document.getElementById('partnerSelectGroup').style.display = 'none';
-  document.getElementById('freeRideGroup').style.display      = isFreeRide ? 'block' : 'none';
-  if (isFreeRide) {
+  const type = document.getElementById('paymentType').value;
+  document.getElementById('grantSelectGroup').style.display   = type === 'grant'     ? 'block' : 'none';
+  document.getElementById('partnerSelectGroup').style.display = type === 'partner'   ? 'block' : 'none';
+  document.getElementById('freeRideGroup').style.display      = type === 'free_ride' ? 'block' : 'none';
+  if (type === 'free_ride') {
     document.getElementById('fareAmount').textContent = '$0.00';
     document.getElementById('fareZone').textContent   = 'Free Ride';
     document.getElementById('fareDisplay').style.borderColor = '#28a745';
@@ -762,11 +745,7 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
     };
     const homeBase = appData.org?.homeBases?.find(b => b.name === homeBaseName) || { name: homeBaseName };
     const notes    = document.getElementById('tripNotes').value;
-    const paymentTypeRaw = document.getElementById('paymentType').value;
-    let paymentType = paymentTypeRaw;
-    let resolvedGrantId = null, resolvedPartnerId = null;
-    if (paymentTypeRaw.startsWith('grant_'))   { paymentType = 'grant';   resolvedGrantId   = paymentTypeRaw.replace('grant_', ''); }
-    if (paymentTypeRaw.startsWith('partner_')) { paymentType = 'partner'; resolvedPartnerId = paymentTypeRaw.replace('partner_', ''); }
+    const paymentType = document.getElementById('paymentType').value;
 
     if (!tripDate || !driver || !vehicle) {
       showToast('Please fill in date, driver, and vehicle.', 'error');
@@ -817,8 +796,8 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
 
     // Payment
     const payment = { type: paymentType, estimatedFare: parseDisplayedFare() };
-    if (resolvedGrantId)             payment.grantId      = resolvedGrantId;
-    if (resolvedPartnerId)           payment.partnerId    = resolvedPartnerId;
+    if (paymentType === 'grant')     payment.grantId      = document.getElementById('grantSelect')?.value;
+    if (paymentType === 'partner')   payment.partnerId    = document.getElementById('partnerSelect')?.value;
     if (paymentType === 'free_ride') payment.freeRideCode = document.getElementById('freeRideCode')?.value;
 
     const body = {
