@@ -19,8 +19,10 @@ COPY . .
 
 RUN BASE_PATH=/ PORT=3000 NODE_ENV=production pnpm --filter @workspace/rydeworks run build
 
+RUN pnpm --filter @workspace/api-server run build
+
 ENV NODE_ENV=production
 
 EXPOSE 3000
 
-CMD ["artifacts/api-server/node_modules/.bin/tsx", "artifacts/api-server/src/index.ts"]
+CMD ["node", "artifacts/api-server/dist/index.cjs"]

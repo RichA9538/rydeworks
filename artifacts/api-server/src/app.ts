@@ -59,8 +59,10 @@ if (process.env.NODE_ENV === "production") {
 
   if (staticDir) {
     app.use(express.static(staticDir));
-    // For client-side routing — serve index.html for all non-API routes
-    app.get("*", (_req, res) => {
+    // For client-side routing — serve index.html for all non-API routes.
+    // app.use() without a path is used instead of app.get("*") because
+    // Express 5 / path-to-regexp@8 rejects bare "*" wildcards.
+    app.use((_req, res) => {
       res.sendFile(path.join(staticDir, "index.html"));
     });
     console.log(`Serving frontend from: ${staticDir}`);
