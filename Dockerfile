@@ -1,4 +1,4 @@
-FROM node:22-alpine AS builder
+FROM node:22-alpine
 
 RUN npm install -g pnpm@9
 
@@ -20,13 +20,6 @@ COPY . .
 RUN BASE_PATH=/ PORT=3000 NODE_ENV=production pnpm --filter @workspace/rydeworks run build
 
 RUN pnpm --filter @workspace/api-server run build
-
-FROM node:22-alpine AS runner
-
-WORKDIR /app
-
-COPY --from=builder /app/artifacts/api-server/dist ./artifacts/api-server/dist
-COPY --from=builder /app/artifacts/rydeworks/dist/public ./artifacts/rydeworks/dist/public
 
 ENV NODE_ENV=production
 
