@@ -35,24 +35,6 @@ const organizationSchema = new mongoose.Schema({
     priceMax:  { type: Number },
     notes:     { type: String }
   }],
-  partnerAgencies: [{
-    name:        { type: String, required: true },
-    contactName: { type: String },
-    contactEmail:{ type: String },
-    contactPhone:{ type: String },
-    address:     { type: String },
-    notes:       { type: String },
-    isActive:    { type: Boolean, default: true }
-  }],
-  grants: [{
-    name:        { type: String, required: true },
-    funder:      { type: String },
-    grantCode:   { type: String },
-    startDate:   { type: Date },
-    endDate:     { type: Date },
-    notes:       { type: String },
-    isActive:    { type: Boolean, default: true }
-  }],
   selfPayConfig: {
     squareApplicationId: { type: String },
     squareLocationId:    { type: String },

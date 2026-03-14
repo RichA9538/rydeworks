@@ -8,8 +8,7 @@ import {
   QrCode,
   Settings, 
   Users, 
-  ShieldAlert,
-  Ticket
+  ShieldAlert
 } from "lucide-react";
 import {
   Sidebar,
@@ -104,14 +103,6 @@ export function AppSidebar() {
                     <Link href="/admin/vehicles">
                       <Car />
                       <span>Fleet Management</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location === '/admin/access-codes'}>
-                    <Link href="/admin/access-codes">
-                      <Ticket />
-                      <span>Free Ride Codes</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

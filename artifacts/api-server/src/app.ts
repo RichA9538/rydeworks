@@ -1,25 +1,21 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import path from "path";
+import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import { connectMongoDB } from "./lib/mongoose.js";
 import router from "./routes/index.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app: Express = express();
 
-// Connect to MongoDB with retry — never exit the process on connection failure
-// so the HTTP healthcheck always has a chance to respond.
-(function startMongo(attempt = 1) {
-  connectMongoDB()
-    .then(() => console.log('✅ MongoDB ready'))
-    .catch((err) => {
-      const delay = Math.min(5000 * attempt, 30000);
-      console.error(
-        `⚠️  MongoDB connection attempt ${attempt} failed: ${err.message}. Retrying in ${delay / 1000}s…`
-      );
-      setTimeout(() => startMongo(attempt + 1), delay);
-    });
-})();
+// Connect to MongoDB
+connectMongoDB().catch((err) => {
+  console.error('Failed to connect to MongoDB:', err.message);
+  process.exit(1);
+});
 
 const allowedOrigins = [
   'https://rydeworks.com',
@@ -51,18 +47,16 @@ if (process.env.NODE_ENV === "production") {
   // The frontend build output is at ../../rydeworks/dist/public relative to this file in dev,
   // but in production (after Railway build) we copy it adjacent to the bundle.
   const candidates = [
+    path.resolve(__dirname, "../../rydeworks/dist/public"),
+    path.resolve(__dirname, "../public"),
     path.resolve(process.cwd(), "artifacts/rydeworks/dist/public"),
-    path.resolve(process.cwd(), "rydeworks/dist/public"),
-    path.resolve(process.cwd(), "dist/public"),
   ];
   const staticDir = candidates.find(existsSync);
 
   if (staticDir) {
     app.use(express.static(staticDir));
-    // For client-side routing — serve index.html for all non-API routes.
-    // app.use() without a path is used instead of app.get("*") because
-    // Express 5 / path-to-regexp@8 rejects bare "*" wildcards.
-    app.use((_req, res) => {
+    // For client-side routing — serve index.html for all non-API routes
+    app.get("*", (_req, res) => {
       res.sendFile(path.join(staticDir, "index.html"));
     });
     console.log(`Serving frontend from: ${staticDir}`);

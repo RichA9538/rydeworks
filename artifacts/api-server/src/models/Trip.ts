@@ -7,7 +7,7 @@ const stopSchema = new mongoose.Schema({
   riderId:         { type: mongoose.Schema.Types.ObjectId, ref: 'Rider' },
   riderName:       { type: String },
   riderPhone:      { type: String },
-  address:         { type: String, default: '' },
+  address:         { type: String, required: true },
   lat:             { type: Number },
   lng:             { type: Number },
   scheduledTime:   { type: Date },

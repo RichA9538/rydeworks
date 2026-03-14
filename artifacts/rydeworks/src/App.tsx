@@ -19,7 +19,6 @@ import DriverTripView from "@/pages/driver/trip-view";
 import AdminUsers from "@/pages/admin/users";
 import AdminVehicles from "@/pages/admin/vehicles";
 import AdminOrg from "@/pages/admin/org";
-import AdminAccessCodes from "@/pages/admin/access-codes";
 
 import ReportsPage from "@/pages/reports";
 import SuperAdminPage from "@/pages/super-admin";
@@ -56,7 +55,6 @@ function Router() {
       <Route path="/admin/users" component={AdminUsers} />
       <Route path="/admin/vehicles" component={AdminVehicles} />
       <Route path="/admin/org" component={AdminOrg} />
-      <Route path="/admin/access-codes" component={AdminAccessCodes} />
       <Route path="/reports" component={ReportsPage} />
       <Route path="/super-admin" component={SuperAdminPage} />
       <Route path="/flyer/:orgSlug" component={FlyerPage} />

@@ -400,35 +400,6 @@ export interface PaymentIntentResponse {
   paymentIntentId?: string;
 }
 
-export type CreateAccessCodeRequestType =
-  (typeof CreateAccessCodeRequestType)[keyof typeof CreateAccessCodeRequestType];
-
-export const CreateAccessCodeRequestType = {
-  registration: "registration",
-  free_ride: "free_ride",
-  discount: "discount",
-} as const;
-
-export interface CreateAccessCodeRequest {
-  type?: CreateAccessCodeRequestType;
-  ridesAllowed?: number;
-  riderId?: string;
-}
-
-export type AccessCodeResponseCode = { [key: string]: unknown };
-
-export interface AccessCodeResponse {
-  success: boolean;
-  code?: AccessCodeResponseCode;
-}
-
-export type AccessCodesResponseCodesItem = { [key: string]: unknown };
-
-export interface AccessCodesResponse {
-  success: boolean;
-  codes: AccessCodesResponseCodesItem[];
-}
-
 export type ListTripsParams = {
   date?: string;
   status?: string;
