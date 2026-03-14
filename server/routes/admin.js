@@ -193,7 +193,6 @@ router.get('/org', async (req, res) => {
 // PUT /api/admin/org — update org settings (fare zones, home bases, branding, payment)
 router.put('/org', requireRole('admin'), async (req, res) => {
   try {
-    const https = require('https');
     const allowed = ['name', 'email', 'phone', 'address', 'logo', 'primaryColor', 'accentColor',
                      'appName', 'homeBases', 'fareZones', 'partnerRates', 'selfPayConfig', 'settings',
                      'paymentProvider', 'weeklyBillingDay'];
@@ -203,21 +202,9 @@ router.put('/org', requireRole('admin'), async (req, res) => {
 
     // Geocode any home bases that have an address but no coordinates
     if (updates.homeBases && Array.isArray(updates.homeBases)) {
-      const geocode = (address) => new Promise((resolve) => {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
-        https.get(url, { headers: { 'User-Agent': 'Rydeworks/1.0' } }, (res) => {
-          let data = '';
-          res.on('data', d => data += d);
-          res.on('end', () => {
-            try { const j = JSON.parse(data); resolve(j[0] ? { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) } : null); }
-            catch { resolve(null); }
-          });
-        }).on('error', () => resolve(null));
-      });
-
       for (const base of updates.homeBases) {
         if (base.address && (!base.lat || !base.lng)) {
-          const coords = await geocode(base.address);
+          const coords = await geocodeAddress(base.address);
           if (coords) { base.lat = coords.lat; base.lng = coords.lng; }
         }
       }

@@ -78,7 +78,7 @@ app.use('/api/book',        bookRoutes);
 
 app.get('/api/health', (req, res) => res.json({
   success: true,
-  message: 'Zak Transportation API is running',
+  message: 'RydeWorks API is running',
   timestamp: new Date().toISOString(),
   env: process.env.NODE_ENV || 'development'
 }));
@@ -201,7 +201,7 @@ const startServer = async () => {
     app.listen(PORT, () => {
       console.log(`
 ╔═══════════════════════════════════════════════════════════╗
-║   🚐  ZAK TRANSPORTATION INITIATIVE — SaaS Platform  🚐   ║
+║          🚐  RydeWorks — Dispatch Platform  🚐             ║
 ║   Server: http://localhost:${PORT}                          ║
 ║   API:    http://localhost:${PORT}/api                      ║
 ╚═══════════════════════════════════════════════════════════╝`);

@@ -24,32 +24,18 @@ async function sendSms(to, body) {
   }
 }
 
-// Fallback keys (used when Railway env vars are not available)
-const STRIPE_SECRET_KEY_FALLBACK = 'sk_test_51T8TkFIA0FzoXeWXg91OoCvS8Wl0NxPHG7bW2q7WEMwiUlSppPs4LnIaW35kbNI636iW97hqTHRPWK660drMJVYl00zbBv07nc';
-const STRIPE_PUBLISHABLE_KEY_FALLBACK = 'pk_test_51T8TkFIA0FzoXeWXVG4wUnsFgqpoVm1nwb46uYWgudgbtPndrrbUNkxIBlpSDw6ypYvIEWxfazSuvrAwaBJJj1FD00SOhNhFZ5';
-
 function getStripe() {
-  const key = (process.env.STRIPE_SECRET_KEY || '').trim() || STRIPE_SECRET_KEY_FALLBACK;
+  const key = (process.env.STRIPE_SECRET_KEY || '').trim();
+  if (!key) throw new Error('Payment processing is not configured. Contact support.');
   return Stripe(key);
 }
 
 // ── GET /api/book/stripe-key ───────────────────────────────
 // Returns the Stripe publishable key for the frontend
 router.get('/stripe-key', (req, res) => {
-  const key = (process.env.STRIPE_PUBLISHABLE_KEY || '').trim() || STRIPE_PUBLISHABLE_KEY_FALLBACK;
+  const key = (process.env.STRIPE_PUBLISHABLE_KEY || '').trim();
+  if (!key) return res.status(503).json({ error: 'Payment processing is not configured.' });
   res.json({ publishableKey: key });
-});
-
-// ── GET /api/book/debug-env (temporary) ───────────────────
-router.get('/debug-env', (req, res) => {
-  const stripeKeys = Object.keys(process.env).filter(k => k.toUpperCase().includes('STRIPE'));
-  res.json({
-    hasStripePublishable: !!process.env.STRIPE_PUBLISHABLE_KEY,
-    hasStripeSecret: !!process.env.STRIPE_SECRET_KEY,
-    stripePublishablePrefix: process.env.STRIPE_PUBLISHABLE_KEY ? process.env.STRIPE_PUBLISHABLE_KEY.substring(0, 12) : null,
-    stripeEnvKeys: stripeKeys,
-    nodeEnv: process.env.NODE_ENV
-  });
 });
 
 // ── POST /api/book/enroll ──────────────────────────────────
@@ -128,10 +114,14 @@ router.post('/enroll', async (req, res) => {
       if (org) {
         rider = await Rider.findOne({ phone: phone.replace(/\D/g, ''), organization: org._id });
         if (!rider) {
-          // Get next riderId
-          const count = await Rider.countDocuments({ organization: org._id });
-          const prefix = (org.slug || org.name || 'RYD').substring(0, 3).toUpperCase();
-          const riderId = `${prefix}-${String(count + 1).padStart(4, '0')}`;
+          // Atomically increment riderSequence so concurrent enrollments never produce the same ID
+          const updatedOrg = await Organization.findByIdAndUpdate(
+            org._id,
+            { $inc: { riderSequence: 1 } },
+            { new: true }
+          );
+          const prefix = (updatedOrg.reportingPrefix || updatedOrg.slug || 'RWK').substring(0, 3).toUpperCase();
+          const riderId = `${prefix}-${String(updatedOrg.riderSequence).padStart(4, '0')}`;
           rider = await Rider.create({
             organization: org._id,
             riderId,
@@ -233,4 +223,3 @@ router.post('/confirm-payment', async (req, res) => {
 });
 
 module.exports = router;
-// redeploy Sat Mar  7 18:44:09 EST 2026

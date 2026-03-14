@@ -173,9 +173,11 @@ router.get('/riders/:id', requireRole('admin', 'dispatcher'), async (req, res) =
 // PUT /api/trips/riders/:id
 router.put('/riders/:id', requireRole('admin', 'dispatcher'), async (req, res) => {
   try {
+    // Whitelist allowed fields — never let a client overwrite organization, riderId, or _id
+    const { firstName, lastName, phone, email, homeAddress, homeAddressLat, homeAddressLng, notes, commonDestinations } = req.body;
     const rider = await Rider.findOneAndUpdate(
       { _id: req.params.id, organization: req.organizationId },
-      { ...req.body, updatedAt: Date.now() },
+      { firstName, lastName, phone, email, homeAddress, homeAddressLat, homeAddressLng, notes, commonDestinations, updatedAt: Date.now() },
       { new: true }
     );
     if (!rider) return res.status(404).json({ success: false, error: 'Rider not found.' });
