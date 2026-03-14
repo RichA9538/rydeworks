@@ -408,6 +408,63 @@ let riderRows = [];
 
 document.getElementById('addRiderBtn')?.addEventListener('click', addRiderRow);
 
+// ── ADDRESS FIELD HELPERS ─────────────────────────────────
+function parseAddressComponents(addr) {
+  if (!addr) return { street: '', apt: '', city: '', state: 'FL', zip: '' };
+  let street = '', apt = '', city = '', state = 'FL', zip = '';
+  const zipMatch = addr.match(/(\d{5})\s*$/);
+  if (zipMatch) {
+    zip = zipMatch[1];
+    const withoutZip = addr.slice(0, addr.lastIndexOf(zip)).trim().replace(/,?\s*$/, '');
+    const stateMatch = withoutZip.match(/^(.+),\s*([A-Z]{2})$/);
+    if (stateMatch) {
+      state = stateMatch[2];
+      const beforeState = stateMatch[1];
+      const lastComma = beforeState.lastIndexOf(',');
+      if (lastComma > 0) {
+        const candidate = beforeState.slice(0, lastComma).trim();
+        city = beforeState.slice(lastComma + 1).trim();
+        street = candidate;
+      } else {
+        street = beforeState.trim();
+      }
+    } else {
+      street = withoutZip;
+    }
+  } else {
+    street = addr;
+  }
+  return { street, apt, city, state, zip };
+}
+
+function getFullPickupAddress(idx) {
+  const street = document.getElementById(`riderPickup-${idx}`)?.value?.trim() || '';
+  const apt    = document.getElementById(`riderPickupApt-${idx}`)?.value?.trim() || '';
+  const city   = document.getElementById(`riderPickupCity-${idx}`)?.value?.trim() || '';
+  const state  = document.getElementById(`riderPickupState-${idx}`)?.value?.trim() || '';
+  const zip    = document.getElementById(`riderPickupZip-${idx}`)?.value?.trim() || '';
+  return [street, apt, city && state ? `${city}, ${state}` : city || state, zip].filter(Boolean).join(', ');
+}
+
+function getFullDestAddress(idx) {
+  const street = document.getElementById(`riderDest-${idx}`)?.value?.trim() || '';
+  const apt    = document.getElementById(`riderDestApt-${idx}`)?.value?.trim() || '';
+  const city   = document.getElementById(`riderDestCity-${idx}`)?.value?.trim() || '';
+  const state  = document.getElementById(`riderDestState-${idx}`)?.value?.trim() || '';
+  const zip    = document.getElementById(`riderDestZip-${idx}`)?.value?.trim() || '';
+  return [street, apt, city && state ? `${city}, ${state}` : city || state, zip].filter(Boolean).join(', ');
+}
+
+function fillPickupFromAddress(idx, addr) {
+  const { street, apt, city, state, zip } = parseAddressComponents(addr);
+  const el = (id) => document.getElementById(id);
+  if (el(`riderPickup-${idx}`))      el(`riderPickup-${idx}`).value      = street;
+  if (el(`riderPickupApt-${idx}`))   el(`riderPickupApt-${idx}`).value   = apt;
+  if (el(`riderPickupCity-${idx}`))  el(`riderPickupCity-${idx}`).value  = city;
+  if (el(`riderPickupState-${idx}`)) el(`riderPickupState-${idx}`).value = state || 'FL';
+  if (el(`riderPickupZip-${idx}`))   el(`riderPickupZip-${idx}`).value   = zip;
+}
+
 function addRiderRow() {
   riderCount++;
   const idx = riderCount;
@@ -419,23 +476,32 @@ function addRiderRow() {
       <span class="rider-row-title"><i class="fas fa-user"></i> Rider ${idx}</span>
       <button type="button" class="rider-row-remove" onclick="removeRiderRow(${idx})"><i class="fas fa-times"></i></button>
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Rider</label>
-        <select class="form-input rider-select" id="riderSelect-${idx}" onchange="onRiderSelect(${idx})">
-          <option value="">Select existing rider...</option>
-          <option value="new">+ Add New Rider</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Pickup Address *</label>
-        <input type="text" class="form-input" id="riderPickup-${idx}" placeholder="123 Main St, St. Pete, FL">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Destination *</label>
-        <input type="text" class="form-input" id="riderDest-${idx}" placeholder="456 Work Ave, Clearwater, FL"
-          onblur="onDestinationBlur(${idx})">
-      </div>
+    <div class="form-group">
+      <label class="form-label">Rider</label>
+      <select class="form-input rider-select" id="riderSelect-${idx}" onchange="onRiderSelect(${idx})">
+        <option value="">Select existing rider...</option>
+        <option value="new">+ Add New Rider</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Pickup Street *</label>
+      <input type="text" class="form-input" id="riderPickup-${idx}" placeholder="123 Main St">
+    </div>
+    <div class="form-row" style="margin-top:-4px">
+      <div class="form-group" style="flex:0 0 120px"><label class="form-label">Apt/Unit</label><input type="text" class="form-input" id="riderPickupApt-${idx}" placeholder="Apt 2B"></div>
+      <div class="form-group" style="flex:2"><label class="form-label">City</label><input type="text" class="form-input" id="riderPickupCity-${idx}" placeholder="St. Petersburg"></div>
+      <div class="form-group" style="flex:0 0 60px"><label class="form-label">State</label><input type="text" class="form-input" id="riderPickupState-${idx}" placeholder="FL" maxlength="2" style="text-transform:uppercase" value="FL"></div>
+      <div class="form-group" style="flex:0 0 85px"><label class="form-label">ZIP</label><input type="text" class="form-input" id="riderPickupZip-${idx}" placeholder="33701" maxlength="5" inputmode="numeric"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Destination Street *</label>
+      <input type="text" class="form-input" id="riderDest-${idx}" placeholder="456 Work Ave">
+    </div>
+    <div class="form-row" style="margin-top:-4px">
+      <div class="form-group" style="flex:0 0 120px"><label class="form-label">Apt/Unit</label><input type="text" class="form-input" id="riderDestApt-${idx}" placeholder="Suite 100"></div>
+      <div class="form-group" style="flex:2"><label class="form-label">City</label><input type="text" class="form-input" id="riderDestCity-${idx}" placeholder="Clearwater"></div>
+      <div class="form-group" style="flex:0 0 60px"><label class="form-label">State</label><input type="text" class="form-input" id="riderDestState-${idx}" placeholder="FL" maxlength="2" style="text-transform:uppercase" value="FL"></div>
+      <div class="form-group" style="flex:0 0 85px"><label class="form-label">ZIP</label><input type="text" class="form-input" id="riderDestZip-${idx}" placeholder="33755" maxlength="5" inputmode="numeric" onblur="onDestinationBlur(${idx})"></div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -510,9 +576,8 @@ async function onRiderSelect(idx) {
   if (!res?.success) return;
   const r = res.rider;
 
-  const pickupEl = document.getElementById(`riderPickup-${idx}`);
-  if (pickupEl && r.homeAddress) {
-    pickupEl.value = r.homeAddress;
+  if (r.homeAddress) {
+    fillPickupFromAddress(idx, r.homeAddress);
     saveAddressToMemory(r.homeAddress);
   }
 
@@ -548,8 +613,7 @@ function onTripTypeChange(idx) {
     returnGroup.style.display = type === 'one_way' ? 'none' : 'block';
   }
   // Recalculate fare when trip type changes
-  const destEl = document.getElementById(`riderDest-${idx}`);
-  if (destEl?.value?.trim().length >= 5) onDestinationBlur(idx);
+  if (getFullDestAddress(idx).length >= 5) onDestinationBlur(idx);
 }
 
 // Payment type toggle
@@ -581,8 +645,7 @@ async function onDestinationBlur(idx) {
     document.getElementById('fareZone').textContent   = 'Free Ride';
     return;
   }
-  const destEl = document.getElementById(`riderDest-${idx}`);
-  const dest   = destEl?.value?.trim();
+  const dest = getFullDestAddress(idx);
   if (!dest || dest.length < 5) return;
   let homeBaseName = document.getElementById('tripHomeBase')?.value;
   if (!homeBaseName) {
@@ -591,7 +654,7 @@ async function onDestinationBlur(idx) {
     const baseSel = document.getElementById('tripHomeBase');
     if (baseSel && homeBaseName) baseSel.value = homeBaseName;
   }
-  if (!homeBaseName && !(document.getElementById(`riderPickup-${idx}`)?.value?.trim())) {
+  if (!homeBaseName && !getFullPickupAddress(idx)) {
     document.getElementById('fareAmount').textContent = 'Set vehicle base or pickup';
     return;
   }
@@ -628,8 +691,7 @@ async function onDestinationBlur(idx) {
     const destLng = destCoords.lng;
     // Also geocode pickup address for accurate pickup-to-dropoff fare calculation
     let pickupLat = null, pickupLng = null;
-    const pickupEl = document.getElementById(`riderPickup-${idx}`);
-    const pickupAddr = pickupEl?.value?.trim();
+    const pickupAddr = getFullPickupAddress(idx);
     if (pickupAddr && pickupAddr.length >= 5) {
       try {
         const pc = await geocodeAddress(pickupAddr);
@@ -666,7 +728,7 @@ async function onDestinationBlur(idx) {
           warningEl = document.createElement('div');
           warningEl.id = `travelWarning-${idx}`;
           warningEl.style.cssText = 'margin-top:6px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;';
-          document.getElementById(`riderDest-${idx}`)?.parentElement?.appendChild(warningEl);
+          document.getElementById(`riderRow-${idx}`)?.appendChild(warningEl);
         }
         if (minutesUntilPickup < estimatedMinutes + 15) {
           warningEl.style.background = '#fff3cd';
@@ -759,8 +821,8 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
     for (const row of riderRowEls) {
       const id = row.id.replace('riderRow-', '');
       const riderId   = document.getElementById(`riderSelect-${id}`)?.value;
-      const pickup    = document.getElementById(`riderPickup-${id}`)?.value;
-      const dest      = document.getElementById(`riderDest-${id}`)?.value;
+      const pickup    = getFullPickupAddress(id);
+      const dest      = getFullDestAddress(id);
       const pickupTime= document.getElementById(`riderPickupTime-${id}`)?.value;
       const apptTime  = document.getElementById(`riderApptTime-${id}`)?.value;
       const riderNote = document.getElementById(`riderNoteInline-${id}`)?.value;
@@ -820,8 +882,8 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
         const id = row.id.replace('riderRow-', '');
         const tripType   = document.getElementById(`riderTripType-${id}`)?.value;
         const returnTime = document.getElementById(`riderReturnTime-${id}`)?.value;
-        const pickup     = document.getElementById(`riderPickup-${id}`)?.value;
-        const dest       = document.getElementById(`riderDest-${id}`)?.value;
+        const pickup     = getFullPickupAddress(id);
+        const dest       = getFullDestAddress(id);
         const riderId    = document.getElementById(`riderSelect-${id}`)?.value;
         const riderNote  = document.getElementById(`riderNoteInline-${id}`)?.value;
         if (tripType !== 'round_trip' || !returnTime || !pickup || !dest) continue;
@@ -897,8 +959,8 @@ async function optimizeAndValidate() {
   const riderRowEls = document.querySelectorAll('.rider-row');
   for (const row of riderRowEls) {
     const id = row.id.replace('riderRow-', '');
-    const pickup   = document.getElementById(`riderPickup-${id}`)?.value;
-    const dest     = document.getElementById(`riderDest-${id}`)?.value;
+    const pickup   = getFullPickupAddress(id);
+    const dest     = getFullDestAddress(id);
     const pickupTime = document.getElementById(`riderPickupTime-${id}`)?.value;
     const apptTime   = document.getElementById(`riderApptTime-${id}`)?.value;
     const riderName  = document.getElementById(`riderSelect-${id}`)?.selectedOptions[0]?.text || `Rider ${id}`;
@@ -1947,11 +2009,12 @@ async function saveNewRider() {
 
   // Assemble address from split fields
   const street = document.getElementById('riderStreet').value.trim();
+  const apt    = document.getElementById('riderApt').value.trim();
   const city   = document.getElementById('riderCity').value.trim();
   const state  = document.getElementById('riderState').value.trim().toUpperCase();
   const zip    = document.getElementById('riderZip').value.trim();
-  const parts  = [street, city && state ? `${city}, ${state}` : city || state, zip].filter(Boolean);
-  const homeAddress = parts.join(' ');
+  const parts  = [street, apt, city && state ? `${city}, ${state}` : city || state, zip].filter(Boolean);
+  const homeAddress = parts.join(', ');
 
   if (!firstName || !lastName || !phone) {
     showToast('First name, last name, and phone are required.', 'error');
@@ -1967,7 +2030,7 @@ async function saveNewRider() {
     showToast(`Rider ${firstName} ${lastName} added!`, 'success');
     closeModal('addRiderModal');
     ['riderFirstName','riderLastName','riderPhone','riderEmail',
-     'riderStreet','riderCity','riderState','riderZip','riderNotes']
+     'riderStreet','riderApt','riderCity','riderState','riderZip','riderNotes']
       .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     loadRiders();
   } else {
@@ -2053,18 +2116,26 @@ async function savePartner() {
 }
 
 async function saveVehicle() {
-  const name     = document.getElementById('vehName').value.trim();
-  const plate    = document.getElementById('vehPlate').value.trim();
-  const make     = document.getElementById('vehMake').value.trim();
-  const model    = document.getElementById('vehModel').value.trim();
-  const year     = parseInt(document.getElementById('vehYear').value) || null;
-  const capacity = parseInt(document.getElementById('vehCapacity').value) || 7;
+  const name       = document.getElementById('vehName').value.trim();
+  const plate      = document.getElementById('vehPlate').value.trim();
+  const make       = document.getElementById('vehMake').value.trim();
+  const model      = document.getElementById('vehModel').value.trim();
+  const year       = parseInt(document.getElementById('vehYear').value) || null;
+  const capacity   = parseInt(document.getElementById('vehCapacity').value) || 7;
+  const vbStreet   = document.getElementById('vehBaseStreet').value.trim();
+  const vbCity     = document.getElementById('vehBaseCity').value.trim();
+  const vbState    = document.getElementById('vehBaseState').value.trim().toUpperCase();
+  const vbZip      = document.getElementById('vehBaseZip').value.trim();
+  const vbName     = document.getElementById('vehBaseName').value.trim();
+  const vbAddrParts = [vbStreet, vbCity && vbState ? `${vbCity}, ${vbState}` : vbCity || vbState, vbZip].filter(Boolean);
+  const baseAddress = vbAddrParts.join(' ');
+  const baseLocation = baseAddress ? { address: baseAddress, name: vbName || (name + ' Base') } : null;
 
   if (!name) { showToast('Vehicle name is required.', 'error'); return; }
 
   const res = await ZakAuth.apiFetch('/api/admin/vehicles', {
     method: 'POST',
-    body: JSON.stringify({ name, licensePlate: plate, make, model, year, capacity })
+    body: JSON.stringify({ name, licensePlate: plate, make, model, year, capacity, baseLocation })
   });
 
   if (res?.success) {
@@ -2175,35 +2246,8 @@ async function editRider(riderId) {
   if (!res?.success) { showToast('Could not load rider data.', 'error'); return; }
   const r = res.rider;
 
-  // Parse stored address back into parts (best-effort)
-  // Stored format: "123 Main St St. Petersburg, FL 33701"
-  let street = '', city = '', state = '', zip = '';
-  if (r.homeAddress) {
-    // Try to extract ZIP (last 5 digits)
-    const zipMatch = r.homeAddress.match(/(\d{5})\s*$/);
-    if (zipMatch) {
-      zip = zipMatch[1];
-      const withoutZip = r.homeAddress.slice(0, r.homeAddress.lastIndexOf(zip)).trim().replace(/,?\s*$/, '');
-      // Try to split on ", STATE" pattern
-      const stateMatch = withoutZip.match(/^(.+),\s*([A-Z]{2})$/);
-      if (stateMatch) {
-        state = stateMatch[2];
-        // Split city from street on last comma before state
-        const beforeState = stateMatch[1];
-        const lastComma = beforeState.lastIndexOf(',');
-        if (lastComma > 0) {
-          street = beforeState.slice(0, lastComma).trim();
-          city   = beforeState.slice(lastComma + 1).trim();
-        } else {
-          street = beforeState.trim();
-        }
-      } else {
-        street = withoutZip;
-      }
-    } else {
-      street = r.homeAddress;
-    }
-  }
+  // Parse stored address back into components
+  const { street, apt, city, state, zip } = parseAddressComponents(r.homeAddress || '');
 
   document.getElementById('editRiderId').value        = r._id;
   document.getElementById('editRiderFirstName').value = r.firstName;
@@ -2211,6 +2255,7 @@ async function editRider(riderId) {
   document.getElementById('editRiderPhone').value     = r.phone || '';
   document.getElementById('editRiderEmail').value     = r.email || '';
   document.getElementById('editRiderStreet').value    = street;
+  document.getElementById('editRiderApt').value       = apt || '';
   document.getElementById('editRiderCity').value      = city;
   document.getElementById('editRiderState').value     = state;
   document.getElementById('editRiderZip').value       = zip;
@@ -2228,11 +2273,12 @@ async function saveEditRider() {
   const notes      = document.getElementById('editRiderNotes').value.trim();
 
   const street = document.getElementById('editRiderStreet').value.trim();
+  const apt    = document.getElementById('editRiderApt').value.trim();
   const city   = document.getElementById('editRiderCity').value.trim();
   const state  = document.getElementById('editRiderState').value.trim().toUpperCase();
   const zip    = document.getElementById('editRiderZip').value.trim();
-  const parts  = [street, city && state ? `${city}, ${state}` : city || state, zip].filter(Boolean);
-  const homeAddress = parts.join(' ');
+  const parts  = [street, apt, city && state ? `${city}, ${state}` : city || state, zip].filter(Boolean);
+  const homeAddress = parts.join(', ');
 
   if (!firstName || !lastName || !phone) {
     showToast('First name, last name, and phone are required.', 'error');
@@ -2353,19 +2399,29 @@ function addHomeBase() { openModal('addHomeBaseModal'); }
 function editHomeBase(i) {
   const b = (appData.org?.homeBases || [])[i];
   if (!b) return;
-  document.getElementById('editHbIndex').value   = i;
-  document.getElementById('editHbName').value    = b.name || '';
-  document.getElementById('editHbAddress').value = b.address || '';
+  document.getElementById('editHbIndex').value = i;
+  document.getElementById('editHbName').value  = b.name || '';
   document.getElementById('editHbDefault').checked = !!b.isDefault;
+  // Parse stored address back into split fields
+  const { street, city, state, zip } = parseAddressComponents(b.address || '');
+  document.getElementById('editHbStreet').value = street;
+  document.getElementById('editHbCity').value   = city;
+  document.getElementById('editHbState').value  = state || 'FL';
+  document.getElementById('editHbZip').value    = zip;
   openModal('editHomeBaseModal');
 }
 
 async function saveEditHomeBase() {
-  const i       = parseInt(document.getElementById('editHbIndex').value);
-  const name    = document.getElementById('editHbName').value.trim();
-  const address = document.getElementById('editHbAddress').value.trim();
-  const isDef   = document.getElementById('editHbDefault').checked;
-  if (!name || !address) { showToast('Name and address are required.', 'error'); return; }
+  const i        = parseInt(document.getElementById('editHbIndex').value);
+  const name     = document.getElementById('editHbName').value.trim();
+  const ehStreet = document.getElementById('editHbStreet').value.trim();
+  const ehCity   = document.getElementById('editHbCity').value.trim();
+  const ehState  = document.getElementById('editHbState').value.trim().toUpperCase();
+  const ehZip    = document.getElementById('editHbZip').value.trim();
+  const addrParts = [ehStreet, ehCity && ehState ? `${ehCity}, ${ehState}` : ehCity || ehState, ehZip].filter(Boolean);
+  const address  = addrParts.join(' ');
+  const isDef    = document.getElementById('editHbDefault').checked;
+  if (!name || !ehStreet || !ehCity) { showToast('Name, street, and city are required.', 'error'); return; }
   const bases = [...(appData.org?.homeBases || [])];
   if (isDef) bases.forEach(b => b.isDefault = false);
   bases[i] = { ...bases[i], name, address, isDefault: isDef };
@@ -2409,7 +2465,11 @@ function editVehicle(vehicleId) {
   document.getElementById('editVehYear').value     = v.year || '';
   document.getElementById('editVehCapacity').value = v.capacity || 7;
   document.getElementById('editVehStatus').value   = v.status || 'available';
-  document.getElementById('editVehBaseAddress').value = v.baseLocation?.address || '';
+  const { street: evbStreet, city: evbCity, state: evbState, zip: evbZip } = parseAddressComponents(v.baseLocation?.address || '');
+  document.getElementById('editVehBaseStreet').value = evbStreet;
+  document.getElementById('editVehBaseCity').value   = evbCity;
+  document.getElementById('editVehBaseState').value  = evbState || 'FL';
+  document.getElementById('editVehBaseZip').value    = evbZip;
   document.getElementById('editVehBaseName').value = v.baseLocation?.name || '';
   openModal('editVehicleModal');
 }
@@ -2423,8 +2483,13 @@ async function saveEditVehicle() {
   const year     = parseInt(document.getElementById('editVehYear').value) || null;
   const capacity = parseInt(document.getElementById('editVehCapacity').value) || 7;
   const status   = document.getElementById('editVehStatus').value;
-  const baseAddress = document.getElementById('editVehBaseAddress').value.trim();
-  const baseName = document.getElementById('editVehBaseName').value.trim();
+  const evbStreet   = document.getElementById('editVehBaseStreet').value.trim();
+  const evbCity     = document.getElementById('editVehBaseCity').value.trim();
+  const evbState    = document.getElementById('editVehBaseState').value.trim().toUpperCase();
+  const evbZip      = document.getElementById('editVehBaseZip').value.trim();
+  const evbParts    = [evbStreet, evbCity && evbState ? `${evbCity}, ${evbState}` : evbCity || evbState, evbZip].filter(Boolean);
+  const baseAddress = evbParts.join(' ');
+  const baseName    = document.getElementById('editVehBaseName').value.trim();
   if (!name) { showToast('Vehicle name is required.', 'error'); return; }
   const res = await ZakAuth.apiFetch(`/api/admin/vehicles/${id}`, {
     method: 'PUT',
@@ -2600,11 +2665,16 @@ async function reactivateUser(userId, name) {
 // ── HOME BASE ─────────────────────────────────────────────
 async function saveHomeBase() {
   const name      = document.getElementById('hbName').value.trim();
-  const address   = document.getElementById('hbAddress').value.trim();
+  const hbStreet  = document.getElementById('hbStreet').value.trim();
+  const hbCity    = document.getElementById('hbCity').value.trim();
+  const hbState   = document.getElementById('hbState').value.trim().toUpperCase();
+  const hbZip     = document.getElementById('hbZip').value.trim();
+  const addrParts = [hbStreet, hbCity && hbState ? `${hbCity}, ${hbState}` : hbCity || hbState, hbZip].filter(Boolean);
+  const address   = addrParts.join(' ');
   const isDefault = document.getElementById('hbDefault').checked;
 
-  if (!name || !address) {
-    showToast('Name and address are required.', 'error');
+  if (!name || !hbStreet || !hbCity) {
+    showToast('Name, street, and city are required.', 'error');
     return;
   }
 
@@ -2625,8 +2695,8 @@ async function saveHomeBase() {
     showToast(`Home base "${name}" added!`, 'success');
     closeModal('addHomeBaseModal');
     appData.org = res.org;
-    document.getElementById('hbName').value = '';
-    document.getElementById('hbAddress').value = '';
+    ['hbName','hbStreet','hbCity','hbZip'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const hbStateEl = document.getElementById('hbState'); if (hbStateEl) hbStateEl.value = 'FL';
     document.getElementById('hbDefault').checked = false;
     loadAdminSettings();
     populateFormDropdowns();
