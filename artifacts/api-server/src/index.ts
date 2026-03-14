@@ -1,3 +1,13 @@
+// Prevent uncaught exceptions from killing the process so the HTTP server
+// (and healthcheck) always remain available even during partial failures.
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] Uncaught exception:", err.message, err.stack);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[FATAL] Unhandled rejection:", reason);
+});
+
 import app from "./app";
 
 const rawPort = process.env["PORT"];
