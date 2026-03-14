@@ -14,6 +14,8 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
+console.log(`[startup] NODE_ENV=${process.env.NODE_ENV} PORT=${port}`);
+
+app.listen(port, "0.0.0.0", () => {
+  console.log(`[startup] Server listening on 0.0.0.0:${port}`);
 });
