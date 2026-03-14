@@ -1,0 +1,24 @@
+packages:
+  "framer-motion": "Animations for the marketing landing page and smooth UI transitions"
+  "recharts": "Analytics and charts for the reports page"
+  "date-fns": "Date formatting and manipulation for trips and scheduling"
+  "@hookform/resolvers": "Zod schema resolvers for form validation"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility function to efficiently merge Tailwind CSS classes"
+
+images:
+  - path: "artifacts/rydeworks/public/images/hero-bg.png"
+    description: "Abstract gradient mesh background in midnight navy blue and bright teal with soft light leaks, modern SaaS style, highly professional"
+    aspect_ratio: "16:9"
+  - path: "artifacts/rydeworks/public/images/logo-mark.png"
+    description: "Minimal geometric logo mark featuring an abstract letter R or forward arrow in bright teal on a transparent background, modern tech startup style"
+    aspect_ratio: "1:1"
+  - path: "artifacts/rydeworks/public/images/empty-van.png"
+    description: "Stylized 3D isometric illustration of a modern passenger transport van in midnight blue with teal glowing accents, floating on a dark background"
+    aspect_ratio: "4:3"
+
+notes:
+  - The backend uses an Express server with a MongoDB database, we communicate via /api/* routes
+  - JWT tokens are stored in localStorage and attached to fetch requests via an interceptor
+  - React Query hooks are imported from the workspace library @workspace/api-client-react
+  - Mapbox integration is stubbed with a placeholder list until the token is provided

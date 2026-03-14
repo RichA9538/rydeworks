@@ -1,0 +1,1419 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 1.0.0
+  description: RydeWorks Dispatch Platform API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication
+  - name: trips
+    description: Trip management
+  - name: riders
+    description: Rider management
+  - name: vehicles
+    description: Vehicle management
+  - name: users
+    description: User management
+  - name: admin
+    description: Organization admin
+  - name: reports
+    description: Reports and analytics
+  - name: payments
+    description: Payment processing
+  - name: superAdmin
+    description: Super admin operations
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # ── Auth ──────────────────────────────────────────────────────────
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ── Trips ──────────────────────────────────────────────────────────
+  /trips:
+    get:
+      operationId: listTrips
+      tags: [trips]
+      summary: List trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: driverId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Trip list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripsListResponse"
+
+    post:
+      operationId: createTrip
+      tags: [trips]
+      summary: Create trip
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTripRequest"
+      responses:
+        "201":
+          description: Trip created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripResponse"
+
+  /trips/{id}:
+    get:
+      operationId: getTrip
+      tags: [trips]
+      summary: Get trip
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Trip detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripResponse"
+
+    patch:
+      operationId: updateTrip
+      tags: [trips]
+      summary: Update trip
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTripRequest"
+      responses:
+        "200":
+          description: Trip updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripResponse"
+
+    delete:
+      operationId: deleteTrip
+      tags: [trips]
+      summary: Delete/cancel trip
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Trip deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /trips/{id}/status:
+    patch:
+      operationId: updateTripStatus
+      tags: [trips]
+      summary: Update trip overall status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStatusRequest"
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripResponse"
+
+  /trips/{id}/stops/{stopId}/status:
+    patch:
+      operationId: updateStopStatus
+      tags: [trips]
+      summary: Update individual stop status (driver actions)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: stopId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStatusRequest"
+      responses:
+        "200":
+          description: Stop status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripResponse"
+
+  /trips/{id}/optimize:
+    post:
+      operationId: optimizeTrip
+      tags: [trips]
+      summary: Optimize trip route order
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Route optimized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OptimizeResponse"
+
+  /trips/{id}/driver-log:
+    patch:
+      operationId: updateDriverLog
+      tags: [trips]
+      summary: Update driver log (shift start/end, inspection)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DriverLogRequest"
+      responses:
+        "200":
+          description: Driver log updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripResponse"
+
+  # ── Riders ──────────────────────────────────────────────────────────
+  /trips/riders:
+    get:
+      operationId: listRiders
+      tags: [riders]
+      summary: List/search riders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Riders list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RidersListResponse"
+
+    post:
+      operationId: createRider
+      tags: [riders]
+      summary: Create rider
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRiderRequest"
+      responses:
+        "201":
+          description: Rider created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RiderResponse"
+
+  /trips/riders/{id}:
+    get:
+      operationId: getRider
+      tags: [riders]
+      summary: Get rider
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Rider detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RiderResponse"
+
+    patch:
+      operationId: updateRider
+      tags: [riders]
+      summary: Update rider
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRiderRequest"
+      responses:
+        "200":
+          description: Rider updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RiderResponse"
+
+  /trips/riders/{id}/free-ride-code:
+    get:
+      operationId: getRiderFreeRideCode
+      tags: [riders]
+      summary: Get or create free ride code for rider
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Free ride code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FreeRideCodeResponse"
+
+  # ── Vehicles ──────────────────────────────────────────────────────────
+  /admin/vehicles:
+    get:
+      operationId: listVehicles
+      tags: [vehicles]
+      summary: List vehicles
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Vehicles list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehiclesListResponse"
+
+    post:
+      operationId: createVehicle
+      tags: [vehicles]
+      summary: Create vehicle
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVehicleRequest"
+      responses:
+        "201":
+          description: Vehicle created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleResponse"
+
+  /admin/vehicles/{id}:
+    patch:
+      operationId: updateVehicle
+      tags: [vehicles]
+      summary: Update vehicle
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVehicleRequest"
+      responses:
+        "200":
+          description: Vehicle updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleResponse"
+
+  # ── Users ──────────────────────────────────────────────────────────
+  /admin/users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users/drivers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsersListResponse"
+
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+
+  /admin/users/{id}:
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Delete/deactivate user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ── Admin / Org ──────────────────────────────────────────────────────────
+  /admin/org:
+    get:
+      operationId: getOrganization
+      tags: [admin]
+      summary: Get organization settings
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationResponse"
+
+    patch:
+      operationId: updateOrganization
+      tags: [admin]
+      summary: Update organization settings (branding, fare zones, etc.)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrganizationRequest"
+      responses:
+        "200":
+          description: Organization updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationResponse"
+
+  # ── Reports ──────────────────────────────────────────────────────────
+  /admin/reports/trips:
+    get:
+      operationId: getTripsReport
+      tags: [reports]
+      summary: Get trips report
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+        - name: endDate
+          in: query
+          schema:
+            type: string
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, csv]
+      responses:
+        "200":
+          description: Trips report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportResponse"
+
+  /admin/reports/drivers:
+    get:
+      operationId: getDriversReport
+      tags: [reports]
+      summary: Get drivers report
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+        - name: endDate
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Drivers report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportResponse"
+
+  # ── Payments ──────────────────────────────────────────────────────────
+  /payments/create-intent:
+    post:
+      operationId: createPaymentIntent
+      tags: [payments]
+      summary: Create Stripe payment intent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePaymentIntentRequest"
+      responses:
+        "200":
+          description: Payment intent created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentIntentResponse"
+
+  # ── Super Admin ──────────────────────────────────────────────────────────
+  /super-admin/organizations:
+    get:
+      operationId: listOrganizations
+      tags: [superAdmin]
+      summary: List all organizations
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Organizations list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationsListResponse"
+
+    post:
+      operationId: createOrganization
+      tags: [superAdmin]
+      summary: Create new organization (onboard new client)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrganizationRequest"
+      responses:
+        "201":
+          description: Organization created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationResponse"
+
+  /super-admin/organizations/{id}:
+    patch:
+      operationId: updateOrganizationById
+      tags: [superAdmin]
+      summary: Update organization
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrganizationRequest"
+      responses:
+        "200":
+          description: Organization updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required: [success]
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        error:
+          type: string
+      required: [success, error]
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required: [email, password]
+
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required: [success, token, user]
+
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        organization:
+          type: string
+        isActive:
+          type: boolean
+      required: [_id, firstName, lastName, email, roles]
+
+    UserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        user:
+          $ref: "#/components/schemas/User"
+      required: [success, user]
+
+    UsersListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+      required: [success, users]
+
+    CreateUserRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        password:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+      required: [firstName, lastName, email, password, roles]
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        isActive:
+          type: boolean
+
+    Stop:
+      type: object
+      properties:
+        _id:
+          type: string
+        stopOrder:
+          type: number
+        type:
+          type: string
+          enum: [pickup, dropoff]
+        riderId:
+          type: string
+        riderName:
+          type: string
+        riderPhone:
+          type: string
+        address:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        scheduledTime:
+          type: string
+        appointmentTime:
+          type: string
+        actualArrival:
+          type: string
+        actualDeparture:
+          type: string
+        status:
+          type: string
+          enum: [pending, en_route, arrived, aboard, completed, no_show, canceled]
+        notes:
+          type: string
+      required: [stopOrder, type, address, status]
+
+    Trip:
+      type: object
+      properties:
+        _id:
+          type: string
+        tripNumber:
+          type: string
+        organization:
+          type: string
+        driver:
+          type: object
+          additionalProperties: true
+        vehicle:
+          type: object
+          additionalProperties: true
+        homeBase:
+          type: object
+          properties:
+            name:
+              type: string
+            address:
+              type: string
+            lat:
+              type: number
+            lng:
+              type: number
+        tripDate:
+          type: string
+        stops:
+          type: array
+          items:
+            $ref: "#/components/schemas/Stop"
+        status:
+          type: string
+          enum: [scheduled, in_progress, completed, canceled]
+        payment:
+          type: object
+          additionalProperties: true
+        driverLog:
+          type: object
+          additionalProperties: true
+        notes:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [_id, tripNumber, tripDate, stops, status]
+
+    TripResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        trip:
+          $ref: "#/components/schemas/Trip"
+      required: [success, trip]
+
+    TripsListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        trips:
+          type: array
+          items:
+            $ref: "#/components/schemas/Trip"
+      required: [success, trips]
+
+    CreateTripRequest:
+      type: object
+      properties:
+        tripDate:
+          type: string
+        driverId:
+          type: string
+        vehicleId:
+          type: string
+        homeBaseId:
+          type: string
+        stops:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        payment:
+          type: object
+          additionalProperties: true
+        notes:
+          type: string
+      required: [tripDate]
+
+    UpdateTripRequest:
+      type: object
+      properties:
+        tripDate:
+          type: string
+        driverId:
+          type: string
+        vehicleId:
+          type: string
+        stops:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        payment:
+          type: object
+          additionalProperties: true
+        notes:
+          type: string
+        status:
+          type: string
+
+    UpdateStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+        notes:
+          type: string
+      required: [status]
+
+    OptimizeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        result:
+          type: object
+          additionalProperties: true
+      required: [success, result]
+
+    DriverLogRequest:
+      type: object
+      properties:
+        startMileage:
+          type: number
+        endMileage:
+          type: number
+        inspectionDone:
+          type: boolean
+        inspectionNotes:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+
+    Rider:
+      type: object
+      properties:
+        _id:
+          type: string
+        riderId:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        homeAddress:
+          type: string
+        homeAddressLat:
+          type: number
+        homeAddressLng:
+          type: number
+        notes:
+          type: string
+        totalTrips:
+          type: number
+        isActive:
+          type: boolean
+        commonDestinations:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      required: [_id, firstName, lastName]
+
+    RiderResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        rider:
+          $ref: "#/components/schemas/Rider"
+      required: [success, rider]
+
+    RidersListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        riders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Rider"
+      required: [success, riders]
+
+    CreateRiderRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        homeAddress:
+          type: string
+        notes:
+          type: string
+      required: [firstName, lastName]
+
+    UpdateRiderRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        homeAddress:
+          type: string
+        notes:
+          type: string
+        isActive:
+          type: boolean
+
+    FreeRideCodeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        code:
+          type: string
+        expiresAt:
+          type: string
+        isActive:
+          type: boolean
+      required: [success]
+
+    Vehicle:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        make:
+          type: string
+        model:
+          type: string
+        year:
+          type: number
+        licensePlate:
+          type: string
+        color:
+          type: string
+        capacity:
+          type: number
+        status:
+          type: string
+        baseLocation:
+          type: object
+          additionalProperties: true
+      required: [_id, name]
+
+    VehicleResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        vehicle:
+          $ref: "#/components/schemas/Vehicle"
+      required: [success, vehicle]
+
+    VehiclesListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        vehicles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Vehicle"
+      required: [success, vehicles]
+
+    CreateVehicleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        make:
+          type: string
+        model:
+          type: string
+        year:
+          type: number
+        licensePlate:
+          type: string
+        color:
+          type: string
+        capacity:
+          type: number
+      required: [name]
+
+    UpdateVehicleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        make:
+          type: string
+        model:
+          type: string
+        licensePlate:
+          type: string
+        color:
+          type: string
+        capacity:
+          type: number
+        status:
+          type: string
+
+    Organization:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        logo:
+          type: string
+        primaryColor:
+          type: string
+        accentColor:
+          type: string
+        appName:
+          type: string
+        plan:
+          type: string
+        homeBases:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        fareZones:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        selfPayConfig:
+          type: object
+          additionalProperties: true
+        settings:
+          type: object
+          additionalProperties: true
+      required: [_id, name, slug]
+
+    OrganizationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        org:
+          $ref: "#/components/schemas/Organization"
+      required: [success, org]
+
+    OrganizationsListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        organizations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Organization"
+      required: [success, organizations]
+
+    UpdateOrganizationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        logo:
+          type: string
+        primaryColor:
+          type: string
+        accentColor:
+          type: string
+        appName:
+          type: string
+        homeBases:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        fareZones:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        selfPayConfig:
+          type: object
+          additionalProperties: true
+        settings:
+          type: object
+          additionalProperties: true
+
+    CreateOrganizationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        appName:
+          type: string
+        primaryColor:
+          type: string
+        accentColor:
+          type: string
+        adminEmail:
+          type: string
+        adminPassword:
+          type: string
+        adminFirstName:
+          type: string
+        adminLastName:
+          type: string
+      required: [name, slug, adminEmail, adminPassword, adminFirstName, adminLastName]
+
+    ReportResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        summary:
+          type: object
+          additionalProperties: true
+      required: [success, data]
+
+    CreatePaymentIntentRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+        currency:
+          type: string
+        riderId:
+          type: string
+        tripId:
+          type: string
+        description:
+          type: string
+      required: [amount]
+
+    PaymentIntentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        clientSecret:
+          type: string
+        paymentIntentId:
+          type: string
+      required: [success, clientSecret]
