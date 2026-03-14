@@ -9,6 +9,7 @@ if (!ZakAuth.hasRole('dispatcher') && !ZakAuth.hasRole('admin') && !ZakAuth.hasR
 }
 
 const API = '';
+let MAPBOX_TOKEN = '';
 let dispatchMap = null;
 let dashboardMap = null;
 let driverMarkers = {};
@@ -18,6 +19,14 @@ let dashboardVehicleMarkers = [];
 let dashboardBaseMarkers = [];
 const geocodeCache = {};
 let appData = { drivers: [], vehicles: [], grants: [], partners: [], org: null };
+
+// Fetch Mapbox token from server config
+(async () => {
+  try {
+    const cfg = await fetch('/api/config').then(r => r.json());
+    MAPBOX_TOKEN = cfg.mapboxToken || '';
+  } catch (e) {}
+})();
 let currentSelectedRiderState = null;
 
 function getSelectedVehicleBase() {
@@ -228,11 +237,15 @@ async function loadAppData() {
 }
 
 function populateFormDropdowns() {
-  // Drivers dropdown
+  // Drivers dropdown — deduplicate by _id
   const driverSel = document.getElementById('tripDriver');
   if (driverSel) {
     driverSel.innerHTML = '<option value="">Select driver...</option>';
+    const seen = new Set();
     appData.drivers.forEach(d => {
+      const key = String(d._id);
+      if (seen.has(key)) return;
+      seen.add(key);
       driverSel.innerHTML += `<option value="${d._id}">${d.firstName} ${d.lastName}</option>`;
     });
   }
@@ -255,22 +268,37 @@ function populateFormDropdowns() {
     });
   }
 
-  // Grants dropdown
+  // Payment type dropdown — fill optgroups with grants and partners
+  const grantOptGroup = document.getElementById('grantOptGroup');
+  if (grantOptGroup) {
+    grantOptGroup.innerHTML = '';
+    appData.grants.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = `grant_${g._id}`;
+      opt.textContent = g.name;
+      grantOptGroup.appendChild(opt);
+    });
+  }
+  const partnerOptGroup = document.getElementById('partnerOptGroup');
+  if (partnerOptGroup) {
+    partnerOptGroup.innerHTML = '';
+    appData.partners.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = `partner_${p._id}`;
+      opt.textContent = p.name;
+      partnerOptGroup.appendChild(opt);
+    });
+  }
+  // Keep the hidden legacy grant/partner selects in sync for any other code that reads them
   const grantSel = document.getElementById('grantSelect');
   if (grantSel) {
     grantSel.innerHTML = '<option value="">Select grant...</option>';
-    appData.grants.forEach(g => {
-      grantSel.innerHTML += `<option value="${g._id}">${g.name}</option>`;
-    });
+    appData.grants.forEach(g => { grantSel.innerHTML += `<option value="${g._id}">${g.name}</option>`; });
   }
-
-  // Partners dropdown
   const partnerSel = document.getElementById('partnerSelect');
   if (partnerSel) {
     partnerSel.innerHTML = '<option value="">Select partner...</option>';
-    appData.partners.forEach(p => {
-      partnerSel.innerHTML += `<option value="${p._id}">${p.name}</option>`;
-    });
+    appData.partners.forEach(p => { partnerSel.innerHTML += `<option value="${p._id}">${p.name}</option>`; });
   }
 
   // User vehicle dropdown
@@ -426,13 +454,14 @@ function addRiderRow() {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">Pickup Time</label>
-        <input type="time" class="form-input" id="riderPickupTime-${idx}"
-          onkeydown="tabToNext(event,'riderApptTime-${idx}')">
+        <label class="form-label">Appt/Work Time <span style="color:var(--gray-400);font-size:11px;">(sets pickup estimate)</span></label>
+        <input type="time" class="form-input" id="riderApptTime-${idx}"
+          onchange="onApptTimeChange(${idx})"
+          onkeydown="tabToNext(event,'riderPickupTime-${idx}')">
       </div>
       <div class="form-group">
-        <label class="form-label">Appt/Work Time</label>
-        <input type="time" class="form-input" id="riderApptTime-${idx}"
+        <label class="form-label">Pickup Time</label>
+        <input type="time" class="form-input" id="riderPickupTime-${idx}"
           onkeydown="tabToNext(event,'riderReturnTime-${idx}')">
       </div>
       <div class="form-group">
@@ -514,6 +543,19 @@ async function onRiderSelect(idx) {
 function removeRiderRow(idx) {
   document.getElementById(`riderRow-${idx}`)?.remove();
 }
+
+// When appointment time is entered, auto-calculate pickup time 45 min before (if not already set)
+function onApptTimeChange(idx) {
+  const apptEl   = document.getElementById(`riderApptTime-${idx}`);
+  const pickupEl = document.getElementById(`riderPickupTime-${idx}`);
+  if (!apptEl?.value) return;
+  if (pickupEl?.value) return; // don't overwrite if dispatcher already set a pickup time
+  const [h, m] = apptEl.value.split(':').map(Number);
+  const totalMins = h * 60 + m - 45; // 45-min default buffer before appointment
+  const pickupH = ((Math.floor(totalMins / 60)) % 24 + 24) % 24;
+  const pickupM = ((totalMins % 60) + 60) % 60;
+  pickupEl.value = `${String(pickupH).padStart(2, '0')}:${String(pickupM).padStart(2, '0')}`;
+}
 function onTripTypeChange(idx) {
   const type = document.getElementById(`riderTripType-${idx}`)?.value;
   const returnGroup = document.getElementById(`returnTimeGroup-${idx}`);
@@ -527,11 +569,13 @@ function onTripTypeChange(idx) {
 
 // Payment type toggle
 function onPaymentTypeChange() {
-  const type = document.getElementById('paymentType').value;
-  document.getElementById('grantSelectGroup').style.display  = type === 'grant'     ? 'block' : 'none';
-  document.getElementById('partnerSelectGroup').style.display= type === 'partner'   ? 'block' : 'none';
-  document.getElementById('freeRideGroup').style.display     = type === 'free_ride' ? 'block' : 'none';
-  if (type === 'free_ride') {
+  const raw = document.getElementById('paymentType').value;
+  const isFreeRide = raw === 'free_ride';
+  // Grant/partner are now embedded as optgroups — hide the legacy separate selects
+  document.getElementById('grantSelectGroup').style.display   = 'none';
+  document.getElementById('partnerSelectGroup').style.display = 'none';
+  document.getElementById('freeRideGroup').style.display      = isFreeRide ? 'block' : 'none';
+  if (isFreeRide) {
     document.getElementById('fareAmount').textContent = '$0.00';
     document.getElementById('fareZone').textContent   = 'Free Ride';
     document.getElementById('fareDisplay').style.borderColor = '#28a745';
@@ -718,7 +762,11 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
     };
     const homeBase = appData.org?.homeBases?.find(b => b.name === homeBaseName) || { name: homeBaseName };
     const notes    = document.getElementById('tripNotes').value;
-    const paymentType = document.getElementById('paymentType').value;
+    const paymentTypeRaw = document.getElementById('paymentType').value;
+    let paymentType = paymentTypeRaw;
+    let resolvedGrantId = null, resolvedPartnerId = null;
+    if (paymentTypeRaw.startsWith('grant_'))   { paymentType = 'grant';   resolvedGrantId   = paymentTypeRaw.replace('grant_', ''); }
+    if (paymentTypeRaw.startsWith('partner_')) { paymentType = 'partner'; resolvedPartnerId = paymentTypeRaw.replace('partner_', ''); }
 
     if (!tripDate || !driver || !vehicle) {
       showToast('Please fill in date, driver, and vehicle.', 'error');
@@ -769,8 +817,8 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
 
     // Payment
     const payment = { type: paymentType, estimatedFare: parseDisplayedFare() };
-    if (paymentType === 'grant')     payment.grantId   = document.getElementById('grantSelect')?.value;
-    if (paymentType === 'partner')   payment.partnerId = document.getElementById('partnerSelect')?.value;
+    if (resolvedGrantId)             payment.grantId      = resolvedGrantId;
+    if (resolvedPartnerId)           payment.partnerId    = resolvedPartnerId;
     if (paymentType === 'free_ride') payment.freeRideCode = document.getElementById('freeRideCode')?.value;
 
     const body = {
@@ -1190,8 +1238,11 @@ async function openReassignDriver(tripId, currentDriverId) {
   document.getElementById('reassignTripId').value = tripId;
   const sel = document.getElementById('reassignDriverSel');
   sel.innerHTML = '<option value="">Select driver...</option>';
-  const drivers = (appData.users || []).filter(u => u.roles?.includes('driver') && u.isActive);
+  const seenRD = new Set();
+  const drivers = (appData.drivers || []).filter(u => u.isActive !== false);
   drivers.forEach(d => {
+    if (seenRD.has(String(d._id))) return;
+    seenRD.add(String(d._id));
     const opt = document.createElement('option');
     opt.value = d._id;
     opt.textContent = `${d.firstName} ${d.lastName}`;
@@ -1224,9 +1275,16 @@ function initMap() {
   if (dispatchMap) return; // already initialized
 
   dispatchMap = L.map('dispatchMap').setView([27.7731, -82.6398], 11);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors'
-  }).addTo(dispatchMap);
+  if (MAPBOX_TOKEN) {
+    L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`, {
+      attribution: '© <a href="https://www.mapbox.com/">Mapbox</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19, tileSize: 256
+    }).addTo(dispatchMap);
+  } else {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(dispatchMap);
+  }
 
   // Add PERC home bases
   if (appData.org?.homeBases) {
@@ -1338,7 +1396,13 @@ async function loadMapTrips() {
 function initDashboardMap() {
   if (dashboardMap || !document.getElementById('dashboardMap')) return;
   dashboardMap = L.map('dashboardMap', { zoomControl: false, attributionControl: false }).setView([27.7731, -82.6398], 10);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(dashboardMap);
+  if (MAPBOX_TOKEN) {
+    L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`, {
+      maxZoom: 19, tileSize: 256
+    }).addTo(dashboardMap);
+  } else {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(dashboardMap);
+  }
   if (appData.org?.homeBases) {
     appData.org.homeBases.forEach(base => {
       if (base.lat && base.lng) {

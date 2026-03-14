@@ -10,6 +10,15 @@ let currentStopIndex = 0;
 let shiftStarted = false;
 let screenHistory = ['route'];
 let selectedMapTarget = null;
+let MAPBOX_TOKEN = '';
+
+// Fetch Mapbox token from server config
+(async () => {
+  try {
+    const cfg = await fetch('/api/config').then(r => r.json());
+    MAPBOX_TOKEN = cfg.mapboxToken || '';
+  } catch (e) {}
+})();
 
 const KNOWN_LOCATION_ALIASES = {
   'perc st pete': '1523 16th St S, St. Petersburg, FL 33705',
@@ -531,8 +540,6 @@ function toggleDamageField() {
 }
 
 async function startShift() {
-  if (!currentTrip) { showToast('No trip found for today', 'error'); return; }
-
   const startMileage = document.getElementById('startMileage').value;
   if (!startMileage) { showToast('Please enter your starting mileage', 'error'); return; }
 
@@ -545,25 +552,52 @@ async function startShift() {
   const hasDamage = document.getElementById('hasDamage').checked;
   const inspectionNotes = hasDamage ? document.getElementById('damageNotes').value : '';
 
-  const res = await ZakAuth.apiFetch(`/api/trips/${currentTrip._id}/start`, {
+  // If a trip is assigned, call the trip start API
+  if (currentTrip) {
+    const res = await ZakAuth.apiFetch(`/api/trips/${currentTrip._id}/start`, {
+      method: 'POST',
+      body: JSON.stringify({
+        startMileage: parseInt(startMileage),
+        inspectionDone,
+        inspectionNotes
+      })
+    });
+
+    if (res?.success) {
+      currentTrip = res.trip;
+      shiftStarted = true;
+      persistShiftStarted(true);
+      showToast('Shift started! Have a safe trip. 🚐', 'success');
+      renderRoute(res.trip);
+      showScreen('route', false);
+    } else {
+      showToast(res?.error || 'Failed to start shift', 'error');
+    }
+    return;
+  }
+
+  // No trip assigned yet — mark driver available and proceed to standby
+  await ZakAuth.apiFetch('/api/trips/driver/availability', {
     method: 'POST',
-    body: JSON.stringify({
-      startMileage: parseInt(startMileage),
-      inspectionDone,
-      inspectionNotes
-    })
+    body: JSON.stringify({ isAvailable: true })
   });
 
-  if (res?.success) {
-    currentTrip = res.trip;
-    shiftStarted = true;
-    persistShiftStarted(true);
-    showToast('Shift started! Have a safe trip. 🚐', 'success');
-    renderRoute(res.trip);
-    showScreen('route', false);
-  } else {
-    showToast(res?.error || 'Failed to start shift', 'error');
+  shiftStarted = true;
+  persistShiftStarted(true);
+  showToast('Shift started — you\'re on standby. A route will be assigned soon.', 'success');
+
+  // Show standby state on route screen
+  const routeContent = document.getElementById('routeContent');
+  if (routeContent) {
+    routeContent.innerHTML = `
+      <div style="text-align:center;padding:40px 20px;">
+        <div style="font-size:48px;margin-bottom:16px;">🚐</div>
+        <h3 style="color:#fff;margin-bottom:8px;">On Standby</h3>
+        <p style="color:rgba(255,255,255,0.7);font-size:14px;">Your shift is active. Waiting for a route to be assigned by dispatch.</p>
+        <p style="color:rgba(255,255,255,0.5);font-size:12px;margin-top:12px;">Start mileage logged: ${parseInt(startMileage).toLocaleString()} mi</p>
+      </div>`;
   }
+  showScreen('route', false);
 }
 
 // ── END SHIFT ─────────────────────────────────────────────
@@ -672,10 +706,17 @@ function initDriverMap() {
     const cached = JSON.parse(localStorage.getItem('rydeworks_last_driver_loc') || 'null');
     if (Array.isArray(cached) && cached.length === 2) lastKnownDriverLocation = cached;
   } catch (e) {}
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors',
-    maxZoom: 18
-  }).addTo(driverMapInstance);
+  // Use Mapbox Streets tiles when token is available, fall back to OSM
+  if (MAPBOX_TOKEN) {
+    L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`, {
+      attribution: '© <a href="https://www.mapbox.com/">Mapbox</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19, tileSize: 256
+    }).addTo(driverMapInstance);
+  } else {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors', maxZoom: 18
+    }).addTo(driverMapInstance);
+  }
 
   // Watch driver location and update marker
   if (navigator.geolocation) {
@@ -822,15 +863,51 @@ async function refreshDriverMap() {
   try {
     if (orderedRoutePoints.length >= 2) {
       const coordStr = orderedRoutePoints.map(([lat, lng]) => `${lng},${lat}`).join(';');
-      const osrmRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson`);
-      const osrmData = await osrmRes.json();
-      if (osrmData.routes && osrmData.routes[0]) {
-        driverMapRouteLayer = L.geoJSON(osrmData.routes[0].geometry, {
+      let routeGeo = null, dist = null, mins = null, steps = [];
+
+      // Use Mapbox Directions API (traffic-aware) when token is available
+      if (MAPBOX_TOKEN) {
+        const mbUrl = `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${coordStr}?steps=true&geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
+        const mbRes = await fetch(mbUrl);
+        const mbData = await mbRes.json();
+        if (mbData.routes && mbData.routes[0]) {
+          const route = mbData.routes[0];
+          routeGeo = route.geometry;
+          dist = (route.distance / 1609.34).toFixed(1);
+          mins = Math.round(route.duration / 60);
+          // Collect all step maneuver instructions
+          route.legs?.forEach(leg => {
+            leg.steps?.forEach(step => {
+              if (step.maneuver?.instruction) steps.push(step.maneuver.instruction);
+            });
+          });
+        }
+      } else {
+        // Fallback to OSRM
+        const osrmRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson`);
+        const osrmData = await osrmRes.json();
+        if (osrmData.routes && osrmData.routes[0]) {
+          routeGeo = osrmData.routes[0].geometry;
+          dist = (osrmData.routes[0].distance / 1609.34).toFixed(1);
+          mins = Math.round(osrmData.routes[0].duration / 60);
+        }
+      }
+
+      if (routeGeo) {
+        driverMapRouteLayer = L.geoJSON(routeGeo, {
           style: { color: '#00B4AA', weight: 6, opacity: 0.95 }
         }).addTo(driverMapInstance);
-        const dist = (osrmData.routes[0].distance / 1609.34).toFixed(1);
-        const mins = Math.round(osrmData.routes[0].duration / 60);
-        document.getElementById('mapInfoBar').textContent = `🧭 Next: ${getStopTypeLabel(activePoint.stop)} · ${remainingStops.length} stop${remainingStops.length > 1 ? 's' : ''} left · ${dist} mi · ~${mins} min`;
+        const infoBar = document.getElementById('mapInfoBar');
+        infoBar.textContent = `🧭 ${remainingStops.length} stop${remainingStops.length > 1 ? 's' : ''} left · ${dist} mi · ~${mins} min`;
+
+        // Show first turn-by-turn step if available
+        const navStepEl = document.getElementById('navStep');
+        if (navStepEl && steps.length > 0) {
+          navStepEl.style.display = 'block';
+          navStepEl.textContent = `▶ ${steps[0]}`;
+        } else if (navStepEl) {
+          navStepEl.style.display = 'none';
+        }
       } else {
         document.getElementById('mapInfoBar').textContent = `📍 ${remainingStops.length} stop${remainingStops.length > 1 ? 's' : ''} remaining`;
       }

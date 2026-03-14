@@ -83,6 +83,11 @@ app.get('/api/health', (req, res) => res.json({
   env: process.env.NODE_ENV || 'development'
 }));
 
+// Public config — exposes non-secret client-side keys
+app.get('/api/config', (req, res) => res.json({
+  mapboxToken: process.env.MAPBOX_TOKEN || ''
+}));
+
 // ── Demo request endpoint ────────────────────────────────
 app.post('/api/demo-request', async (req, res) => {
   try {
@@ -306,14 +311,6 @@ const seedInitialData = async () => {
     console.log('✅ Vehicles created');
   }
 
-  await Vehicle.updateMany(
-    { organization: org._id, 'baseLocation.name': 'PERC St. Pete' },
-    { $set: { 'baseLocation.address': '1523 16th St S, St. Petersburg, FL 33705', 'baseLocation.lat': 27.7542, 'baseLocation.lng': -82.6537 } }
-  );
-  await Vehicle.updateMany(
-    { organization: org._id, 'baseLocation.name': 'PERC Clearwater' },
-    { $set: { 'baseLocation.address': '12810 US Hwy 19 N, Clearwater, FL 33764', 'baseLocation.lat': 27.8924, 'baseLocation.lng': -82.7265 } }
-  );
 
   // Create super admin (Rich)
   const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || 'rich@alvarezassociatesfl.com';

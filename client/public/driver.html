@@ -497,6 +497,7 @@
       <div class="screen" id="screen-map">
         <div id="driverMap"></div>
         <div class="map-info-bar" id="mapInfoBar">📍 Tap a stop to show route</div>
+        <div id="navStep" style="display:none;background:rgba(10,22,40,0.92);color:#00D4C8;padding:10px 16px;font-size:13px;font-weight:600;letter-spacing:0.01em;border-top:1px solid rgba(0,212,200,0.2);"></div>
         <div id="mapRoutePanel" class="map-route-panel" style="display:none;">
           <div class="map-route-title" id="mapRouteTitle">Current navigation</div>
           <div class="map-route-address" id="mapRouteAddress">Choose a stop to preview the next leg in-app.</div>
@@ -538,6 +539,13 @@
         <div class="info-row">
           <i class="fas fa-users"></i>
           <div><div class="info-row-label">Riders Served</div><div class="info-row-value" id="profileRidersToday">0</div></div>
+        </div>
+
+        <div class="section-header" style="margin-top:24px;">Rider Booking QR Code</div>
+        <div style="text-align:center;padding:16px 0 8px;">
+          <p style="color:var(--gray-400);font-size:13px;margin-bottom:16px;">Share this code so riders can self-enroll &amp; book a ride</p>
+          <img src="img/booking-qr.png" alt="RydeWorks Booking QR Code"
+               style="width:200px;height:200px;border-radius:12px;border:2px solid rgba(255,255,255,0.15);display:inline-block;">
         </div>
 
         <div style="margin-top:24px;">
