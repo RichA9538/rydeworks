@@ -1,13 +1,9 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import path from "path";
-import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import { connectMongoDB } from "./lib/mongoose.js";
 import router from "./routes/index.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app: Express = express();
 
@@ -47,16 +43,15 @@ if (process.env.NODE_ENV === "production") {
   // The frontend build output is at ../../rydeworks/dist/public relative to this file in dev,
   // but in production (after Railway build) we copy it adjacent to the bundle.
   const candidates = [
-    path.resolve(__dirname, "../../rydeworks/dist/public"),
-    path.resolve(__dirname, "../public"),
     path.resolve(process.cwd(), "artifacts/rydeworks/dist/public"),
+    path.resolve(process.cwd(), "artifacts/api-server/public"),
   ];
   const staticDir = candidates.find(existsSync);
 
   if (staticDir) {
     app.use(express.static(staticDir));
     // For client-side routing — serve index.html for all non-API routes
-    app.get("*", (_req, res) => {
+    app.use((_req, res) => {
       res.sendFile(path.join(staticDir, "index.html"));
     });
     console.log(`Serving frontend from: ${staticDir}`);
