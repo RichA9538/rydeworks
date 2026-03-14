@@ -17,7 +17,7 @@ RUN pnpm install --no-frozen-lockfile
 
 COPY . .
 
-RUN BASE_PATH=/ NODE_ENV=production pnpm --filter @workspace/rydeworks run build
+RUN BASE_PATH=/ PORT=3000 NODE_ENV=production pnpm --filter @workspace/rydeworks run build
 
 RUN pnpm --filter @workspace/api-server run build
 
