@@ -1,10 +1,9 @@
 [build]
-builder = "nixpacks"
-buildCommand = "pnpm install --frozen-lockfile && BASE_PATH=/ PORT=3000 NODE_ENV=production pnpm --filter @workspace/rydeworks run build && pnpm --filter @workspace/api-server run build"
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "NODE_ENV=production node artifacts/api-server/dist/index.cjs"
 healthcheckPath = "/api/healthz"
-healthcheckTimeout = 60
+healthcheckTimeout = 120
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
