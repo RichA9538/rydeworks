@@ -1,0 +1,324 @@
+require('dotenv').config();
+const express    = require('express');
+const mongoose   = require('mongoose');
+const cors       = require('cors');
+const helmet     = require('helmet');
+const rateLimit  = require('express-rate-limit');
+const path       = require('path');
+const nodemailer = require('nodemailer');
+
+// ── Email transporter (Gmail SMTP via App Password) ────────────
+const emailTransporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.NOTIFY_EMAIL_USER,
+    pass: process.env.NOTIFY_EMAIL_PASS
+  }
+});
+
+// Models (register with mongoose)
+require('./models/Organization');
+require('./models/User');
+require('./models/Vehicle');
+require('./models/Trip');
+require('./models/Rider');
+require('./models/AccessCode');
+require('./models/Grant');
+require('./models/Partner');
+require('./models/RiderSubscription');
+
+// Routes
+const authRoutes       = require('./routes/auth');
+const adminRoutes      = require('./routes/admin');
+const tripRoutes       = require('./routes/trips');
+const superAdminRoutes = require('./routes/superAdmin');
+const bookRoutes       = require('./routes/book');
+
+const app = express();
+app.set('trust proxy', 1); // Trust Railway's reverse proxy for correct IP detection
+
+// ── Security ──────────────────────────────────────────────
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+
+const allowedOrigins = [
+  'https://rydeworks.com',
+  'https://www.rydeworks.com',
+  'https://app.rydeworks.com',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3000'
+];
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
+
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { success: false, error: 'Too many requests, please try again later.' }
+}));
+
+// ── Body parsing ──────────────────────────────────────────
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ── Static frontend ───────────────────────────────────────
+app.use(express.static(path.join(__dirname, '../client/public')));
+
+// ── API Routes ────────────────────────────────────────────
+app.use('/api/auth',        authRoutes);
+app.use('/api/admin',       adminRoutes);
+app.use('/api/trips',       tripRoutes);
+app.use('/api/super-admin', superAdminRoutes);
+app.use('/api/book',        bookRoutes);
+
+app.get('/api/health', (req, res) => res.json({
+  success: true,
+  message: 'Zak Transportation API is running',
+  timestamp: new Date().toISOString(),
+  env: process.env.NODE_ENV || 'development'
+}));
+
+// ── Demo request endpoint ────────────────────────────────
+app.post('/api/demo-request', async (req, res) => {
+  try {
+    const { name, organization, email, phone, volume } = req.body;
+    console.log(`📋 DEMO REQUEST: ${name} | ${organization} | ${email} | ${phone} | ${volume}`);
+
+    // Send email notification to Rich if credentials are configured
+    if (process.env.NOTIFY_EMAIL_USER && process.env.NOTIFY_EMAIL_PASS) {
+      const mailOptions = {
+        from: `"Rydeworks" <${process.env.NOTIFY_EMAIL_USER}>`,
+        to: 'rich@alvarezassociatesfl.com',
+        subject: `🚗 New Demo Request — ${organization}`,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+            <div style="background:#0A1628;padding:24px;border-radius:8px 8px 0 0">
+              <h2 style="color:#00D4C8;margin:0;font-size:1.4rem">🚗 New Demo Request</h2>
+              <p style="color:rgba(255,255,255,0.6);margin:4px 0 0;font-size:0.9rem">via Rydeworks.com</p>
+            </div>
+            <div style="background:#f8f9fa;padding:24px;border-radius:0 0 8px 8px;border:1px solid #e2e8f0">
+              <table style="width:100%;border-collapse:collapse">
+                <tr><td style="padding:8px 0;color:#718096;font-size:0.85rem;width:140px">Name</td><td style="padding:8px 0;font-weight:600;color:#1a202c">${name}</td></tr>
+                <tr><td style="padding:8px 0;color:#718096;font-size:0.85rem">Organization</td><td style="padding:8px 0;font-weight:600;color:#1a202c">${organization}</td></tr>
+                <tr><td style="padding:8px 0;color:#718096;font-size:0.85rem">Email</td><td style="padding:8px 0"><a href="mailto:${email}" style="color:#00B4AA">${email}</a></td></tr>
+                <tr><td style="padding:8px 0;color:#718096;font-size:0.85rem">Phone</td><td style="padding:8px 0;color:#1a202c">${phone || 'Not provided'}</td></tr>
+                <tr><td style="padding:8px 0;color:#718096;font-size:0.85rem">Rides/Week</td><td style="padding:8px 0;color:#1a202c">${volume || 'Not specified'}</td></tr>
+              </table>
+              <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+                <a href="mailto:${email}?subject=Re: Rydeworks Demo Request" style="background:#00D4C8;color:#0A1628;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:700;font-size:0.9rem">Reply to ${name} →</a>
+              </div>
+            </div>
+          </div>
+        `
+      };
+      emailTransporter.sendMail(mailOptions).catch(err => {
+        console.error('❌ Demo request email failed:', err.message);
+      });
+    } else {
+      console.log('⚠️  Email not configured (NOTIFY_EMAIL_USER/PASS not set) — demo request logged only');
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Demo request error:', err);
+    res.json({ success: false });
+  }
+});
+
+// ── Serve frontend for all non-API routes ─────────────────
+// Root / — serve landing page on rydeworks.com, smart redirect on app.rydeworks.com
+app.get('/', (req, res) => {
+  const host = req.hostname || '';
+  const isRootDomain = host === 'rydeworks.com' || host === 'www.rydeworks.com';
+  if (isRootDomain) {
+    res.sendFile(path.join(__dirname, '../client/public/landing.html'));
+  } else {
+    res.sendFile(path.join(__dirname, '../client/public/redirect.html'));
+  }
+});
+
+// /enroll also serves the public landing/enrollment page
+app.get('/enroll', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/public/landing.html'));
+});
+
+// /book serves the rider self-booking page
+app.get('/book', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/public/book.html'));
+});
+
+// /reset-password serves the password reset page
+app.get('/reset-password', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/public/reset-password.html'));
+});
+
+// /app and everything else serves the dispatch app
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/public/app.html'));
+});
+
+// ── Error handling ────────────────────────────────────────
+app.use((req, res) => res.status(404).json({ success: false, error: 'Route not found.' }));
+app.use((err, req, res, next) => {
+  console.error('Global error:', err);
+  res.status(err.status || 500).json({
+    success: false,
+    error: process.env.NODE_ENV === 'production' ? 'Internal server error.' : err.message
+  });
+});
+
+// ── Database + Start ──────────────────────────────────────
+const PORT = process.env.PORT || 3000;
+
+const startServer = async () => {
+  try {
+    if (process.env.MONGODB_URI) {
+      await mongoose.connect(process.env.MONGODB_URI);
+      console.log('✅ Connected to MongoDB');
+
+      // One-time migration: drop the stale unique index on Rider.anonymousId
+      // This field is no longer set on new riders; the unique constraint causes
+      // E11000 errors when creating a second rider without an anonymousId.
+      try {
+        const Rider = require('./models/Rider');
+        await Rider.collection.dropIndex('anonymousId_1');
+        console.log('✅ Dropped stale anonymousId unique index on riders');
+      } catch (e) {
+        // Index may not exist (already dropped or never created) — that's fine
+        if (e.code !== 27) console.warn('⚠️  Could not drop anonymousId index:', e.message);
+      }
+
+      await seedInitialData();
+    } else {
+      console.log('⚠️  No MONGODB_URI — running without database');
+    }
+
+    app.listen(PORT, () => {
+      console.log(`
+╔═══════════════════════════════════════════════════════════╗
+║   🚐  ZAK TRANSPORTATION INITIATIVE — SaaS Platform  🚐   ║
+║   Server: http://localhost:${PORT}                          ║
+║   API:    http://localhost:${PORT}/api                      ║
+╚═══════════════════════════════════════════════════════════╝`);
+    });
+  } catch (err) {
+    console.error('❌ Failed to start server:', err);
+    process.exit(1);
+  }
+};
+
+// ── Seed initial PERC data ────────────────────────────────
+const seedInitialData = async () => {
+  const Organization = require('./models/Organization');
+  const User         = require('./models/User');
+  const Vehicle      = require('./models/Vehicle');
+
+  // Create PERC org if it doesn't exist
+  let org = await Organization.findOne({ slug: 'perc' });
+  if (!org) {
+    org = await Organization.create({
+      name: 'PERC - People Empowering & Restoring Communities',
+      slug: 'perc',
+      email: 'rich@alvarezassociatesfl.com',
+      phone: '(727) 477-8909',
+      appName: 'Zak Transportation Initiative',
+      primaryColor: '#2E7D32',
+      accentColor: '#FFC107',
+      homeBases: [
+        {
+          name: 'PERC St. Pete',
+          address: '1523 16th St S, St. Petersburg, FL 33705',
+          lat: 27.7531,
+          lng: -82.6652,
+          isDefault: true
+        },
+        {
+          name: 'PERC Clearwater',
+          address: 'Clearwater, FL',
+          lat: 27.9659,
+          lng: -82.8001,
+          isDefault: false
+        }
+      ],
+      fareZones: [
+        { name: 'Zone 1', description: 'Core South/Central St. Pete (South St. Pete, Downtown, Midtown)', minMiles: 0, maxMiles: 6, roundTripFare: 18, oneWayFare: 9 },
+        { name: 'Zone 2', description: 'Greater St. Pete / South Pinellas (Gulfport, Pinellas Park, Kenneth City)', minMiles: 6, maxMiles: 12, roundTripFare: 20, oneWayFare: 10 },
+        { name: 'Zone 3', description: 'Central Pinellas (Largo, Clearwater, parts of Seminole/Safety Harbor)', minMiles: 12, maxMiles: 18, roundTripFare: 22, oneWayFare: 11 },
+        { name: 'Zone 4', description: 'North Pinellas - north of Ulmerton (Dunedin, Palm Harbor, Tarpon Springs, Oldsmar)', minMiles: 18, maxMiles: null, roundTripFare: 25, oneWayFare: 13 },
+        { name: 'Out-of-County', description: 'Hillsborough $32 / Pasco $36 / Hernando/Manatee/Sarasota $40', minMiles: 999, maxMiles: null, roundTripFare: 36, oneWayFare: 18, notes: 'Priced case-by-case within range' }
+      ],
+      partnerRates: [
+        { name: 'Half-day Zone 1-2', blockHours: 4, zoneLabel: 'Zone 1-2', price: 320 },
+        { name: 'Half-day Zone 3',   blockHours: 4, zoneLabel: 'Zone 3',   price: 360 },
+        { name: 'Half-day Zone 4',   blockHours: 4, zoneLabel: 'Zone 4',   price: 420 },
+        { name: 'Half-day Out-of-county', blockHours: 4, zoneLabel: 'Out-of-county', price: 480, priceMax: 560 },
+        { name: 'Full-day Zone 1-2', blockHours: 8, zoneLabel: 'Zone 1-2', price: 600 },
+        { name: 'Full-day Zone 3',   blockHours: 8, zoneLabel: 'Zone 3',   price: 680 },
+        { name: 'Full-day Zone 4',   blockHours: 8, zoneLabel: 'Zone 4',   price: 780 },
+        { name: 'Full-day Out-of-county', blockHours: 8, zoneLabel: 'Out-of-county', price: 880, priceMax: 1040 }
+      ],
+      plan: 'professional'
+    });
+    console.log('✅ PERC organization created');
+  }
+
+  // Create vehicles
+  const van1 = await Vehicle.findOne({ organization: org._id, name: 'Van 1' });
+  if (!van1) {
+    await Vehicle.create([
+      { organization: org._id, name: 'Van 1', make: 'Chevrolet', model: 'Express', capacity: 7, status: 'available' },
+      { organization: org._id, name: 'Van 2', make: 'Chevrolet', model: 'Express', capacity: 7, status: 'available' }
+    ]);
+    console.log('✅ Vehicles created');
+  }
+
+  // Create super admin (Rich)
+  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || 'rich@alvarezassociatesfl.com';
+  const superAdminPass  = process.env.SUPER_ADMIN_PASSWORD;
+  if (superAdminPass) {
+    const existing = await User.findOne({ email: superAdminEmail });
+    if (!existing) {
+      await User.create({
+        firstName: 'Rich', lastName: 'Alvarez',
+        email: superAdminEmail,
+        phone: '(727) 477-8909',
+        password: superAdminPass,
+        roles: ['super_admin', 'admin', 'dispatcher', 'driver'],
+        organization: org._id,
+        isActive: true, emailVerified: true
+      });
+      console.log('✅ Super admin (Rich Alvarez) created');
+    }
+  }
+
+  // Create initial team — default password: ChangeMe123! (must change on first login)
+  const DEFAULT_PASS = 'ChangeMe123!';
+  const teamMembers = [
+    { firstName: 'Matt',   lastName: 'Lopez',   email: 'matt.lopez@perc.org',   phone: '', roles: ['admin', 'dispatcher', 'driver'] },
+    { firstName: 'Angela', lastName: 'Tutko',   email: 'angela.tutko@perc.org', phone: '', roles: ['driver', 'dispatcher'] },
+    { firstName: 'Gary',   lastName: 'Webb',    email: 'gary.webb@perc.org',    phone: '', roles: ['driver'] },
+    { firstName: 'Bruce',  lastName: 'Street',  email: 'bruce.street@perc.org', phone: '', roles: ['driver'] }
+  ];
+
+  for (const member of teamMembers) {
+    const exists = await User.findOne({ email: member.email });
+    if (!exists) {
+      await User.create({
+        ...member,
+        password: DEFAULT_PASS,
+        organization: org._id,
+        isActive: true,
+        emailVerified: true
+      });
+      console.log(`✅ User created: ${member.firstName} ${member.lastName}`);
+    }
+  }
+};
+
+startServer();
+module.exports = app;

@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zak Transportation — Dispatch Center</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+  <script src="https://js.stripe.com/v3/"></script>
+</head>
+<body>
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <i class="fas fa-shuttle-van"></i>
+      </div>
+      <div class="sidebar-title">
+        <h1>Zak Transport</h1>
+        <p>Dispatch Center</p>
+      </div>
+      <button class="sidebar-toggle" id="sidebarToggle"><i class="fas fa-bars"></i></button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Operations</div>
+      <a class="nav-link active" data-view="dashboard" href="#">
+        <i class="fas fa-tachometer-alt"></i><span>Dashboard</span>
+      </a>
+      <a class="nav-link" data-view="schedule" href="#">
+        <i class="fas fa-calendar-plus"></i><span>Schedule Trip</span>
+      </a>
+      <a class="nav-link" data-view="recurring" href="#">
+        <i class="fas fa-sync-alt"></i><span>Recurring Trips</span>
+      </a>
+      <a class="nav-link" data-view="trips" href="#">
+        <i class="fas fa-route"></i><span>All Trips</span>
+      </a>
+      <a class="nav-link" data-view="map" href="#">
+        <i class="fas fa-map-marked-alt"></i><span>Live Map</span>
+      </a>
+
+      <div class="nav-section-label">People</div>
+      <a class="nav-link" data-view="riders" href="#">
+        <i class="fas fa-users"></i><span>Riders</span>
+      </a>
+      <a class="nav-link admin-only" data-view="team" href="#">
+        <i class="fas fa-id-badge"></i><span>Team</span>
+      </a>
+
+      <div class="nav-section-label">Finance</div>
+      <a class="nav-link" data-view="payments" href="#">
+        <i class="fas fa-dollar-sign"></i><span>Payments</span>
+      </a>
+      <a class="nav-link" data-view="reports" href="#">
+        <i class="fas fa-chart-bar"></i><span>Reports</span>
+      </a>
+      <a class="nav-link admin-only" data-view="codes" href="#">
+        <i class="fas fa-ticket-alt"></i><span>Free Ride Codes</span>
+      </a>
+      <a class="nav-link" data-view="canceled" href="#">
+        <i class="fas fa-ban"></i><span>Canceled Trips</span>
+      </a>
+
+      <div class="nav-section-label" id="superAdminNav" style="display:none">Platform</div>
+      <a class="nav-link" id="superAdminLink" href="/super-admin.html" style="display:none">
+        <i class="fas fa-shield-alt"></i><span>Super Admin</span>
+      </a>
+
+      <div class="nav-section-label">Settings</div>
+      <a class="nav-link admin-only" data-view="admin" href="#">
+        <i class="fas fa-cog"></i><span>Admin Settings</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-user">
+      <div class="user-avatar" id="nav-user-avatar">RA</div>
+      <div class="user-info">
+        <div class="user-name" id="nav-user-name">Loading...</div>
+        <div class="user-role" id="nav-user-role">Dispatcher</div>
+      </div>
+      <button class="logout-btn" id="switchToDriverBtn" onclick="window.location.href='/driver.html'" title="Switch to Driver App" style="display:none">
+        <i class="fas fa-mobile-alt"></i>
+      </button>
+      <button class="logout-btn" onclick="ZakAuth.logout()" title="Sign out">
+        <i class="fas fa-sign-out-alt"></i>
+      </button>
+    </div>
+  </aside>
+  <script>
+    // Show the Switch to Driver App button only if user also has the driver role
+    document.addEventListener('DOMContentLoaded', () => {
+      const user = JSON.parse(localStorage.getItem('zak_user') || '{}');
+      if ((user.roles || []).includes('driver')) {
+        const btn = document.getElementById('switchToDriverBtn');
+        if (btn) { btn.style.display = ''; btn.title = 'Switch to Driver App'; }
+      }
+    });
+  </script>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content" id="mainContent">
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
+        <h2 class="page-title" id="pageTitle">Dashboard</h2>
+      </div>
+      <div class="top-bar-right">
+        <div class="date-display" id="dateDisplay"></div>
+        <button class="btn btn-primary" id="newTripBtn" onclick="showView('schedule')">
+          <i class="fas fa-plus"></i> New Trip
+        </button>
+      </div>
+    </header>
+
+    <!-- ── DASHBOARD VIEW ── -->
+    <section class="view active" id="view-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon green"><i class="fas fa-calendar-check"></i></div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-today">0</div>
+            <div class="stat-label">Trips Today</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon gold"><i class="fas fa-shuttle-van"></i></div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-active">0</div>
+            <div class="stat-label">Active Trips</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon blue"><i class="fas fa-users"></i></div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-riders">0</div>
+            <div class="stat-label">Riders Served</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon purple"><i class="fas fa-dollar-sign"></i></div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-revenue">$0</div>
+            <div class="stat-label">Today's Revenue</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-grid">
+        <!-- Today's Trips -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fas fa-route"></i> Today's Trips</h3>
+            <button class="btn btn-sm btn-primary" onclick="showView('schedule')">+ Add</button>
+          </div>
+          <div class="card-body" id="todayTripsList">
+            <div class="empty-state"><i class="fas fa-calendar-times"></i><p>No trips scheduled for today</p></div>
+          </div>
+        </div>
+
+        <!-- Driver Status -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fas fa-id-badge"></i> Driver Status</h3>
+          </div>
+          <div class="card-body" id="driverStatusList">
+            <div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SCHEDULE TRIP VIEW ── -->
+    <section class="view" id="view-schedule">
+      <div class="card schedule-card">
+        <div class="card-header">
+          <h3><i class="fas fa-calendar-plus"></i> Schedule New Trip</h3>
+        </div>
+        <div class="card-body">
+          <form id="scheduleForm">
+            <!-- Row 1: Date, Driver, Vehicle, Home Base -->
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Trip Date *</label>
+                <input type="date" class="form-input" id="tripDate" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Driver *</label>
+                <select class="form-input" id="tripDriver" required>
+                  <option value="">Select driver...</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Vehicle *</label>
+                <select class="form-input" id="tripVehicle" required>
+                  <option value="">Select vehicle...</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Home Base *</label>
+                <select class="form-input" id="tripHomeBase" required>
+                  <option value="">Select base...</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Riders / Stops -->
+            <div class="section-divider">
+              <h4><i class="fas fa-map-pin"></i> Riders &amp; Stops</h4>
+              <button type="button" class="btn btn-sm btn-secondary" id="addRiderBtn">
+                <i class="fas fa-plus"></i> Add Rider
+              </button>
+            </div>
+
+            <div id="ridersList">
+              <!-- Rider rows added dynamically -->
+            </div>
+
+            <!-- Payment -->
+            <div class="section-divider">
+              <h4><i class="fas fa-dollar-sign"></i> Payment</h4>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Payment Type</label>
+                <select class="form-input" id="paymentType" onchange="onPaymentTypeChange()">
+                  <option value="none">Select type...</option>
+                  <option value="self_pay">Self Pay</option>
+                  <option value="grant">Grant Funded</option>
+                  <option value="partner">Partner Agency</option>
+                  <option value="free_ride">Free Ride Code</option>
+                </select>
+              </div>
+              <div class="form-group" id="grantSelectGroup" style="display:none">
+                <label class="form-label">Grant</label>
+                <select class="form-input" id="grantSelect">
+                  <option value="">Select grant...</option>
+                </select>
+              </div>
+              <div class="form-group" id="partnerSelectGroup" style="display:none">
+                <label class="form-label">Partner Agency</label>
+                <select class="form-input" id="partnerSelect">
+                  <option value="">Select partner...</option>
+                </select>
+              </div>
+              <div class="form-group" id="freeRideGroup" style="display:none">
+                <label class="form-label">Free Ride Code</label>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input type="text" class="form-input" id="freeRideCode" placeholder="e.g. FREE-ABC123" style="flex:1;">
+                  <button type="button" id="getFreeRideCodeBtn" class="btn btn-secondary" onclick="getFreeRideCode()" style="white-space:nowrap;flex-shrink:0;">
+                    <i class="fas fa-magic"></i> Get/Generate Code
+                  </button>
+                </div>
+                <small style="color:var(--gray-500);margin-top:4px;display:block;">Select a rider above first, then click to auto-fill their code (or generate a new 30-day code).</small>
+                <small id="freeRideExpiry" style="display:none;margin-top:4px;font-weight:600;"></small>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Estimated Fare</label>
+                <div class="fare-display" id="fareDisplay">
+                  <span id="fareAmount">$0.00</span>
+                  <span class="fare-zone" id="fareZone"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="form-group">
+              <label class="form-label">Dispatcher Notes</label>
+              <textarea class="form-input" id="tripNotes" rows="2" placeholder="Any special instructions for the driver..."></textarea>
+            </div>
+
+            <!-- Route Optimization Result Panel -->
+            <div id="optimizeResult" style="display:none;margin-bottom:16px;border-radius:10px;padding:16px;font-size:14px;"></div>
+
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="showView('dashboard')">Cancel</button>
+              <button type="button" class="btn" style="background:var(--gold);color:var(--gray-900);font-weight:700;" id="optimizeBtn" onclick="optimizeAndValidate()">
+                <i class="fas fa-magic"></i> Optimize &amp; Validate Route
+              </button>
+              <button type="submit" class="btn btn-primary" id="scheduleSubmitBtn">
+                <i class="fas fa-calendar-check"></i> Schedule Trip
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── TRIPS VIEW ── -->
+    <section class="view" id="view-trips">
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-route"></i> All Trips</h3>
+          <div class="filter-bar">
+            <input type="date" class="form-input sm" id="filterDate">
+            <select class="form-input sm" id="filterStatus">
+              <option value="">All Statuses</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+              <option value="canceled">Canceled</option>
+            </select>
+            <button class="btn btn-sm btn-secondary" onclick="loadTrips()">Filter</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table class="data-table" id="tripsTable">
+              <thead>
+                <tr>
+                  <th>Trip #</th>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Driver</th>
+                  <th>Vehicle</th>
+                  <th>Riders</th>
+                  <th>Status</th>
+                  <th>Fare</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tripsTableBody">
+                <tr><td colspan="9" class="empty-row">Loading trips...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── LIVE MAP VIEW ── -->
+    <section class="view" id="view-map">
+      <div class="map-container">
+        <div id="dispatchMap" style="height:100%;min-height:500px;border-radius:12px;"></div>
+        <div class="map-legend">
+          <div class="legend-item"><span class="dot green"></span> Available</div>
+          <div class="legend-item"><span class="dot gold"></span> En Route</div>
+          <div class="legend-item"><span class="dot red"></span> Completed Stop</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── RIDERS VIEW ── -->
+    <section class="view" id="view-riders">
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-users"></i> Riders</h3>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <input type="text" class="form-input sm" id="riderSearch" placeholder="Search by name or phone..." oninput="searchRiders(this.value)">
+            <button class="btn btn-sm btn-primary" onclick="openAddRiderModal()"><i class="fas fa-plus"></i> Add Rider</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr><th>Name</th><th>Anonymous ID</th><th>Phone</th><th>Address</th><th>Total Trips</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="ridersTableBody">
+                <tr><td colspan="6" class="empty-row">Loading riders...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── TEAM VIEW ── -->
+    <section class="view" id="view-team">
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-id-badge"></i> Team Members</h3>
+          <button class="btn btn-sm btn-primary" onclick="openAddUserModal()"><i class="fas fa-plus"></i> Add Member</button>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr><th>Name</th><th>Email</th><th>Phone</th><th>Roles</th><th>Vehicle</th><th>Status</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="teamTableBody">
+                <tr><td colspan="7" class="empty-row">Loading team...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── PAYMENTS VIEW ── -->
+    <section class="view" id="view-payments">
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-dollar-sign"></i> Payment Summary</h3>
+        </div>
+        <div class="card-body" id="paymentsBody">
+          <div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── REPORTS VIEW ── -->
+    <section class="view" id="view-reports">
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-chart-bar"></i> Grant &amp; Operations Reports</h3>
+        </div>
+        <div class="card-body" id="reportsBody">
+          <div class="reports-grid">
+            <div class="report-card" onclick="generateReport('grant')">
+              <i class="fas fa-file-invoice-dollar"></i>
+              <h4>Grant Report</h4>
+              <p>Anonymous rider data for grant funders</p>
+            </div>
+            <div class="report-card" onclick="generateReport('trips')">
+              <i class="fas fa-route"></i>
+              <h4>Trip Summary</h4>
+              <p>All trips by date range</p>
+            </div>
+            <div class="report-card" onclick="generateReport('revenue')">
+              <i class="fas fa-chart-line"></i>
+              <h4>Revenue Report</h4>
+              <p>Income by payment type</p>
+            </div>
+            <div class="report-card" onclick="generateReport('driver')">
+              <i class="fas fa-id-badge"></i>
+              <h4>Driver Report</h4>
+              <p>Mileage and trips per driver</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── FREE RIDE CODES VIEW ── -->
+    <section class="view" id="view-codes">
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-ticket-alt"></i> Free Ride Codes</h3>
+          <button class="btn btn-sm btn-primary" onclick="generateCodes()"><i class="fas fa-plus"></i> Generate Codes</button>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr><th>Code</th><th>Type</th><th>Status</th><th>Assigned To</th><th>Expires</th><th>Trips Used</th></tr>
+              </thead>
+              <tbody id="codesTableBody">
+                <tr><td colspan="6" class="empty-row">Loading codes...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── ADMIN SETTINGS VIEW ── -->
+    <section class="view" id="view-admin">
+      <div class="admin-grid">
+        <!-- Fare Zones -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fas fa-map-marker-alt"></i> Fare Zones</h3>
+            <button class="btn btn-sm btn-primary" onclick="addFareZone()"><i class="fas fa-plus"></i> Add Zone</button>
+          </div>
+          <div class="card-body" id="fareZonesBody">
+            <div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i></div>
+          </div>
+        </div>
+
+        <!-- Home Bases -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fas fa-home"></i> Home Bases</h3>
+            <button class="btn btn-sm btn-primary" onclick="addHomeBase()"><i class="fas fa-plus"></i> Add Base</button>
+          </div>
+          <div class="card-body" id="homeBasesBody">
+            <div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i></div>
+          </div>
+        </div>
+
+        <!-- Grants -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fas fa-file-invoice-dollar"></i> Grants</h3>
+            <button class="btn btn-sm btn-primary" onclick="openAddGrantModal()"><i class="fas fa-plus"></i> Add Grant</button>
+          </div>
+          <div class="card-body" id="grantsBody">
+            <div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i></div>
+          </div>
+        </div>
+
+        <!-- Partners -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fas fa-handshake"></i> Partner Agencies</h3>
+            <button class="btn btn-sm btn-primary" onclick="openAddPartnerModal()"><i class="fas fa-plus"></i> Add Partner</button>
+          </div>
+          <div class="card-body" id="partnersBody">
+            <div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i></div>
+          </div>
+        </div>
+
+        <!-- Vehicles -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fas fa-shuttle-van"></i> Fleet</h3>
+            <button class="btn btn-sm btn-primary" onclick="openAddVehicleModal()"><i class="fas fa-plus"></i> Add Vehicle</button>
+          </div>
+          <div class="card-body" id="vehiclesBody">
+            <div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i></div>
+          </div>
+        </div>
+
+        <!-- Payment Configuration -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fas fa-credit-card"></i> Payment Configuration</h3>
+          </div>
+          <div class="card-body" id="selfPayBody">
+            <div class="form-group">
+              <label class="form-label">Primary Payment Processor</label>
+              <select class="form-input" id="paymentProvider">
+                <option value="square">Square</option>
+                <option value="stripe">Stripe</option>
+                <option value="ach">ACH / Bank Transfer</option>
+                <option value="multiple">Multiple (let clients choose)</option>
+              </select>
+              <small style="color:var(--gray-500);margin-top:4px;display:block;">This sets the default payment method for self-pay riders. Partner orgs and employers can use ACH regardless of this setting.</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Payment Link / QR URL</label>
+              <input type="url" class="form-input" id="paymentLink" placeholder="https://square.link/... or https://buy.stripe.com/...">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Venmo Handle</label>
+              <input type="text" class="form-input" id="venmoHandle" placeholder="@YourVenmo">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Cash App Handle</label>
+              <input type="text" class="form-input" id="cashAppHandle" placeholder="$YourCashApp">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Weekly Billing Day</label>
+              <select class="form-input" id="weeklyBillingDay">
+                <option value="monday">Monday</option>
+                <option value="tuesday">Tuesday</option>
+                <option value="wednesday">Wednesday</option>
+                <option value="thursday">Thursday</option>
+                <option value="friday">Friday</option>
+                <option value="saturday">Saturday</option>
+                <option value="sunday">Sunday</option>
+              </select>
+              <small style="color:var(--gray-500);margin-top:4px;display:block;">Regular riders will be billed weekly on this day for the prior week's rides.</small>
+            </div>
+            <button class="btn btn-primary" onclick="savePaymentConfig()"><i class="fas fa-save"></i> Save Payment Config</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── RECURRING TRIPS VIEW ── -->
+    <section class="view" id="view-recurring">
+      <div class="view-header">
+        <h2><i class="fas fa-sync-alt"></i> Schedule Recurring Trips</h2>
+        <p style="color:var(--gray-500);margin:4px 0 0;">Set up a trip template and generate a week or month of trips in one click.</p>
+      </div>
+      <div class="card" style="max-width:720px;">
+        <div class="card-body">
+          <form id="recurringForm" onsubmit="submitRecurringTrips(event)">
+            <div class="form-group">
+              <label class="form-label">Rider <span style="color:red">*</span></label>
+              <select class="form-input" id="recRider" required><option value="">Select rider...</option></select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="form-group">
+                <label class="form-label">Pickup Address <span style="color:red">*</span></label>
+                <input type="text" class="form-input" id="recPickup" placeholder="123 Main St" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Destination <span style="color:red">*</span></label>
+                <input type="text" class="form-input" id="recDest" placeholder="456 Work Ave" required>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="form-group">
+                <label class="form-label">Pickup Time <span style="color:red">*</span></label>
+                <input type="time" class="form-input" id="recPickupTime" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Appointment Time</label>
+                <input type="time" class="form-input" id="recApptTime">
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="form-group">
+                <label class="form-label">Trip Type</label>
+                <select class="form-input" id="recTripType" onchange="toggleRecReturnTime()">
+                  <option value="one_way">One Way</option>
+                  <option value="round_trip">Round Trip</option>
+                </select>
+              </div>
+              <div class="form-group" id="recReturnTimeGroup" style="display:none;">
+                <label class="form-label">Return Pickup Time</label>
+                <input type="time" class="form-input" id="recReturnTime">
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="form-group">
+                <label class="form-label">Driver <span style="color:red">*</span></label>
+                <select class="form-input" id="recDriver" required><option value="">Select driver...</option></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Vehicle <span style="color:red">*</span></label>
+                <select class="form-input" id="recVehicle" required><option value="">Select vehicle...</option></select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Home Base</label>
+              <select class="form-input" id="recHomeBase"><option value="">Select home base...</option></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Payment Type</label>
+              <select class="form-input" id="recPaymentType">
+                <option value="none">None</option>
+                <option value="grant">Grant</option>
+                <option value="self_pay">Self Pay</option>
+                <option value="partner">Partner</option>
+                <option value="free_ride">Free Ride Code</option>
+              </select>
+            </div>
+            <hr style="margin:16px 0;border-color:var(--gray-200);">
+            <h4 style="margin:0 0 12px;"><i class="fas fa-calendar-alt"></i> Recurrence Pattern</h4>
+            <div class="form-group">
+              <label class="form-label">Repeat On <span style="color:red">*</span></label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;" id="recDaysGroup">
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;"><input type="checkbox" value="1"> Mon</label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;"><input type="checkbox" value="2"> Tue</label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;"><input type="checkbox" value="3"> Wed</label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;"><input type="checkbox" value="4"> Thu</label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;"><input type="checkbox" value="5"> Fri</label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;"><input type="checkbox" value="6"> Sat</label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:6px 10px;border:1px solid var(--gray-300);border-radius:6px;"><input type="checkbox" value="0"> Sun</label>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:8px;">
+                <button type="button" class="btn btn-sm btn-secondary" onclick="selectWeekdays()">Weekdays</button>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllDays()">Every Day</button>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="clearDays()">Clear</button>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="form-group">
+                <label class="form-label">Start Date <span style="color:red">*</span></label>
+                <input type="date" class="form-input" id="recStartDate" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">End Date <span style="color:red">*</span></label>
+                <input type="date" class="form-input" id="recEndDate" required>
+              </div>
+            </div>
+            <div id="recPreview" style="background:var(--gray-100);border-radius:8px;padding:12px;margin-bottom:16px;display:none;">
+              <strong id="recPreviewCount"></strong>
+            </div>
+            <div style="display:flex;gap:12px;">
+              <button type="button" class="btn btn-secondary" onclick="previewRecurringTrips()"><i class="fas fa-eye"></i> Preview</button>
+              <button type="submit" class="btn btn-primary" id="recSubmitBtn"><i class="fas fa-calendar-check"></i> Generate Trips</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── CANCELED TRIPS VIEW ── -->
+    <section class="view" id="view-canceled">
+      <div class="view-header">
+        <h2><i class="fas fa-ban"></i> Canceled Trips</h2>
+        <p style="color:var(--gray-500);margin:4px 0 0;">All canceled trips are stored here for reporting and records.</p>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-ban"></i> Canceled Trips Log</h3>
+          <div class="filter-bar">
+            <input type="date" class="form-input sm" id="canceledFilterStart" placeholder="From">
+            <input type="date" class="form-input sm" id="canceledFilterEnd" placeholder="To">
+            <button class="btn btn-sm btn-secondary" onclick="loadCanceledTrips()"><i class="fas fa-filter"></i> Filter</button>
+            <button class="btn btn-sm btn-secondary" onclick="exportCanceledTrips()"><i class="fas fa-download"></i> Export CSV</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table class="data-table" id="canceledTripsTable">
+              <thead>
+                <tr>
+                  <th>Trip #</th>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Rider(s)</th>
+                  <th>Driver</th>
+                  <th>Route</th>
+                  <th>Payment</th>
+                  <th>Fare</th>
+                  <th>Canceled On</th>
+                </tr>
+              </thead>
+              <tbody id="canceledTripsBody">
+                <tr><td colspan="9" class="empty-row">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="canceledTripsSummary" style="margin-top:16px;padding:12px;background:var(--gray-50);border-radius:8px;font-size:13px;color:var(--gray-600);display:none;">
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── MODALS ── -->
+  <div class="modal-overlay" id="modalOverlay"></div>
+
+  <!-- Add Rider Modal -->
+  <div class="modal" id="addRiderModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-user-plus"></i> Add New Rider</h3>
+      <button class="modal-close" onclick="closeModal('addRiderModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">First Name *</label><input type="text" class="form-input" id="riderFirstName" autocomplete="given-name"></div>
+        <div class="form-group"><label class="form-label">Last Name *</label><input type="text" class="form-input" id="riderLastName" autocomplete="family-name"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Phone *</label>
+          <input type="tel" class="form-input phone-format" id="riderPhone" placeholder="(727) 555-0000" maxlength="14" autocomplete="tel" inputmode="numeric">
+        </div>
+        <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="riderEmail" autocomplete="email"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Street Address</label>
+        <input type="text" class="form-input" id="riderStreet" placeholder="123 Main St" autocomplete="street-address">
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="flex:2">
+          <label class="form-label">City</label>
+          <input type="text" class="form-input" id="riderCity" placeholder="St. Petersburg" autocomplete="address-level2">
+        </div>
+        <div class="form-group" style="flex:0 0 80px">
+          <label class="form-label">State</label>
+          <input type="text" class="form-input" id="riderState" placeholder="FL" maxlength="2" autocomplete="address-level1" style="text-transform:uppercase">
+        </div>
+        <div class="form-group" style="flex:0 0 100px">
+          <label class="form-label">ZIP</label>
+          <input type="text" class="form-input zip-lookup" id="riderZip" placeholder="33701" maxlength="5" inputmode="numeric" autocomplete="postal-code">
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Notes for Driver</label><textarea class="form-input" id="riderNotes" rows="2" placeholder="Accessibility needs, preferences..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('addRiderModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNewRider()"><i class="fas fa-save"></i> Save Rider</button>
+    </div>
+  </div>
+
+  <!-- Add User Modal -->
+  <div class="modal" id="addUserModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-user-plus"></i> Add Team Member</h3>
+      <button class="modal-close" onclick="closeModal('addUserModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">First Name *</label><input type="text" class="form-input" id="userFirstName"></div>
+        <div class="form-group"><label class="form-label">Last Name *</label><input type="text" class="form-input" id="userLastName"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Email *</label><input type="email" class="form-input" id="userEmail"></div>
+        <div class="form-group"><label class="form-label">Phone</label><input type="tel" class="form-input phone-format" id="userPhone" placeholder="(727) 555-0000" maxlength="14" inputmode="numeric"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Password *</label><input type="password" class="form-input" id="userPassword" placeholder="Min 8 characters"></div>
+      <div class="form-group">
+        <label class="form-label">Roles (select all that apply)</label>
+        <div class="checkbox-group">
+          <label><input type="checkbox" value="admin"> Administrator</label>
+          <label><input type="checkbox" value="dispatcher"> Dispatcher</label>
+          <label><input type="checkbox" value="driver" checked> Driver</label>
+        </div>
+      </div>
+      <div class="form-group" id="vehicleAssignGroup">
+        <label class="form-label">Assign Vehicle</label>
+        <select class="form-input" id="userVehicle">
+          <option value="">No vehicle assigned</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('addUserModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNewUser()"><i class="fas fa-save"></i> Add Member</button>
+    </div>
+  </div>
+
+  <!-- Edit User Modal -->
+  <div class="modal" id="editUserModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-user-edit"></i> Edit Team Member</h3>
+      <button class="modal-close" onclick="closeModal('editUserModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editUserId">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">First Name *</label><input type="text" class="form-input" id="editUserFirstName"></div>
+        <div class="form-group"><label class="form-label">Last Name *</label><input type="text" class="form-input" id="editUserLastName"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Email *</label><input type="email" class="form-input" id="editUserEmail"></div>
+        <div class="form-group"><label class="form-label">Phone</label><input type="tel" class="form-input phone-format" id="editUserPhone" placeholder="(727) 555-0000" maxlength="14" inputmode="numeric"></div>
+      </div>
+      <div class="form-group"><label class="form-label">New Password <span style="font-weight:400;color:#9E9E9E">(leave blank to keep current)</span></label><input type="password" class="form-input" id="editUserPassword" placeholder="Min 8 characters"></div>
+      <div class="form-group">
+        <label class="form-label">Roles (select all that apply)</label>
+        <div class="checkbox-group">
+          <label id="editRole_super_admin_row" style="display:none"><input type="checkbox" id="editRole_super_admin"> Super Admin</label>
+          <label><input type="checkbox" id="editRole_admin"> Administrator</label>
+          <label><input type="checkbox" id="editRole_dispatcher"> Dispatcher</label>
+          <label><input type="checkbox" id="editRole_driver"> Driver</label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Assign Vehicle</label>
+        <select class="form-input" id="editUserVehicle">
+          <option value="">No vehicle assigned</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" id="editUserActive" style="width:18px;height:18px;cursor:pointer">
+          Account Active (uncheck to deactivate — user cannot log in)
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('editUserModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditUser()"><i class="fas fa-save"></i> Save Changes</button>
+    </div>
+  </div>
+
+  <!-- Trip Detail Modal -->
+  <div class="modal modal-lg" id="tripDetailModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-route"></i> Trip Details</h3>
+      <button class="modal-close" onclick="closeModal('tripDetailModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" id="tripDetailBody">Loading...</div>
+    <div class="modal-footer">
+      <div id="tripDetailFooter" style="display:inline-flex;gap:8px;flex-wrap:wrap;"></div>
+      <button class="btn btn-secondary" onclick="closeModal('tripDetailModal')">Close</button>
+    </div>
+  </div>
+
+  <!-- Reassign Driver Modal -->
+  <div class="modal" id="reassignDriverModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-user-edit"></i> Reassign Driver</h3>
+      <button class="modal-close" onclick="closeModal('reassignDriverModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="reassignTripId">
+      <div class="form-group">
+        <label class="form-label">Select New Driver</label>
+        <select class="form-input" id="reassignDriverSel"><option value="">Select driver...</option></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('reassignDriverModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveReassignDriver()"><i class="fas fa-save"></i> Save</button>
+    </div>
+  </div>
+
+  <!-- Edit Trip Modal -->
+  <div class="modal modal-lg" id="editTripModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-edit"></i> Edit Trip</h3>
+      <button class="modal-close" onclick="closeModal('editTripModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" id="editTripBody" style="max-height:65vh;overflow-y:auto;">
+      <!-- Populated dynamically by openEditTrip() -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('editTripModal')">Cancel</button>
+      <button class="btn btn-primary" id="saveEditTripBtn" onclick="saveEditTrip()">
+        <i class="fas fa-save"></i> Save Changes
+      </button>
+    </div>
+  </div>
+
+  <!-- Charge & Enroll Modal -->
+  <div class="modal" id="enrollModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-credit-card"></i> Charge &amp; Enroll Rider</h3>
+      <button class="modal-close" onclick="closeModal('enrollModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div id="enrollRiderInfo" style="background:var(--gray-50);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:14px;"></div>
+      <p style="font-size:13px;color:var(--gray-600);margin-bottom:12px;">Enter the rider's card information below. This will charge <strong>$100.00</strong> and generate a 30-day Free Ride Code that will be texted to the rider.</p>
+      <div id="enrollStripeElement" style="padding:12px;border:1px solid var(--gray-300);border-radius:8px;background:#fff;min-height:44px;"></div>
+      <div id="enrollCardError" style="color:#e53e3e;font-size:13px;margin-top:8px;display:none;"></div>
+      <div id="enrollSuccessBox" style="display:none;margin-top:16px;padding:16px;background:#d1e7dd;border-radius:8px;border:1px solid #a3cfbb;">
+        <div style="font-weight:700;color:#0a3622;font-size:15px;"><i class="fas fa-check-circle"></i> Payment Successful!</div>
+        <div style="margin-top:8px;font-size:14px;color:#0a3622;">Free Ride Code: <strong id="enrollGeneratedCode" style="font-size:16px;letter-spacing:2px;"></strong></div>
+        <div style="font-size:13px;color:#155724;margin-top:4px;">Code valid for 30 days. An SMS confirmation has been sent to the rider.</div>
+      </div>
+    </div>
+    <div class="modal-footer" id="enrollModalFooter">
+      <button class="btn btn-secondary" onclick="closeModal('enrollModal')">Cancel</button>
+      <button class="btn btn-primary" id="enrollSubmitBtn" onclick="submitEnrollment()">
+        <i class="fas fa-lock"></i> Charge $100 &amp; Enroll
+      </button>
+    </div>
+  </div>
+
+  <!-- Add Grant Modal -->
+  <div class="modal" id="addGrantModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-file-invoice-dollar"></i> Add Grant</h3>
+      <button class="modal-close" onclick="closeModal('addGrantModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Grant Name *</label><input type="text" class="form-input" id="grantName" placeholder="e.g. FDOT Transportation Grant"></div>
+      <div class="form-group"><label class="form-label">Grantor</label><input type="text" class="form-input" id="grantGrantor" placeholder="e.g. Florida DOT"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Total Amount</label><input type="number" class="form-input" id="grantAmount" placeholder="0.00"></div>
+        <div class="form-group"><label class="form-label">End Date</label><input type="date" class="form-input" id="grantEndDate"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Reporting Notes</label><textarea class="form-input" id="grantNotes" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('addGrantModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveGrant()"><i class="fas fa-save"></i> Save Grant</button>
+    </div>
+  </div>
+
+  <!-- Add Partner Modal -->
+  <div class="modal" id="addPartnerModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-handshake"></i> Add Partner Agency</h3>
+      <button class="modal-close" onclick="closeModal('addPartnerModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Agency Name *</label><input type="text" class="form-input" id="partnerName"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Contact Name</label><input type="text" class="form-input" id="partnerContact"></div>
+        <div class="form-group"><label class="form-label">Contact Phone</label><input type="tel" class="form-input phone-format" id="partnerPhone" placeholder="(727) 555-0000" maxlength="14" inputmode="numeric"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Contact Email</label><input type="email" class="form-input" id="partnerEmail"></div>
+      <div class="form-group"><label class="form-label">Billing Notes</label><textarea class="form-input" id="partnerBillingNotes" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('addPartnerModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="savePartner()"><i class="fas fa-save"></i> Save Partner</button>
+    </div>
+  </div>
+
+  <!-- Add Vehicle Modal -->
+  <div class="modal" id="addVehicleModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-shuttle-van"></i> Add Vehicle</h3>
+      <button class="modal-close" onclick="closeModal('addVehicleModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Name *</label><input type="text" class="form-input" id="vehName" placeholder="e.g. Van 3"></div>
+        <div class="form-group"><label class="form-label">License Plate</label><input type="text" class="form-input" id="vehPlate"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Make</label><input type="text" class="form-input" id="vehMake" placeholder="Chevrolet"></div>
+        <div class="form-group"><label class="form-label">Model</label><input type="text" class="form-input" id="vehModel" placeholder="Express"></div>
+        <div class="form-group"><label class="form-label">Year</label><input type="number" class="form-input" id="vehYear" placeholder="2022"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Passenger Capacity</label><input type="number" class="form-input" id="vehCapacity" value="7"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('addVehicleModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveVehicle()"><i class="fas fa-save"></i> Save Vehicle</button>
+    </div>
+  </div>
+
+  <!-- Edit Rider Modal -->
+  <div class="modal" id="editRiderModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-user-edit"></i> Edit Rider</h3>
+      <button class="modal-close" onclick="closeModal('editRiderModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editRiderId">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">First Name *</label><input type="text" class="form-input" id="editRiderFirstName" autocomplete="given-name"></div>
+        <div class="form-group"><label class="form-label">Last Name *</label><input type="text" class="form-input" id="editRiderLastName" autocomplete="family-name"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Phone *</label>
+          <input type="tel" class="form-input phone-format" id="editRiderPhone" placeholder="(727) 555-0000" maxlength="14" inputmode="numeric">
+        </div>
+        <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="editRiderEmail"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Street Address</label>
+        <input type="text" class="form-input" id="editRiderStreet" placeholder="123 Main St">
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="flex:2">
+          <label class="form-label">City</label>
+          <input type="text" class="form-input" id="editRiderCity" placeholder="St. Petersburg">
+        </div>
+        <div class="form-group" style="flex:0 0 80px">
+          <label class="form-label">State</label>
+          <input type="text" class="form-input" id="editRiderState" placeholder="FL" maxlength="2" style="text-transform:uppercase">
+        </div>
+        <div class="form-group" style="flex:0 0 100px">
+          <label class="form-label">ZIP</label>
+          <input type="text" class="form-input zip-lookup" id="editRiderZip" placeholder="33701" maxlength="5" inputmode="numeric">
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Notes for Driver</label><textarea class="form-input" id="editRiderNotes" rows="2" placeholder="Accessibility needs, preferences..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('editRiderModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditRider()"><i class="fas fa-save"></i> Save Changes</button>
+    </div>
+  </div>
+
+  <!-- Add Home Base Modal -->
+  <div class="modal" id="addHomeBaseModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-home"></i> Add Home Base</h3>
+      <button class="modal-close" onclick="closeModal('addHomeBaseModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Base Name *</label>
+        <input type="text" class="form-input" id="hbName" placeholder="e.g. PERC St. Pete">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Address *</label>
+        <input type="text" class="form-input" id="hbAddress" placeholder="Street, City, FL ZIP">
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" id="hbDefault" style="width:18px;height:18px;cursor:pointer">
+          Set as default home base
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('addHomeBaseModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveHomeBase()"><i class="fas fa-save"></i> Save Base</button>
+    </div>
+  </div>
+
+  <!-- Generate Free Ride Code Modal -->
+  <div class="modal" id="generateCodeModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-ticket-alt"></i> Generate Free Ride Code</h3>
+      <button class="modal-close" onclick="closeModal('generateCodeModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Number of Codes</label>
+          <input type="number" class="form-input" id="codeQty" value="1" min="1" max="50">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Trips Per Code</label>
+          <input type="number" class="form-input" id="codeTrips" value="1" min="1" max="20">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Assign to Rider (optional)</label>
+        <select class="form-input" id="codeRider">
+          <option value="">— Unassigned —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <input type="text" class="form-input" id="codeNotes" placeholder="e.g. Community outreach May 2025">
+      </div>
+      <div id="generatedCodesResult" style="display:none;margin-top:12px;">
+        <label class="form-label">Generated Codes (expires 30 days from today):</label>
+        <div id="generatedCodesList" style="background:#1e1e2e;border-radius:8px;padding:12px;font-family:monospace;font-size:14px;line-height:2;"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('generateCodeModal')">Close</button>
+      <button class="btn btn-primary" id="genCodeBtn" onclick="doGenerateCodes()"><i class="fas fa-magic"></i> Generate</button>
+    </div>
+  </div>
+
+  <!-- Edit Vehicle Modal -->
+  <div class="modal" id="editVehicleModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-shuttle-van"></i> Edit Vehicle</h3>
+      <button class="modal-close" onclick="closeModal('editVehicleModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editVehId">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Name *</label><input type="text" class="form-input" id="editVehName" placeholder="e.g. Van 3"></div>
+        <div class="form-group"><label class="form-label">License Plate</label><input type="text" class="form-input" id="editVehPlate"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Make</label><input type="text" class="form-input" id="editVehMake" placeholder="Chevrolet"></div>
+        <div class="form-group"><label class="form-label">Model</label><input type="text" class="form-input" id="editVehModel" placeholder="Express"></div>
+        <div class="form-group"><label class="form-label">Year</label><input type="number" class="form-input" id="editVehYear" placeholder="2022"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Passenger Capacity</label><input type="number" class="form-input" id="editVehCapacity" value="7"></div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-input" id="editVehStatus">
+            <option value="available">Available</option>
+            <option value="in_use">In Use</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="retired">Retired</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('editVehicleModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditVehicle()"><i class="fas fa-save"></i> Save Changes</button>
+    </div>
+  </div>
+  <!-- Edit Home Base Modal -->
+  <div class="modal" id="editHomeBaseModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-home"></i> Edit Home Base</h3>
+      <button class="modal-close" onclick="closeModal('editHomeBaseModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editHbIndex">
+      <div class="form-group"><label class="form-label">Base Name *</label><input type="text" class="form-input" id="editHbName" placeholder="e.g. PERC St. Pete"></div>
+      <div class="form-group"><label class="form-label">Address *</label><input type="text" class="form-input" id="editHbAddress" placeholder="Street, City, FL ZIP"></div>
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" id="editHbDefault" style="width:18px;height:18px;cursor:pointer">
+          Set as default home base
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('editHomeBaseModal')">Cancel</button>
+      <button class="btn btn-danger" onclick="deleteHomeBase()" style="margin-right:auto"><i class="fas fa-trash"></i> Delete</button>
+      <button class="btn btn-primary" onclick="saveEditHomeBase()"><i class="fas fa-save"></i> Save Changes</button>
+    </div>
+  </div>
+  <!-- Edit Fare Zone Modal -->
+  <div class="modal" id="editFareZoneModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-map-marker-alt"></i> Edit Fare Zone</h3>
+      <button class="modal-close" onclick="closeModal('editFareZoneModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editFzIndex">
+      <div class="form-group"><label class="form-label">Zone Name *</label><input type="text" class="form-input" id="editFzName" placeholder="e.g. Zone 1 - Local"></div>
+      <div class="form-group"><label class="form-label">Description</label><input type="text" class="form-input" id="editFzDesc" placeholder="e.g. Core South/Central St. Pete"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Min Miles</label><input type="number" class="form-input" id="editFzMin" placeholder="0" min="0" step="0.1"></div>
+        <div class="form-group"><label class="form-label">Max Miles</label><input type="number" class="form-input" id="editFzMax" placeholder="Leave blank for no limit" min="0" step="0.1"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Round-Trip Fare ($)</label><input type="number" class="form-input" id="editFzRT" placeholder="0.00" min="0" step="0.01"></div>
+        <div class="form-group"><label class="form-label">One-Way Fare ($)</label><input type="number" class="form-input" id="editFzOW" placeholder="0.00" min="0" step="0.01"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="editFzNotes" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('editFareZoneModal')">Cancel</button>
+      <button class="btn btn-danger" onclick="deleteFareZone()" style="margin-right:auto"><i class="fas fa-trash"></i> Delete</button>
+      <button class="btn btn-primary" onclick="saveEditFareZone()"><i class="fas fa-save"></i> Save Changes</button>
+    </div>
+  </div>
+  <!-- Add Fare Zone Modal -->
+  <div class="modal" id="addFareZoneModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-map-marker-alt"></i> Add Fare Zone</h3>
+      <button class="modal-close" onclick="closeModal('addFareZoneModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Zone Name *</label><input type="text" class="form-input" id="newFzName" placeholder="e.g. Zone 1 - Local"></div>
+      <div class="form-group"><label class="form-label">Description</label><input type="text" class="form-input" id="newFzDesc" placeholder="e.g. Core South/Central St. Pete"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Min Miles</label><input type="number" class="form-input" id="newFzMin" placeholder="0" min="0" step="0.1"></div>
+        <div class="form-group"><label class="form-label">Max Miles</label><input type="number" class="form-input" id="newFzMax" placeholder="Leave blank for no limit" min="0" step="0.1"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Round-Trip Fare ($)</label><input type="number" class="form-input" id="newFzRT" placeholder="0.00" min="0" step="0.01"></div>
+        <div class="form-group"><label class="form-label">One-Way Fare ($)</label><input type="number" class="form-input" id="newFzOW" placeholder="0.00" min="0" step="0.01"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="newFzNotes" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('addFareZoneModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNewFareZone()"><i class="fas fa-save"></i> Add Zone</button>
+    </div>
+  </div>
+  <!-- Edit Grant Modal -->
+  <div class="modal" id="editGrantModal">
+    <div class="modal-header">
+      <h3><i class="fas fa-file-invoice-dollar"></i> Edit Grant</h3>
+      <button class="modal-close" onclick="closeModal('editGrantModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editGrantId">
+      <div class="form-group"><label class="form-label">Grant Name *</label><input type="text" class="form-input" id="editGrantName" placeholder="e.g. FDOT Transportation Grant"></div>
+      <div class="form-group"><label class="form-label">Grantor</label><input type="text" class="form-input" id="editGrantGrantor" placeholder="e.g. Florida DOT"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Total Amount</label><input type="number" class="form-input" id="editGrantAmount" placeholder="0.00"></div>
+        <div class="form-group"><label class="form-label">End Date</label><input type="date" class="form-input" id="editGrantEndDate"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Reporting Notes</label><textarea class="form-input" id="editGrantNotes" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('editGrantModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditGrant()"><i class="fas fa-save"></i> Save Changes</button>
+    </div>
+  </div>
+  <!-- Toast notification -->
+  <div class="toast" id="toast"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/dispatcher.js"></script>
+</body>
+</html>

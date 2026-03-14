@@ -1,9 +1,4 @@
-[build]
-builder = "dockerfile"
-dockerfilePath = "Dockerfile"
-
 [deploy]
-healthcheckPath = "/api/healthz"
-healthcheckTimeout = 120
+startCommand = "node server/index.js"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3

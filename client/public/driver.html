@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#1B5E20">
+  <title>Zak Transport — Driver</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green:       #2E7D32;
+      --green-dark:  #1B5E20;
+      --green-light: #4CAF50;
+      --green-pale:  #E8F5E9;
+      --gold:        #FFC107;
+      --gold-dark:   #FFA000;
+      --gold-pale:   #FFFDE7;
+      --white:       #FFFFFF;
+      --gray-50:     #FAFAFA;
+      --gray-100:    #F5F5F5;
+      --gray-200:    #EEEEEE;
+      --gray-300:    #E0E0E0;
+      --gray-500:    #9E9E9E;
+      --gray-700:    #616161;
+      --gray-900:    #212121;
+      --danger:      #EF4444;
+      --danger-light:#FEE2E2;
+      --success:     #10B981;
+      --warning:     #F59E0B;
+      --radius:      14px;
+      --shadow:      0 4px 16px rgba(0,0,0,0.1);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--gray-100);
+      color: var(--gray-900);
+    }
+
+    /* ── APP SHELL ── */
+    .app-shell {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      max-width: 480px;
+      margin: 0 auto;
+      background: var(--white);
+      position: relative;
+    }
+
+    /* ── TOP BAR ── */
+    .app-header {
+      background: linear-gradient(135deg, var(--green-dark), var(--green));
+      color: var(--white);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      padding-top: max(14px, env(safe-area-inset-top));
+    }
+    .app-header-left { display: flex; align-items: center; gap: 10px; }
+    .app-logo { width: 36px; height: 36px; background: var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--green-dark); }
+    .app-title { font-size: 16px; font-weight: 700; }
+    .app-subtitle { font-size: 11px; color: rgba(255,255,255,0.7); }
+    .header-actions { display: flex; gap: 8px; }
+    .header-btn { background: rgba(255,255,255,0.15); border: none; color: var(--white); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; }
+
+    /* ── SCROLLABLE CONTENT ── */
+    .app-content {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 80px;
+    }
+
+    /* ── SCREENS ── */
+    .screen { display: none; padding: 16px; }
+    .screen.active { display: block; }
+
+    /* ── SIGN-IN SCREEN ── */
+    .signin-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+    .signin-card h2 { font-size: 18px; font-weight: 700; margin-bottom: 4px; color: var(--green); }
+    .signin-card p { font-size: 13px; color: var(--gray-500); margin-bottom: 20px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 13px; font-weight: 600; color: var(--gray-700); margin-bottom: 6px; }
+    .form-input {
+      width: 100%; padding: 13px 14px;
+      border: 2px solid var(--gray-300); border-radius: 10px;
+      font-size: 16px; font-family: 'Inter', sans-serif;
+      color: var(--gray-900); background: var(--gray-50);
+      outline: none; transition: border-color 0.2s;
+    }
+    .form-input:focus { border-color: var(--green); background: var(--white); }
+
+    /* ── INSPECTION CHECKLIST ── */
+    .checklist-item {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 16px;
+      background: var(--gray-50);
+      border: 2px solid var(--gray-200);
+      border-radius: 10px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .checklist-item.checked { background: var(--green-pale); border-color: var(--green-light); }
+    .check-circle {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 2px solid var(--gray-300);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; font-size: 14px; color: transparent;
+      transition: all 0.2s;
+    }
+    .checklist-item.checked .check-circle { background: var(--green); border-color: var(--green); color: var(--white); }
+    .checklist-label { font-size: 15px; font-weight: 500; }
+
+    /* ── BIG ACTION BUTTONS ── */
+    .btn-big {
+      width: 100%; padding: 18px;
+      border: none; border-radius: var(--radius);
+      font-size: 17px; font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      gap: 10px; transition: all 0.15s;
+      margin-bottom: 12px;
+    }
+    .btn-big:active { transform: scale(0.97); }
+    .btn-green  { background: var(--green); color: var(--white); }
+    .btn-green:hover { background: var(--green-dark); }
+    .btn-gold   { background: var(--gold); color: var(--gray-900); }
+    .btn-gold:hover { background: var(--gold-dark); }
+    .btn-danger { background: var(--danger); color: var(--white); }
+    .btn-gray   { background: var(--gray-200); color: var(--gray-800); }
+    .btn-outline { background: transparent; color: var(--green); border: 2px solid var(--green); }
+    .btn-sm { padding: 11px 16px; font-size: 14px; border-radius: 10px; margin-bottom: 0; }
+
+    /* ── ROUTE CARD ── */
+    .route-header {
+      background: linear-gradient(135deg, var(--green-dark), var(--green));
+      color: var(--white);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .route-header h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .route-meta { font-size: 13px; color: rgba(255,255,255,0.8); display: flex; gap: 16px; flex-wrap: wrap; }
+    .route-meta span { display: flex; align-items: center; gap: 5px; }
+
+    /* ── STOP CARD ── */
+    .stop-card {
+      background: var(--white);
+      border: 2px solid var(--gray-200);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 14px;
+      position: relative;
+      transition: all 0.2s;
+    }
+    .stop-card.current { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(255,193,7,0.2); }
+    .stop-card.completed { border-color: var(--green-light); background: var(--green-pale); opacity: 0.75; }
+    .stop-card.no_show { border-color: var(--danger); background: var(--danger-light); opacity: 0.75; }
+
+    .stop-number {
+      position: absolute; top: -12px; left: 16px;
+      background: var(--green); color: var(--white);
+      width: 26px; height: 26px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+    }
+    .stop-card.current .stop-number { background: var(--gold); color: var(--gray-900); }
+    .stop-card.completed .stop-number { background: var(--success); }
+    .stop-card.no_show .stop-number { background: var(--danger); }
+
+    .stop-rider { font-size: 16px; font-weight: 700; margin-bottom: 8px; padding-top: 4px; }
+    .stop-phone { font-size: 14px; color: var(--green); font-weight: 600; margin-bottom: 10px; }
+    .stop-phone a { color: var(--green); text-decoration: none; }
+    .stop-address {
+      font-size: 13px; color: var(--gray-700);
+      background: var(--gray-50); border-radius: 8px;
+      padding: 10px 12px; margin-bottom: 10px;
+      display: flex; align-items: flex-start; gap: 8px;
+    }
+    .stop-address i { color: var(--green); margin-top: 2px; flex-shrink: 0; }
+    .stop-time { font-size: 13px; color: var(--gray-500); margin-bottom: 12px; }
+    .stop-notes { font-size: 13px; background: var(--gold-pale); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; color: var(--gray-700); }
+
+    .stop-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .stop-btn {
+      flex: 1; min-width: 100px;
+      padding: 12px 10px;
+      border: none; border-radius: 10px;
+      font-size: 13px; font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      gap: 6px; transition: all 0.15s;
+    }
+    .stop-btn:active { transform: scale(0.96); }
+    .stop-btn-nav    { background: var(--green); color: var(--white); }
+    .stop-btn-aboard { background: var(--gold); color: var(--gray-900); }
+    .stop-btn-done   { background: var(--success); color: var(--white); }
+    .stop-btn-noshow { background: var(--danger-light); color: var(--danger); border: 1px solid var(--danger); }
+    .stop-btn-cancel { background: var(--gray-200); color: var(--gray-700); }
+    .stop-btn-call   { background: #DBEAFE; color: #1D4ED8; }
+
+    .stop-status-label {
+      text-align: center; font-size: 14px; font-weight: 700;
+      padding: 10px; border-radius: 8px; margin-top: 4px;
+    }
+    .stop-status-label.completed { background: var(--green-pale); color: var(--green); }
+    .stop-status-label.no_show   { background: var(--danger-light); color: var(--danger); }
+    .stop-status-label.canceled  { background: var(--gray-200); color: var(--gray-700); }
+
+    /* ── MILEAGE LOG ── */
+    .mileage-card {
+      background: var(--gray-50);
+      border: 2px solid var(--gray-200);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .mileage-card h4 { font-size: 15px; font-weight: 700; color: var(--green); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .mileage-input-row { display: flex; gap: 12px; }
+    .mileage-input-row .form-group { flex: 1; }
+
+    /* ── NO TRIPS ── */
+    .no-trips {
+      text-align: center; padding: 60px 24px;
+      color: var(--gray-500);
+    }
+    .no-trips i { font-size: 56px; color: var(--gray-300); margin-bottom: 16px; display: block; }
+    .no-trips h3 { font-size: 18px; font-weight: 700; color: var(--gray-700); margin-bottom: 8px; }
+    .no-trips p { font-size: 14px; line-height: 1.6; }
+
+    /* ── BOTTOM NAV ── */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 100%; max-width: 480px;
+      background: var(--white);
+      border-top: 1px solid var(--gray-200);
+      display: flex;
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+      box-shadow: 0 -4px 16px rgba(0,0,0,0.08);
+      z-index: 100;
+    }
+    .nav-tab {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 10px 4px 6px;
+      cursor: pointer; border: none; background: none;
+      font-family: 'Inter', sans-serif;
+      color: var(--gray-500); font-size: 11px; font-weight: 500;
+      transition: color 0.2s;
+      gap: 4px;
+    }
+    .nav-tab i { font-size: 20px; }
+    .nav-tab.active { color: var(--green); }
+    .nav-tab.active i { font-weight: 900; }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed; bottom: 80px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--gray-900); color: var(--white);
+      padding: 12px 20px; border-radius: 24px;
+      font-size: 14px; font-weight: 500;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      z-index: 9999; opacity: 0;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.success { background: var(--green); }
+    .toast.error   { background: var(--danger); }
+
+    /* ── PROFILE SCREEN ── */
+    .profile-header {
+      background: linear-gradient(135deg, var(--green-dark), var(--green));
+      color: var(--white); border-radius: var(--radius);
+      padding: 24px; text-align: center; margin-bottom: 16px;
+    }
+    .profile-avatar {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: var(--gold); color: var(--green-dark);
+      font-size: 28px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 12px;
+    }
+    .profile-name { font-size: 20px; font-weight: 700; }
+    .profile-role { font-size: 13px; color: rgba(255,255,255,0.75); margin-top: 4px; }
+
+    .info-row {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 16px;
+      background: var(--white); border: 1px solid var(--gray-200);
+      border-radius: 10px; margin-bottom: 10px;
+    }
+    .info-row i { color: var(--green); width: 20px; text-align: center; }
+    .info-row-label { font-size: 12px; color: var(--gray-500); }
+    .info-row-value { font-size: 15px; font-weight: 600; }
+
+    /* ── SECTION HEADER ── */
+    .section-header {
+      font-size: 12px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1px;
+      color: var(--gray-500); margin: 20px 0 10px;
+    }
+
+    /* ── MAP SCREEN ── */
+    #screen-map { padding: 0; }
+    #driverMap { width: 100%; height: calc(100vh - 130px); }
+    .map-info-bar {
+      position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%);
+      background: var(--green-dark); color: var(--white);
+      padding: 10px 18px; border-radius: 24px;
+      font-size: 13px; font-weight: 600;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      z-index: 1000; white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* ── DAMAGE REPORT ── */
+    .damage-section { margin-top: 16px; }
+    .damage-toggle { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .damage-toggle input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--danger); }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Header -->
+    <div class="app-header">
+      <div class="app-header-left">
+        <div class="app-logo"><i class="fas fa-shuttle-van"></i></div>
+        <div>
+          <div class="app-title">Zak Transport</div>
+          <div class="app-subtitle" id="headerSubtitle">Driver App</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="header-btn" id="switchToDispatchBtn" onclick="window.location.href='/app.html'" title="Switch to Dispatch Center" style="display:none"><i class="fas fa-desktop"></i></button>
+        <button class="header-btn" id="refreshBtn" onclick="refreshTrips()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+      </div>
+    </div>
+
+    <!-- Scrollable content -->
+    <div class="app-content">
+
+      <!-- ── ROUTE SCREEN ── -->
+      <div class="screen active" id="screen-route">
+        <div id="routeContent">
+          <div class="no-trips">
+            <i class="fas fa-calendar-times"></i>
+            <h3>No Trips Today</h3>
+            <p>You have no trips scheduled for today.<br>Check back later or contact your dispatcher.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── START SHIFT SCREEN ── -->
+      <div class="screen" id="screen-start">
+        <div class="signin-card">
+          <h2><i class="fas fa-play-circle" style="color:var(--green);"></i> Start Your Shift</h2>
+          <p>Complete this before beginning your route</p>
+
+          <div class="section-header">Vehicle &amp; Mileage</div>
+          <div class="mileage-card">
+            <h4><i class="fas fa-tachometer-alt"></i> Mileage Log</h4>
+            <div class="mileage-input-row">
+              <div class="form-group">
+                <label class="form-label">Starting Mileage *</label>
+                <input type="number" class="form-input" id="startMileage" placeholder="e.g. 45231" inputmode="numeric">
+              </div>
+            </div>
+          </div>
+
+          <div class="section-header">Pre-Trip Inspection</div>
+          <p style="font-size:13px;color:var(--gray-500);margin-bottom:12px;">Tap each item to confirm it's been checked</p>
+
+          <div id="inspectionList">
+            <div class="checklist-item" onclick="toggleCheck(this)" data-item="tires">
+              <div class="check-circle"><i class="fas fa-check"></i></div>
+              <span class="checklist-label"><i class="fas fa-circle" style="color:var(--gray-300);margin-right:6px;font-size:10px;"></i> Tires — pressure &amp; condition</span>
+            </div>
+            <div class="checklist-item" onclick="toggleCheck(this)" data-item="lights">
+              <div class="check-circle"><i class="fas fa-check"></i></div>
+              <span class="checklist-label"><i class="fas fa-circle" style="color:var(--gray-300);margin-right:6px;font-size:10px;"></i> Lights — headlights, brake, turn signals</span>
+            </div>
+            <div class="checklist-item" onclick="toggleCheck(this)" data-item="mirrors">
+              <div class="check-circle"><i class="fas fa-check"></i></div>
+              <span class="checklist-label"><i class="fas fa-circle" style="color:var(--gray-300);margin-right:6px;font-size:10px;"></i> Mirrors — properly adjusted</span>
+            </div>
+            <div class="checklist-item" onclick="toggleCheck(this)" data-item="fuel">
+              <div class="check-circle"><i class="fas fa-check"></i></div>
+              <span class="checklist-label"><i class="fas fa-circle" style="color:var(--gray-300);margin-right:6px;font-size:10px;"></i> Fuel — adequate level</span>
+            </div>
+            <div class="checklist-item" onclick="toggleCheck(this)" data-item="cleanliness">
+              <div class="check-circle"><i class="fas fa-check"></i></div>
+              <span class="checklist-label"><i class="fas fa-circle" style="color:var(--gray-300);margin-right:6px;font-size:10px;"></i> Interior — clean &amp; ready for riders</span>
+            </div>
+            <div class="checklist-item" onclick="toggleCheck(this)" data-item="seatbelts">
+              <div class="check-circle"><i class="fas fa-check"></i></div>
+              <span class="checklist-label"><i class="fas fa-circle" style="color:var(--gray-300);margin-right:6px;font-size:10px;"></i> Seat belts — all functional</span>
+            </div>
+            <div class="checklist-item" onclick="toggleCheck(this)" data-item="firstaid">
+              <div class="check-circle"><i class="fas fa-check"></i></div>
+              <span class="checklist-label"><i class="fas fa-circle" style="color:var(--gray-300);margin-right:6px;font-size:10px;"></i> First aid kit — present &amp; stocked</span>
+            </div>
+          </div>
+
+          <div class="damage-section">
+            <label class="damage-toggle">
+              <input type="checkbox" id="hasDamage" onchange="toggleDamageField()">
+              <span style="color:var(--danger);"><i class="fas fa-exclamation-triangle"></i> Report new damage</span>
+            </label>
+            <div id="damageField" style="display:none;margin-top:12px;">
+              <textarea class="form-input" id="damageNotes" rows="3" placeholder="Describe any new damage, scratches, or issues..."></textarea>
+            </div>
+          </div>
+
+          <div style="margin-top:20px;">
+            <button class="btn-big btn-green" onclick="startShift()">
+              <i class="fas fa-road"></i> Start Shift &amp; Begin Route
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── END SHIFT SCREEN ── -->
+      <div class="screen" id="screen-end">
+        <div class="signin-card">
+          <h2><i class="fas fa-flag-checkered" style="color:var(--green);"></i> End of Shift</h2>
+          <p>Log your ending mileage to complete the shift</p>
+          <div class="form-group">
+            <label class="form-label">Ending Mileage *</label>
+            <input type="number" class="form-input" id="endMileage" placeholder="e.g. 45312" inputmode="numeric">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Shift Notes (optional)</label>
+            <textarea class="form-input" id="shiftNotes" rows="3" placeholder="Any issues, incidents, or notes for the dispatcher..."></textarea>
+          </div>
+          <button class="btn-big btn-green" onclick="endShift()">
+            <i class="fas fa-check-circle"></i> Complete Shift
+          </button>
+          <button class="btn-big btn-gray" onclick="showScreen('route')">
+            <i class="fas fa-arrow-left"></i> Back to Route
+          </button>
+        </div>
+      </div>
+
+      <!-- ── MAP SCREEN ── -->
+      <div class="screen" id="screen-map">
+        <div id="driverMap"></div>
+        <div class="map-info-bar" id="mapInfoBar">📍 Tap a stop to show route</div>
+      </div>
+
+      <!-- ── PROFILE SCREEN ── -->
+      <div class="screen" id="screen-profile">
+        <div class="profile-header">
+          <div class="profile-avatar" id="profileAvatar">--</div>
+          <div class="profile-name" id="profileName">Loading...</div>
+          <div class="profile-role">Driver</div>
+        </div>
+
+        <div class="section-header">My Info</div>
+        <div class="info-row">
+          <i class="fas fa-envelope"></i>
+          <div><div class="info-row-label">Email</div><div class="info-row-value" id="profileEmail">—</div></div>
+        </div>
+        <div class="info-row">
+          <i class="fas fa-phone"></i>
+          <div><div class="info-row-label">Phone</div><div class="info-row-value" id="profilePhone">—</div></div>
+        </div>
+        <div class="info-row">
+          <i class="fas fa-shuttle-van"></i>
+          <div><div class="info-row-label">Assigned Vehicle</div><div class="info-row-value" id="profileVehicle">—</div></div>
+        </div>
+
+        <div class="section-header">Today's Summary</div>
+        <div class="info-row">
+          <i class="fas fa-route"></i>
+          <div><div class="info-row-label">Trips Today</div><div class="info-row-value" id="profileTripsToday">0</div></div>
+        </div>
+        <div class="info-row">
+          <i class="fas fa-users"></i>
+          <div><div class="info-row-label">Riders Served</div><div class="info-row-value" id="profileRidersToday">0</div></div>
+        </div>
+
+        <div style="margin-top:24px;">
+          <button class="btn-big btn-outline" onclick="ZakAuth.logout()">
+            <i class="fas fa-sign-out-alt"></i> Sign Out
+          </button>
+        </div>
+      </div>
+
+    </div><!-- end app-content -->
+
+    <!-- Bottom Nav -->
+    <div class="bottom-nav">
+      <button class="nav-tab active" id="tab-route" onclick="showScreen('route')">
+        <i class="fas fa-route"></i>My Route
+      </button>
+      <button class="nav-tab" id="tab-map" onclick="showScreen('map');initDriverMap()">
+        <i class="fas fa-map"></i>Map
+      </button>
+      <button class="nav-tab" id="tab-start" onclick="showScreen('start')">
+        <i class="fas fa-clipboard-check"></i>Start Shift
+      </button>
+      <button class="nav-tab" id="tab-end" onclick="showScreen('end')">
+        <i class="fas fa-flag-checkered"></i>End Shift
+      </button>
+      <button class="nav-tab" id="tab-profile" onclick="showScreen('profile')">
+        <i class="fas fa-user-circle"></i>Profile
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/driver.js"></script>
+</body>
+</html>

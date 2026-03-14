@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zak Transportation Initiative — Login</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green:      #2E7D32;
+      --green-dark: #1B5E20;
+      --green-light:#4CAF50;
+      --gold:       #FFC107;
+      --gold-dark:  #FFA000;
+      --white:      #FFFFFF;
+      --gray-100:   #F5F5F5;
+      --gray-300:   #E0E0E0;
+      --gray-500:   #9E9E9E;
+      --gray-700:   #616161;
+      --gray-900:   #212121;
+      --danger:     #EF4444;
+      --radius:     12px;
+      --shadow:     0 20px 60px rgba(0,0,0,0.15);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, var(--green-dark) 0%, var(--green) 50%, #236B27 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .login-card {
+      background: var(--white);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      width: 100%;
+      max-width: 420px;
+      overflow: hidden;
+    }
+    .login-header {
+      background: linear-gradient(135deg, var(--green-dark), var(--green));
+      padding: 36px 32px 28px;
+      text-align: center;
+    }
+    .logo-circle {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      border: 3px solid var(--gold);
+      margin: 0 auto 16px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.1);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .logo-circle img { width: 100%; height: 100%; object-fit: cover; }
+    .logo-circle i { font-size: 36px; color: var(--gold); }
+    .login-header h1 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--gold);
+      line-height: 1.2;
+    }
+    .login-header p {
+      font-size: 13px;
+      color: rgba(255,255,255,0.75);
+      margin-top: 4px;
+    }
+    .login-body { padding: 32px; }
+    .form-group { margin-bottom: 20px; }
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gray-700);
+      margin-bottom: 8px;
+    }
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .input-icon {
+      position: absolute;
+      left: 14px;
+      color: var(--gray-500);
+      font-size: 15px;
+      pointer-events: none;
+    }
+    .form-input {
+      width: 100%;
+      padding: 13px 14px 13px 42px;
+      border: 2px solid var(--gray-300);
+      border-radius: var(--radius);
+      font-size: 15px;
+      font-family: 'Inter', sans-serif;
+      color: var(--gray-900);
+      background: var(--gray-100);
+      transition: border-color 0.2s, background 0.2s;
+      outline: none;
+    }
+    .form-input:focus {
+      border-color: var(--green);
+      background: var(--white);
+    }
+    .toggle-password {
+      position: absolute;
+      right: 14px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--gray-500);
+      font-size: 15px;
+      padding: 4px;
+    }
+    .toggle-password:hover { color: var(--green); }
+    .error-msg {
+      display: none;
+      background: #FEE2E2;
+      color: var(--danger);
+      border: 1px solid #FECACA;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      align-items: center;
+      gap: 8px;
+    }
+    .error-msg.show { display: flex; }
+    .btn-login {
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(135deg, var(--green), var(--green-dark));
+      color: var(--white);
+      border: none;
+      border-radius: var(--radius);
+      font-size: 16px;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .btn-login:hover { opacity: 0.92; }
+    .btn-login:active { transform: scale(0.98); }
+    .btn-login:disabled { opacity: 0.6; cursor: not-allowed; }
+    .spinner {
+      display: none;
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    .btn-login.loading .spinner { display: block; }
+    .btn-login.loading .btn-text { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .login-footer {
+      padding: 16px 32px 24px;
+      text-align: center;
+      border-top: 1px solid var(--gray-300);
+    }
+    .login-footer p {
+      font-size: 12px;
+      color: var(--gray-500);
+    }
+    .login-footer strong { color: var(--green); }
+  </style>
+</head>
+<body>
+  <!-- Login Card -->
+  <div class="login-card" id="loginCard">
+    <div class="login-header">
+      <div class="logo-circle">
+        <i class="fas fa-shuttle-van"></i>
+      </div>
+      <h1>Zak Transportation Initiative</h1>
+      <p>PERC Dispatch Platform — Sign In</p>
+    </div>
+
+    <div class="login-body">
+      <div class="error-msg" id="errorMsg">
+        <i class="fas fa-exclamation-circle"></i>
+        <span id="errorText">Invalid email or password.</span>
+      </div>
+
+      <form id="loginForm" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="email">Email Address</label>
+          <div class="input-wrapper">
+            <i class="fas fa-envelope input-icon"></i>
+            <input type="email" id="email" class="form-input" placeholder="you@example.com" autocomplete="email" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <div class="input-wrapper">
+            <i class="fas fa-lock input-icon"></i>
+            <input type="password" id="password" class="form-input" placeholder="Enter your password" autocomplete="current-password" required>
+            <button type="button" class="toggle-password" id="togglePwd" aria-label="Show/hide password">
+              <i class="fas fa-eye" id="eyeIcon"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-login" id="loginBtn">
+          <span class="btn-text"><i class="fas fa-sign-in-alt"></i> Sign In</span>
+          <div class="spinner"></div>
+        </button>
+      </form>
+    </div>
+
+    <div class="login-footer">
+      <p>Powered by <a href="https://rydeworks.com" target="_blank" style="color:var(--green);text-decoration:none;font-weight:600">Rydeworks™</a></p>
+      <p style="margin-top:4px;"><a href="#" id="forgotPwdLink" style="color:var(--green);text-decoration:none;font-weight:500;">Forgot your password?</a></p>
+      <div id="forgotPwdForm" style="display:none;margin-top:14px;padding:14px;background:#f0f7f0;border-radius:8px;border:1px solid #c8e6c9;">
+        <p style="margin:0 0 10px;font-size:13px;color:var(--gray-700);">Enter your email and we'll send a reset link.</p>
+        <div style="display:flex;gap:8px;">
+          <input type="email" id="forgotEmail" placeholder="you@example.com" style="flex:1;padding:8px 12px;border-radius:6px;border:1px solid var(--gray-300);background:#fff;color:var(--gray-900);font-size:13px;outline:none;font-family:'Inter',sans-serif;">
+          <button id="forgotSubmitBtn" onclick="sendForgotPassword()" style="padding:8px 14px;background:var(--green);color:#fff;border:none;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;">Send</button>
+        </div>
+        <p id="forgotMsg" style="margin:8px 0 0;font-size:12px;display:none;"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Role Chooser Card (shown after login for multi-role users) -->
+  <div class="login-card" id="chooserCard" style="display:none;max-width:480px">
+    <div class="login-header">
+      <div class="logo-circle"><i class="fas fa-shuttle-van"></i></div>
+      <h1>Zak Transportation Initiative</h1>
+      <p id="chooserName">Welcome!</p>
+    </div>
+    <div class="login-body" style="padding:32px">
+      <p style="text-align:center;color:var(--gray-700);margin-bottom:24px;font-size:15px">Where would you like to go?</p>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <button onclick="window.location.href='/app.html'" style="
+          display:flex;align-items:center;gap:16px;
+          padding:18px 20px;border-radius:12px;
+          background:linear-gradient(135deg,var(--green),var(--green-dark));
+          color:#fff;border:none;cursor:pointer;font-size:16px;font-weight:600;
+          font-family:'Inter',sans-serif;transition:opacity 0.2s">
+          <i class="fas fa-desktop" style="font-size:22px"></i>
+          <div style="text-align:left">
+            <div>Dispatch Center</div>
+            <div style="font-size:12px;font-weight:400;opacity:0.85">Schedule trips, manage drivers, live map</div>
+          </div>
+        </button>
+        <button onclick="window.location.href='/driver.html'" style="
+          display:flex;align-items:center;gap:16px;
+          padding:18px 20px;border-radius:12px;
+          background:linear-gradient(135deg,var(--gold-dark),var(--gold));
+          color:#fff;border:none;cursor:pointer;font-size:16px;font-weight:600;
+          font-family:'Inter',sans-serif;transition:opacity 0.2s">
+          <i class="fas fa-mobile-alt" style="font-size:22px"></i>
+          <div style="text-align:left">
+            <div>Driver App</div>
+            <div style="font-size:12px;font-weight:400;opacity:0.85">My route, stops, shift log</div>
+          </div>
+        </button>
+      </div>
+    </div>
+    <div class="login-footer">
+      <p>Powered by <a href="https://rydeworks.com" target="_blank" style="color:var(--green);text-decoration:none;font-weight:600">Rydeworks™</a></p>
+    </div>
+  </div>
+
+  <script>
+    const API = '';  // same origin
+
+    // Toggle password visibility
+    document.getElementById('togglePwd').addEventListener('click', () => {
+      const pwd = document.getElementById('password');
+      const icon = document.getElementById('eyeIcon');
+      if (pwd.type === 'password') {
+        pwd.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+      } else {
+        pwd.type = 'password';
+        icon.className = 'fas fa-eye';
+      }
+    });
+
+    // Login form submit
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email    = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const btn      = document.getElementById('loginBtn');
+      const errMsg   = document.getElementById('errorMsg');
+      const errText  = document.getElementById('errorText');
+
+      // Hide previous error
+      errMsg.classList.remove('show');
+
+      if (!email || !password) {
+        errText.textContent = 'Please enter your email and password.';
+        errMsg.classList.add('show');
+        return;
+      }
+
+      // Show loading
+      btn.disabled = true;
+      btn.classList.add('loading');
+
+      try {
+        const res = await fetch(`${API}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+          errText.textContent = data.error || 'Login failed. Please try again.';
+          errMsg.classList.add('show');
+          return;
+        }
+
+        // Store token and user info
+        localStorage.setItem('zak_token', data.token);
+        localStorage.setItem('zak_user', JSON.stringify(data.user));
+
+        // Redirect based on roles
+        redirectByRole(data.user);
+
+      } catch (err) {
+        errText.textContent = 'Connection error. Please check your internet and try again.';
+        errMsg.classList.add('show');
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+      }
+    });
+
+    // If already logged in, redirect
+    const token = localStorage.getItem('zak_token');
+    if (token) {
+      const user = JSON.parse(localStorage.getItem('zak_user') || '{}');
+      redirectByRole(user);
+    }
+
+    // Forgot password toggle
+    document.getElementById('forgotPwdLink').addEventListener('click', (e) => {
+      e.preventDefault();
+      const form = document.getElementById('forgotPwdForm');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    });
+
+    async function sendForgotPassword() {
+      const email = document.getElementById('forgotEmail').value.trim();
+      const btn = document.getElementById('forgotSubmitBtn');
+      const msg = document.getElementById('forgotMsg');
+      if (!email) { msg.textContent = 'Please enter your email.'; msg.style.color = 'var(--danger)'; msg.style.display = 'block'; return; }
+      btn.disabled = true; btn.textContent = 'Sending...';
+      try {
+        const res = await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        msg.textContent = data.success ? 'Reset link sent! Check your email.' : (data.error || 'Error sending reset link.');
+        msg.style.color = data.success ? 'var(--green)' : 'var(--danger)';
+        msg.style.display = 'block';
+      } catch (err) {
+        msg.textContent = 'Connection error. Please try again.';
+        msg.style.color = 'var(--danger)';
+        msg.style.display = 'block';
+      } finally {
+        btn.disabled = false; btn.textContent = 'Send';
+      }
+    }
+
+    function redirectByRole(user) {
+      const roles = user.roles || [];
+      const canDispatch = roles.some(r => ['super_admin','admin','dispatcher'].includes(r));
+      const canDrive    = roles.includes('driver');
+
+      // Only driver — go straight to driver app
+      if (canDrive && !canDispatch) {
+        window.location.href = '/driver.html';
+        return;
+      }
+      // Only dispatch roles — go straight to dispatcher
+      if (canDispatch && !canDrive) {
+        window.location.href = '/app.html';
+        return;
+      }
+      // Has BOTH — show the chooser screen
+      document.getElementById('loginCard').style.display = 'none';
+      document.getElementById('chooserCard').style.display = 'block';
+      const name = (user.firstName || '').trim();
+      document.getElementById('chooserName').textContent = name ? `Welcome, ${name}!` : 'Welcome!';
+    }
+  </script>
+</body>
+</html>

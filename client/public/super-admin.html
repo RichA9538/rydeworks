@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zak Transport — Super Admin</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green: #2E7D32; --green-dark: #1B5E20; --green-light: #4CAF50;
+      --gold: #FFC107; --gold-dark: #FFA000;
+      --red: #D32F2F; --red-light: #FFEBEE;
+      --orange: #F57C00; --orange-light: #FFF3E0;
+      --blue: #1565C0; --blue-light: #E3F2FD;
+      --white: #FFFFFF; --gray-50: #FAFAFA; --gray-100: #F5F5F5;
+      --gray-200: #EEEEEE; --gray-300: #E0E0E0; --gray-500: #9E9E9E;
+      --gray-700: #616161; --gray-900: #212121;
+      --sidebar-w: 240px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: var(--gray-100); color: var(--gray-900); display: flex; min-height: 100vh; }
+
+    /* SIDEBAR */
+    .sidebar { width: var(--sidebar-w); background: var(--gray-900); color: #fff; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; }
+    .sidebar-header { padding: 20px 16px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .sidebar-header h1 { font-family: 'Poppins', sans-serif; font-size: 15px; font-weight: 700; color: var(--gold); }
+    .sidebar-header p { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+    .sidebar-badge { display: inline-block; background: var(--red); color: #fff; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+    nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+    .nav-label { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.35); letter-spacing: 1px; text-transform: uppercase; padding: 12px 16px 4px; }
+    .nav-link { display: flex; align-items: center; gap: 10px; padding: 10px 16px; color: rgba(255,255,255,0.7); text-decoration: none; font-size: 13px; font-weight: 500; cursor: pointer; border: none; background: none; width: 100%; transition: background 0.15s, color 0.15s; }
+    .nav-link:hover, .nav-link.active { background: rgba(255,255,255,0.08); color: #fff; }
+    .nav-link.active { border-left: 3px solid var(--gold); }
+    .nav-link i { width: 18px; text-align: center; }
+    .sidebar-footer { padding: 16px; border-top: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 10px; }
+    .sa-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--gold); color: var(--gray-900); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+    .sa-name { font-size: 12px; font-weight: 600; color: #fff; flex: 1; }
+    .sa-role { font-size: 10px; color: rgba(255,255,255,0.5); }
+    .logout-btn { background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 16px; padding: 4px; }
+    .logout-btn:hover { color: #fff; }
+
+    /* MAIN */
+    .main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+    .top-bar { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 0 28px; height: 60px; display: flex; align-items: center; justify-content: space-between; }
+    .top-bar h2 { font-size: 18px; font-weight: 700; }
+    .top-bar-sub { font-size: 12px; color: var(--gray-500); }
+    .content { padding: 28px; flex: 1; }
+
+    /* VIEWS */
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* STATS ROW */
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px; }
+    .stat-card { background: var(--white); border-radius: 12px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    .stat-label { font-size: 12px; color: var(--gray-500); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-value { font-size: 28px; font-weight: 800; margin-top: 4px; }
+    .stat-value.green { color: var(--green); }
+    .stat-value.orange { color: var(--orange); }
+    .stat-value.red { color: var(--red); }
+    .stat-value.blue { color: var(--blue); }
+
+    /* TABLE */
+    .card { background: var(--white); border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); overflow: hidden; }
+    .card-header { padding: 18px 20px; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; }
+    .card-header h3 { font-size: 15px; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--gray-50); font-size: 11px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 16px; text-align: left; }
+    td { padding: 14px 16px; font-size: 13px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--gray-50); }
+
+    /* STATUS BADGES */
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+    .badge-active { background: #E8F5E9; color: var(--green-dark); }
+    .badge-suspended { background: var(--orange-light); color: var(--orange); }
+    .badge-terminated { background: var(--red-light); color: var(--red); }
+
+    /* BUTTONS */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; font-family: 'Inter', sans-serif; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.88; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .btn-primary { background: var(--green); color: #fff; }
+    .btn-warning { background: var(--orange); color: #fff; }
+    .btn-success { background: var(--green-light); color: #fff; }
+    .btn-danger { background: var(--red); color: #fff; }
+    .btn-secondary { background: var(--gray-200); color: var(--gray-700); }
+    .btn-ghost { background: transparent; color: var(--gray-700); border: 1px solid var(--gray-300); }
+    .btn-dispatch { background: var(--blue); color: #fff; }
+
+    /* MODAL */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; }
+    .modal-overlay.show { display: flex; }
+    .modal-box { background: var(--white); border-radius: 16px; width: 100%; max-width: 480px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); overflow: hidden; }
+    .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; }
+    .modal-header h3 { font-size: 16px; font-weight: 700; }
+    .modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--gray-500); }
+    .modal-body { padding: 24px; }
+    .modal-footer { padding: 16px 24px; border-top: 1px solid var(--gray-200); display: flex; justify-content: flex-end; gap: 10px; }
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-700); margin-bottom: 6px; }
+    .form-input { width: 100%; padding: 10px 12px; border: 1.5px solid var(--gray-300); border-radius: 8px; font-size: 14px; font-family: 'Inter', sans-serif; outline: none; }
+    .form-input:focus { border-color: var(--green); }
+    .warning-box { background: var(--red-light); border: 1px solid #FFCDD2; border-radius: 8px; padding: 14px 16px; font-size: 13px; color: var(--red); margin-bottom: 16px; }
+    .warning-box strong { display: block; margin-bottom: 4px; }
+
+    /* TOAST */
+    .toast { position: fixed; bottom: 24px; right: 24px; background: var(--gray-900); color: #fff; padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 500; z-index: 999; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { background: var(--green); }
+    .toast.error { background: var(--red); }
+
+    /* EMPTY STATE */
+    .empty { text-align: center; padding: 48px 24px; color: var(--gray-500); }
+    .empty i { font-size: 40px; margin-bottom: 12px; display: block; }
+  </style>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h1>Alvarez &amp; Associates <span class="sidebar-badge">SUPER ADMIN</span></h1>
+      <p>Zak Transportation Platform</p>
+    </div>
+    <nav>
+      <div class="nav-label">Platform</div>
+      <button class="nav-link active" data-view="orgs" onclick="switchView('orgs', this)">
+        <i class="fas fa-building"></i> Organizations
+      </button>
+      <button class="nav-link" data-view="users" onclick="switchView('users', this)">
+        <i class="fas fa-users"></i> All Users
+      </button>
+      <div class="nav-label">My Organization</div>
+      <button class="nav-link" onclick="window.location.href='/app.html'">
+        <i class="fas fa-desktop"></i> Dispatch Center
+      </button>
+      <button class="nav-link" onclick="window.location.href='/driver.html'">
+        <i class="fas fa-mobile-alt"></i> Driver App
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sa-avatar" id="saAvatar">RA</div>
+      <div>
+        <div class="sa-name" id="saName">Rich Alvarez</div>
+        <div class="sa-role">Super Administrator</div>
+      </div>
+      <button class="logout-btn" onclick="ZakAuth.logout()" title="Sign out"><i class="fas fa-sign-out-alt"></i></button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <header class="top-bar">
+      <div>
+        <h2 id="viewTitle">Organizations</h2>
+        <div class="top-bar-sub" id="viewSub">Manage all customer organizations on the platform</div>
+      </div>
+      <div id="topBarActions"></div>
+    </header>
+
+    <div class="content">
+
+      <!-- ── ORGANIZATIONS VIEW ── -->
+      <div class="view active" id="view-orgs">
+        <div class="stats-row" id="orgStats">
+          <div class="stat-card"><div class="stat-label">Total Orgs</div><div class="stat-value blue" id="statTotal">—</div></div>
+          <div class="stat-card"><div class="stat-label">Active</div><div class="stat-value green" id="statActive">—</div></div>
+          <div class="stat-card"><div class="stat-label">Suspended</div><div class="stat-value orange" id="statSuspended">—</div></div>
+          <div class="stat-card"><div class="stat-label">Terminated</div><div class="stat-value red" id="statTerminated">—</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fas fa-building" style="color:var(--green);margin-right:8px"></i>All Organizations</h3>
+            <button class="btn btn-primary btn-sm" onclick="openAddOrgModal()"><i class="fas fa-plus"></i> Add Organization</button>
+          </div>
+          <div id="orgsTableWrap"><div class="empty"><i class="fas fa-spinner fa-spin"></i>Loading...</div></div>
+        </div>
+      </div>
+
+      <!-- ── ALL USERS VIEW ── -->
+      <div class="view" id="view-users">
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fas fa-users" style="color:var(--green);margin-right:8px"></i>All Platform Users</h3>
+          </div>
+          <div id="usersTableWrap"><div class="empty"><i class="fas fa-spinner fa-spin"></i>Loading...</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── SUSPEND MODAL ── -->
+  <div class="modal-overlay" id="suspendModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><i class="fas fa-pause-circle" style="color:var(--orange);margin-right:8px"></i>Suspend Organization</h3>
+        <button class="modal-close" onclick="closeModal('suspendModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="warning-box">
+          <strong><i class="fas fa-exclamation-triangle"></i> This will immediately lock out all users.</strong>
+          All team members at this organization will be unable to log in until you reactivate the account.
+        </div>
+        <input type="hidden" id="suspendOrgId">
+        <div class="form-group">
+          <label class="form-label">Organization</label>
+          <input type="text" class="form-input" id="suspendOrgName" readonly style="background:var(--gray-100)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reason for Suspension</label>
+          <select class="form-input" id="suspendReason">
+            <option value="Nonpayment">Nonpayment</option>
+            <option value="Past due invoice">Past due invoice</option>
+            <option value="Account review">Account review</option>
+            <option value="Violation of terms">Violation of terms</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('suspendModal')">Cancel</button>
+        <button class="btn btn-warning" onclick="confirmSuspend()"><i class="fas fa-pause-circle"></i> Suspend Access</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── REACTIVATE MODAL ── -->
+  <div class="modal-overlay" id="reactivateModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><i class="fas fa-play-circle" style="color:var(--green);margin-right:8px"></i>Reactivate Organization</h3>
+        <button class="modal-close" onclick="closeModal('reactivateModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="reactivateOrgId">
+        <p style="font-size:14px;color:var(--gray-700);margin-bottom:16px">Reactivating <strong id="reactivateOrgName"></strong> will restore login access for all users in this organization.</p>
+        <p style="font-size:13px;color:var(--green);font-weight:600"><i class="fas fa-check-circle"></i> All team members will be able to log in immediately.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('reactivateModal')">Cancel</button>
+        <button class="btn btn-success" onclick="confirmReactivate()"><i class="fas fa-play-circle"></i> Reactivate Access</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TERMINATE MODAL ── -->
+  <div class="modal-overlay" id="terminateModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><i class="fas fa-ban" style="color:var(--red);margin-right:8px"></i>Terminate Organization</h3>
+        <button class="modal-close" onclick="closeModal('terminateModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="warning-box">
+          <strong><i class="fas fa-skull-crossbones"></i> This action permanently terminates access.</strong>
+          All users will be locked out immediately. Data is retained for records but the organization cannot be reactivated. This cannot be undone without contacting the developer.
+        </div>
+        <input type="hidden" id="terminateOrgId">
+        <div class="form-group">
+          <label class="form-label">Type the organization name to confirm</label>
+          <input type="text" class="form-input" id="terminateConfirmName" placeholder="Type exact org name here">
+          <div style="font-size:11px;color:var(--gray-500);margin-top:4px">Must match exactly: <strong id="terminateOrgNameDisplay"></strong></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('terminateModal')">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmTerminate()"><i class="fas fa-ban"></i> Permanently Terminate</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ADD ORG MODAL ── -->
+  <div class="modal-overlay" id="addOrgModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><i class="fas fa-plus-circle" style="color:var(--green);margin-right:8px"></i>Add New Organization</h3>
+        <button class="modal-close" onclick="closeModal('addOrgModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group"><label class="form-label">Organization Name *</label><input type="text" class="form-input" id="newOrgName" placeholder="e.g. PERC Tampa"></div>
+        <div class="form-group"><label class="form-label">Contact Email</label><input type="email" class="form-input" id="newOrgEmail" placeholder="admin@org.com"></div>
+        <div class="form-group"><label class="form-label">Contact Phone</label><input type="tel" class="form-input" id="newOrgPhone" placeholder="(727) 555-0000"></div>
+        <div class="form-group"><label class="form-label">Address</label><input type="text" class="form-input" id="newOrgAddress" placeholder="123 Main St, City, FL"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('addOrgModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveNewOrg()"><i class="fas fa-save"></i> Create Organization</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/auth.js"></script>
+  <script>
+    // Auth guard — super admin only
+    ZakAuth.requireAuth();
+    if (!ZakAuth.hasRole('super_admin')) {
+      alert('Super Admin access required.');
+      window.location.href = '/app.html';
+    }
+
+    const API = '';
+    let allOrgs = [];
+
+    // ── INIT ──────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      const user = ZakAuth.getUser();
+      if (user) {
+        document.getElementById('saAvatar').textContent =
+          `${user.firstName?.[0]||''}${user.lastName?.[0]||''}`.toUpperCase();
+        document.getElementById('saName').textContent = `${user.firstName} ${user.lastName}`;
+      }
+      loadOrgs();
+    });
+
+    // ── NAVIGATION ────────────────────────────────────────────
+    function switchView(name, btn) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+      document.getElementById(`view-${name}`).classList.add('active');
+      btn.classList.add('active');
+      const titles = { orgs: ['Organizations', 'Manage all customer organizations on the platform'], users: ['All Users', 'Every user across all organizations'] };
+      document.getElementById('viewTitle').textContent = titles[name][0];
+      document.getElementById('viewSub').textContent   = titles[name][1];
+      if (name === 'users') loadAllUsers();
+    }
+
+    // ── ORGS ──────────────────────────────────────────────────
+    async function loadOrgs() {
+      const res = await ZakAuth.apiFetch('/api/super-admin/orgs');
+      if (!res?.success) { showToast('Failed to load organizations.', 'error'); return; }
+      allOrgs = res.orgs;
+
+      // Stats
+      const total      = allOrgs.length;
+      const active     = allOrgs.filter(o => !o.settings?.status || o.settings?.status === 'active').length;
+      const suspended  = allOrgs.filter(o => o.settings?.status === 'suspended').length;
+      const terminated = allOrgs.filter(o => o.settings?.status === 'terminated').length;
+      document.getElementById('statTotal').textContent     = total;
+      document.getElementById('statActive').textContent    = active;
+      document.getElementById('statSuspended').textContent = suspended;
+      document.getElementById('statTerminated').textContent= terminated;
+
+      if (allOrgs.length === 0) {
+        document.getElementById('orgsTableWrap').innerHTML = '<div class="empty"><i class="fas fa-building"></i>No organizations yet. Add your first customer.</div>';
+        return;
+      }
+
+      const rows = allOrgs.map(org => {
+        const status = org.settings?.status || 'active';
+        const badgeClass = status === 'active' ? 'badge-active' : status === 'suspended' ? 'badge-suspended' : 'badge-terminated';
+        const badgeIcon  = status === 'active' ? 'fa-check-circle' : status === 'suspended' ? 'fa-pause-circle' : 'fa-ban';
+
+        let actions = '';
+        if (status === 'active') {
+          actions = `
+            <button class="btn btn-sm btn-warning" onclick="openSuspendModal('${org._id}','${escHtml(org.name)}')"><i class="fas fa-pause-circle"></i> Suspend</button>
+            <button class="btn btn-sm btn-danger" onclick="openTerminateModal('${org._id}','${escHtml(org.name)}')"><i class="fas fa-ban"></i> Terminate</button>`;
+        } else if (status === 'suspended') {
+          actions = `
+            <button class="btn btn-sm btn-success" onclick="openReactivateModal('${org._id}','${escHtml(org.name)}')"><i class="fas fa-play-circle"></i> Reactivate</button>
+            <button class="btn btn-sm btn-danger" onclick="openTerminateModal('${org._id}','${escHtml(org.name)}')"><i class="fas fa-ban"></i> Terminate</button>`;
+        } else {
+          actions = '<span style="font-size:12px;color:var(--gray-500)">Terminated</span>';
+        }
+
+        return `<tr>
+          <td><strong>${escHtml(org.name)}</strong><br><span style="font-size:11px;color:var(--gray-500)">${org.email||'—'}</span></td>
+          <td>${org.phone||'—'}</td>
+          <td><span class="badge ${badgeClass}"><i class="fas ${badgeIcon}"></i> ${status.charAt(0).toUpperCase()+status.slice(1)}</span>
+            ${status==='suspended' ? `<div style="font-size:11px;color:var(--orange);margin-top:3px">${org.settings?.suspendReason||''}</div>` : ''}</td>
+          <td>${org.homeBases?.length || 0} base(s)</td>
+          <td><div style="display:flex;gap:6px;flex-wrap:wrap">${actions}</div></td>
+        </tr>`;
+      }).join('');
+
+      document.getElementById('orgsTableWrap').innerHTML = `
+        <table>
+          <thead><tr><th>Organization</th><th>Phone</th><th>Status</th><th>Bases</th><th>Actions</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    }
+
+    // ── ALL USERS ─────────────────────────────────────────────
+    async function loadAllUsers() {
+      const res = await ZakAuth.apiFetch('/api/super-admin/users');
+      if (!res?.success) { showToast('Failed to load users.', 'error'); return; }
+      const users = res.users;
+      if (users.length === 0) {
+        document.getElementById('usersTableWrap').innerHTML = '<div class="empty"><i class="fas fa-users"></i>No users found.</div>';
+        return;
+      }
+      const rows = users.map(u => `<tr>
+        <td><strong>${escHtml(u.firstName)} ${escHtml(u.lastName)}</strong></td>
+        <td>${escHtml(u.email)}</td>
+        <td>${escHtml(u.organization?.name || '—')}</td>
+        <td>${(u.roles||[]).map(r => `<span class="badge badge-active" style="margin-right:3px">${r}</span>`).join('')}</td>
+        <td><span class="badge ${u.isActive ? 'badge-active' : 'badge-suspended'}">${u.isActive ? 'Active' : 'Inactive'}</span></td>
+      </tr>`).join('');
+      document.getElementById('usersTableWrap').innerHTML = `
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Organization</th><th>Roles</th><th>Status</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    }
+
+    // ── SUSPEND ───────────────────────────────────────────────
+    function openSuspendModal(id, name) {
+      document.getElementById('suspendOrgId').value   = id;
+      document.getElementById('suspendOrgName').value = name;
+      openModal('suspendModal');
+    }
+    async function confirmSuspend() {
+      const id     = document.getElementById('suspendOrgId').value;
+      const reason = document.getElementById('suspendReason').value;
+      const res = await ZakAuth.apiFetch(`/api/super-admin/orgs/${id}/suspend`, {
+        method: 'POST', body: JSON.stringify({ reason })
+      });
+      if (res?.success) { showToast(res.message, 'success'); closeModal('suspendModal'); loadOrgs(); }
+      else showToast(res?.error || 'Failed to suspend.', 'error');
+    }
+
+    // ── REACTIVATE ────────────────────────────────────────────
+    function openReactivateModal(id, name) {
+      document.getElementById('reactivateOrgId').value = id;
+      document.getElementById('reactivateOrgName').textContent = name;
+      openModal('reactivateModal');
+    }
+    async function confirmReactivate() {
+      const id = document.getElementById('reactivateOrgId').value;
+      const res = await ZakAuth.apiFetch(`/api/super-admin/orgs/${id}/reactivate`, { method: 'POST', body: JSON.stringify({}) });
+      if (res?.success) { showToast(res.message, 'success'); closeModal('reactivateModal'); loadOrgs(); }
+      else showToast(res?.error || 'Failed to reactivate.', 'error');
+    }
+
+    // ── TERMINATE ─────────────────────────────────────────────
+    function openTerminateModal(id, name) {
+      document.getElementById('terminateOrgId').value = id;
+      document.getElementById('terminateOrgNameDisplay').textContent = name;
+      document.getElementById('terminateConfirmName').value = '';
+      openModal('terminateModal');
+    }
+    async function confirmTerminate() {
+      const id   = document.getElementById('terminateOrgId').value;
+      const expected = document.getElementById('terminateOrgNameDisplay').textContent;
+      const typed    = document.getElementById('terminateConfirmName').value.trim();
+      if (typed !== expected) {
+        showToast('Organization name does not match. Please type it exactly.', 'error');
+        return;
+      }
+      const res = await ZakAuth.apiFetch(`/api/super-admin/orgs/${id}/terminate`, { method: 'DELETE' });
+      if (res?.success) { showToast(res.message, 'success'); closeModal('terminateModal'); loadOrgs(); }
+      else showToast(res?.error || 'Failed to terminate.', 'error');
+    }
+
+    // ── ADD ORG ───────────────────────────────────────────────
+    function openAddOrgModal() { openModal('addOrgModal'); }
+    async function saveNewOrg() {
+      const name    = document.getElementById('newOrgName').value.trim();
+      const email   = document.getElementById('newOrgEmail').value.trim();
+      const phone   = document.getElementById('newOrgPhone').value.trim();
+      const address = document.getElementById('newOrgAddress').value.trim();
+      if (!name) { showToast('Organization name is required.', 'error'); return; }
+      const res = await ZakAuth.apiFetch('/api/super-admin/orgs', {
+        method: 'POST', body: JSON.stringify({ name, email, phone, address })
+      });
+      if (res?.success) { showToast(`${name} created!`, 'success'); closeModal('addOrgModal'); loadOrgs(); }
+      else showToast(res?.error || 'Failed to create organization.', 'error');
+    }
+
+    // ── UTILS ─────────────────────────────────────────────────
+    function openModal(id)  { document.getElementById(id).classList.add('show'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+    function escHtml(str)   { return String(str||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function showToast(msg, type='') {
+      const t = document.getElementById('toast');
+      t.textContent = msg; t.className = `toast show ${type}`;
+      setTimeout(() => t.classList.remove('show'), 3500);
+    }
+  </script>
+</body>
+</html>

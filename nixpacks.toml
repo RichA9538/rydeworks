@@ -1,2 +1,0 @@
-[phases.install]
-cmds = ["rm -f pnpm-lock.yaml && pnpm install"]

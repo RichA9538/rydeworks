@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book a Ride — Rydeworks</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #00D4C8;
+      --primary-dark: #00B4AA;
+      --dark: #0A1628;
+      --dark2: #0F1E35;
+      --gray-100: #f8f9fa;
+      --gray-200: #e9ecef;
+      --gray-300: #dee2e6;
+      --gray-500: #6c757d;
+      --gray-700: #495057;
+      --green: #0a6640;
+      --red: #c0392b;
+      --radius: 10px;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--gray-100); color: var(--dark); min-height: 100vh; }
+    .header {
+      background: var(--dark);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-logo { color: var(--primary); font-size: 1.6rem; }
+    .header h1 { color: #fff; font-size: 1.2rem; font-weight: 700; }
+    .header p { color: rgba(255,255,255,0.5); font-size: 0.8rem; }
+    .container { max-width: 600px; margin: 0 auto; padding: 24px 16px 60px; }
+    .step { display: none; }
+    .step.active { display: block; }
+    .step-indicator {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      align-items: center;
+    }
+    .step-dot {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: var(--gray-200);
+      color: var(--gray-500);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .step-dot.active { background: var(--primary); color: var(--dark); }
+    .step-dot.done { background: var(--green); color: #fff; }
+    .step-line { flex: 1; height: 2px; background: var(--gray-200); }
+    .step-line.done { background: var(--green); }
+    .card {
+      background: #fff;
+      border-radius: var(--radius);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .card h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; color: var(--dark); }
+    .card .subtitle { color: var(--gray-500); font-size: 0.85rem; margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--gray-700); margin-bottom: 6px; }
+    .form-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid var(--gray-300);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      color: var(--dark);
+      background: #fff;
+      transition: border-color 0.15s;
+    }
+    .form-input:focus { outline: none; border-color: var(--primary); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 0.95rem; font-weight: 600;
+      cursor: pointer; border: none;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: var(--primary); color: var(--dark); }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-secondary { background: var(--gray-200); color: var(--gray-700); }
+    .btn-secondary:hover { background: var(--gray-300); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-full { width: 100%; justify-content: center; }
+    .terms-box {
+      background: var(--gray-100);
+      border: 1px solid var(--gray-300);
+      border-radius: 8px;
+      padding: 16px;
+      max-height: 320px;
+      overflow-y: auto;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      color: var(--gray-700);
+      margin-bottom: 16px;
+    }
+    .terms-box h3 { font-size: 0.9rem; color: var(--dark); margin: 12px 0 4px; }
+    .terms-box h3:first-child { margin-top: 0; }
+    .agree-row {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 12px;
+      background: #fff;
+      border: 1.5px solid var(--gray-300);
+      border-radius: 8px;
+      cursor: pointer;
+      margin-bottom: 16px;
+    }
+    .agree-row input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; accent-color: var(--primary); cursor: pointer; }
+    .agree-row label { font-size: 0.88rem; color: var(--gray-700); cursor: pointer; line-height: 1.5; }
+    .price-highlight {
+      background: linear-gradient(135deg, var(--dark) 0%, var(--dark2) 100%);
+      border-radius: var(--radius);
+      padding: 20px;
+      color: #fff;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .price-highlight .amount { font-size: 2.5rem; font-weight: 800; color: var(--primary); }
+    .price-highlight .desc { font-size: 0.85rem; color: rgba(255,255,255,0.6); margin-top: 4px; }
+    .price-features { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .price-feature { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: rgba(255,255,255,0.8); }
+    .price-feature i { color: var(--primary); width: 16px; }
+    #stripe-card-element {
+      padding: 12px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: 8px;
+      background: white;
+      transition: border-color 0.2s;
+      min-height: 44px;
+    }
+    #stripe-card-element.StripeElement--focus { border-color: var(--primary); }
+    #stripe-card-element.StripeElement--invalid { border-color: var(--red); }
+    #card-errors { color: var(--red); font-size: 0.82rem; margin-top: 6px; min-height: 18px; }
+    .payment-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .payment-tab {
+      flex: 1; padding: 10px; text-align: center;
+      border: 1.5px solid var(--gray-300); border-radius: 8px;
+      cursor: pointer; font-size: 0.85rem; font-weight: 600;
+      color: var(--gray-500); background: #fff;
+      transition: all 0.15s;
+    }
+    .payment-tab.active { border-color: var(--primary); color: var(--dark); background: rgba(0,212,200,0.08); }
+    .payment-panel { display: none; }
+    .payment-panel.active { display: block; }
+    .success-icon { font-size: 4rem; color: var(--primary); text-align: center; margin-bottom: 16px; }
+    .code-display {
+      background: var(--dark);
+      color: var(--primary);
+      font-family: monospace;
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: 4px;
+      text-align: center;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 16px 0;
+    }
+    .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--gray-200); font-size: 0.88rem; }
+    .info-row:last-child { border-bottom: none; }
+    .info-row .label { color: var(--gray-500); }
+    .info-row .value { font-weight: 600; color: var(--dark); }
+    .alert { padding: 12px 16px; border-radius: 8px; font-size: 0.88rem; margin-bottom: 16px; }
+    .alert-info { background: rgba(0,212,200,0.1); border: 1px solid rgba(0,212,200,0.3); color: var(--dark); }
+    .alert-error { background: rgba(192,57,43,0.1); border: 1px solid rgba(192,57,43,0.3); color: var(--red); }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-logo"><i class="fas fa-shuttle-van"></i></div>
+    <div>
+      <h1>Rydeworks</h1>
+      <p>Rider Self-Booking Portal</p>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Step Indicator -->
+    <div class="step-indicator">
+      <div class="step-dot active" id="dot1">1</div>
+      <div class="step-line" id="line1"></div>
+      <div class="step-dot" id="dot2">2</div>
+      <div class="step-line" id="line2"></div>
+      <div class="step-dot" id="dot3">3</div>
+      <div class="step-line" id="line3"></div>
+      <div class="step-dot" id="dot4">4</div>
+      <div class="step-line" id="line4"></div>
+      <div class="step-dot" id="dot5">5</div>
+    </div>
+
+    <!-- STEP 1: Your Info -->
+    <div class="step active" id="step1">
+      <div class="card">
+        <h2><i class="fas fa-user" style="color:var(--primary)"></i> Your Information</h2>
+        <p class="subtitle">Tell us about yourself so we can set up your account.</p>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">First Name *</label>
+            <input type="text" class="form-input" id="riderFirstName" placeholder="Jane" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Last Name *</label>
+            <input type="text" class="form-input" id="riderLastName" placeholder="Doe" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone Number *</label>
+          <input type="tel" class="form-input" id="riderPhone" placeholder="(727) 555-0100" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" class="form-input" id="riderEmail" placeholder="jane@example.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Street Address *</label>
+          <input type="text" class="form-input" id="riderStreet" placeholder="123 Main St" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Apt / Unit / Suite <span style="font-weight:400;color:var(--gray-500)">(optional)</span></label>
+          <input type="text" class="form-input" id="riderApt" placeholder="Apt 2B">
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:2">
+            <label class="form-label">City *</label>
+            <input type="text" class="form-input" id="riderCity" placeholder="St. Petersburg" required>
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">State *</label>
+            <input type="text" class="form-input" id="riderState" placeholder="FL" maxlength="2" required>
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">ZIP *</label>
+            <input type="text" class="form-input" id="riderZip" placeholder="33701" maxlength="5" required>
+          </div>
+        </div>
+        <div id="step1-error" class="alert alert-error" style="display:none;"></div>
+        <button class="btn btn-primary btn-full" onclick="goToStep2()">
+          Continue <i class="fas fa-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- STEP 2: Terms & Conditions -->
+    <div class="step" id="step2">
+      <div class="card">
+        <h2><i class="fas fa-file-contract" style="color:var(--primary)"></i> Terms &amp; Conditions</h2>
+        <p class="subtitle">Please read and agree to our service terms before continuing.</p>
+        <div class="terms-box" id="termsBox">
+          <h3>1. Service Overview</h3>
+          <p>Rydeworks provides non-emergency transportation services ("Service") to enrolled riders. By enrolling, you agree to these Terms and Conditions in full. These terms govern your use of the Rydeworks platform, including booking, payment, and cancellation.</p>
+
+          <h3>2. Credit-Based Subscription</h3>
+          <p>Upon enrollment, your payment method will be charged <strong>$100.00</strong> to establish a ride credit balance. This balance is used to pay for individual trips based on distance-calculated fares. There is no fixed number of trips per week — your balance covers as many trips as the calculated fares allow until the balance is exhausted.</p>
+
+          <h3>3. Fare Calculation</h3>
+          <p>Fares are calculated based on the distance of each trip using Rydeworks' published fare zones. Fares may vary by trip length. The estimated fare for each trip will be shown at the time of booking. Actual fare may differ slightly based on route adjustments. The average fare is approximately $20 per round trip.</p>
+
+          <h3>4. Auto-Replenishment</h3>
+          <p>When your credit balance falls below $20.00, your payment method on file will be automatically charged $100.00 to replenish your balance. You will receive a text message notification each time a charge occurs. By enrolling, you authorize Rydeworks to charge your payment method for these automatic replenishments.</p>
+
+          <h3>5. Credit Rollover</h3>
+          <p>Unused ride credits do not expire on a weekly basis. Any remaining balance rolls over indefinitely until used or until your subscription is cancelled.</p>
+
+          <h3>6. Free Ride Code</h3>
+          <p>Upon successful enrollment and initial payment, you will receive a Free Ride Code valid for 30 days from the date of issuance. This code must be provided at the time of each booking to apply your credit balance. After 30 days, a new code will be issued automatically when your balance is replenished.</p>
+
+          <h3>7. No Cancellation During Initial Balance Period</h3>
+          <p><strong>You may not cancel your subscription until your initial $100.00 credit balance has been fully used.</strong> This ensures that the service commitment made at enrollment is honored. After your initial balance is exhausted, you may request cancellation by contacting Rydeworks directly.</p>
+
+          <h3>8. Cancellation After Initial Period</h3>
+          <p>To cancel your subscription after your initial balance is used, contact Rydeworks via text or phone. Any remaining credit balance at the time of cancellation is non-refundable. Cancellations take effect at the end of the current billing cycle.</p>
+
+          <h3>9. No Refunds</h3>
+          <p>All payments are non-refundable. Ride credits have no cash value and cannot be transferred to another rider or redeemed for cash.</p>
+
+          <h3>10. Rider Responsibilities</h3>
+          <p>Riders must be ready at the scheduled pickup location at the scheduled pickup time. Drivers will wait up to 5 minutes. Missed pickups are charged at the full fare. Riders are responsible for providing accurate pickup and destination addresses. Rydeworks is not liable for delays caused by traffic, weather, or other conditions beyond our control.</p>
+
+          <h3>11. Service Area</h3>
+          <p>Service is available within Rydeworks' designated service area. Trips outside the service area may be declined or subject to additional charges. Contact us to confirm coverage for your specific locations.</p>
+
+          <h3>12. Conduct</h3>
+          <p>Riders are expected to treat drivers with respect. Rydeworks reserves the right to suspend or terminate service to any rider who engages in abusive, threatening, or disruptive behavior.</p>
+
+          <h3>13. Privacy</h3>
+          <p>Your personal information is collected solely for the purpose of providing transportation services and processing payments. We do not sell or share your information with third parties except as required to process payments (Stripe) or send notifications (Twilio). See our Privacy Policy for full details.</p>
+
+          <h3>14. Changes to Terms</h3>
+          <p>Rydeworks reserves the right to update these Terms at any time. You will be notified of material changes via text message. Continued use of the service constitutes acceptance of the updated terms.</p>
+
+          <h3>15. Governing Law</h3>
+          <p>These Terms are governed by the laws of the State of Florida. Any disputes shall be resolved in the courts of Pinellas County, Florida.</p>
+        </div>
+        <div class="agree-row">
+          <input type="checkbox" id="agreeCheck">
+          <label for="agreeCheck">I have read and agree to the Rydeworks Terms &amp; Conditions, including the auto-replenishment authorization and the no-cancellation policy during my initial $100 balance period.</label>
+        </div>
+        <div id="step2-error" class="alert alert-error" style="display:none;"></div>
+        <div style="display:flex;gap:12px;">
+          <button class="btn btn-secondary" onclick="goToStep(1)"><i class="fas fa-arrow-left"></i> Back</button>
+          <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="goToStep3()">
+            I Agree — Continue <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: Recurring Schedule -->
+    <div class="step" id="step3">
+      <div class="card">
+        <h2><i class="fas fa-sync-alt" style="color:var(--primary)"></i> Set Up Recurring Trips</h2>
+        <p class="subtitle">Optionally schedule your regular trips now. You can always add or change these later by contacting dispatch.</p>
+        <div class="form-group">
+          <label class="form-label">Pickup Street Address <span style="font-weight:400;color:var(--gray-500)">(auto-filled from Step 1)</span></label>
+          <input type="text" class="form-input" id="recurPickup" placeholder="123 Main St">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Pickup Apt / Unit <span style="font-weight:400;color:var(--gray-500)">(optional)</span></label>
+          <input type="text" class="form-input" id="recurPickupApt" placeholder="Apt 2B">
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:2">
+            <label class="form-label">Pickup City</label>
+            <input type="text" class="form-input" id="recurPickupCity" placeholder="St. Petersburg">
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">State</label>
+            <input type="text" class="form-input" id="recurPickupState" placeholder="FL" maxlength="2">
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">ZIP</label>
+            <input type="text" class="form-input" id="recurPickupZip" placeholder="33701" maxlength="5">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Destination Street Address *</label>
+          <input type="text" class="form-input" id="recurDestination" placeholder="123 Work St" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Destination Apt / Unit <span style="font-weight:400;color:var(--gray-500)">(optional)</span></label>
+          <input type="text" class="form-input" id="recurDestApt" placeholder="Suite 100">
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:2">
+            <label class="form-label">Destination City *</label>
+            <input type="text" class="form-input" id="recurDestCity" placeholder="St. Petersburg" required>
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">State *</label>
+            <input type="text" class="form-input" id="recurDestState" placeholder="FL" maxlength="2" required>
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">ZIP *</label>
+            <input type="text" class="form-input" id="recurDestZip" placeholder="33701" maxlength="5" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Pickup Time *</label>
+            <input type="time" class="form-input" id="recurPickupTime">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Trip Type</label>
+            <select class="form-input" id="recurTripType" onchange="toggleRecurReturn()">
+              <option value="one_way">One Way</option>
+              <option value="round_trip">Round Trip</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" id="recurReturnGroup" style="display:none">
+          <label class="form-label">Return Pickup Time</label>
+          <input type="time" class="form-input" id="recurReturnTime">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Repeat Days</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+            <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;"><input type="checkbox" class="recur-day" value="1"> Mon</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;"><input type="checkbox" class="recur-day" value="2"> Tue</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;"><input type="checkbox" class="recur-day" value="3"> Wed</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;"><input type="checkbox" class="recur-day" value="4"> Thu</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;"><input type="checkbox" class="recur-day" value="5"> Fri</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;"><input type="checkbox" class="recur-day" value="6"> Sat</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;"><input type="checkbox" class="recur-day" value="0"> Sun</label>
+          </div>
+          <button type="button" class="btn btn-secondary" style="margin-top:8px;padding:6px 14px;font-size:0.82rem;" onclick="selectWeekdays()">Select Weekdays</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Start Date</label>
+          <input type="date" class="form-input" id="recurStartDate">
+        </div>
+        <div id="step3-error" class="alert alert-error" style="display:none;"></div>
+        <div class="alert alert-info" style="margin-bottom:12px;">
+          <i class="fas fa-info-circle"></i> Recurring trips are requests — a dispatcher will confirm and assign a driver. You'll receive a text confirmation for each scheduled trip.
+        </div>
+        <div style="display:flex;gap:12px;">
+          <button class="btn btn-secondary" onclick="goToStep(2)"><i class="fas fa-arrow-left"></i> Back</button>
+          <button class="btn btn-secondary" style="flex:1;justify-content:center;" onclick="skipRecurring()">Skip for Now</button>
+          <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="goToStep4FromRecurring()">
+            Continue <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 4: Payment -->
+    <div class="step" id="step4">
+      <div class="price-highlight">
+        <div class="amount">$100</div>
+        <div class="desc">Initial ride credit balance</div>
+        <div class="price-features">
+          <div class="price-feature"><i class="fas fa-check-circle"></i> Distance-based fares (~$20 avg per round trip)</div>
+          <div class="price-feature"><i class="fas fa-check-circle"></i> Credits roll over — never lose unused rides</div>
+          <div class="price-feature"><i class="fas fa-check-circle"></i> Auto-replenishes when balance drops below $20</div>
+          <div class="price-feature"><i class="fas fa-check-circle"></i> Free Ride Code generated instantly</div>
+        </div>
+      </div>
+      <div class="card">
+        <h2><i class="fas fa-credit-card" style="color:var(--primary)"></i> Payment Method</h2>
+        <p class="subtitle">Your card will be charged $100.00 now. Auto-replenishment will occur when your balance drops below $20.</p>
+        <div class="payment-tabs">
+          <div class="payment-tab active" id="tab-card" onclick="switchPaymentTab('card')">
+            <i class="fas fa-credit-card"></i> Card
+          </div>
+          <div class="payment-tab" id="tab-ach" onclick="switchPaymentTab('ach')">
+            <i class="fas fa-university"></i> Bank (ACH)
+          </div>
+        </div>
+        <!-- Card Panel -->
+        <div class="payment-panel active" id="panel-card">
+          <div class="form-group">
+            <label class="form-label">Card Details</label>
+            <div id="stripe-card-element"></div>
+            <div id="card-errors"></div>
+          </div>
+        </div>
+        <!-- ACH Panel -->
+        <div class="payment-panel" id="panel-ach">
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> Bank account (ACH) payments are processed securely via Stripe. You'll verify your account with micro-deposits (1-2 business days) or instant verification via Plaid.
+          </div>
+          <div class="form-group">
+            <label class="form-label">Account Holder Name *</label>
+            <input type="text" class="form-input" id="achName" placeholder="Jane Doe">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Routing Number *</label>
+            <input type="text" class="form-input" id="achRouting" placeholder="021000021" maxlength="9">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Account Number *</label>
+            <input type="text" class="form-input" id="achAccount" placeholder="000123456789">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Account Type</label>
+            <select class="form-input" id="achType">
+              <option value="checking">Checking</option>
+              <option value="savings">Savings</option>
+            </select>
+          </div>
+        </div>
+        <div id="step4-error" class="alert alert-error" style="display:none;"></div>
+        <div style="display:flex;gap:12px;margin-top:8px;">
+          <button class="btn btn-secondary" onclick="goToStep(3)"><i class="fas fa-arrow-left"></i> Back</button>
+          <button class="btn btn-primary" style="flex:1;justify-content:center;" id="payBtn" onclick="processPayment()">
+            <i class="fas fa-lock"></i> Pay $100 &amp; Get Code
+          </button>
+        </div>
+        <p style="text-align:center;font-size:0.75rem;color:var(--gray-500);margin-top:12px;">
+          <i class="fas fa-shield-alt"></i> Secured by Stripe. We never store your card details.
+        </p>
+      </div>
+    </div>
+
+    <!-- STEP 5: Success -->
+    <div class="step" id="step5">
+      <div class="card" style="text-align:center;">
+        <div class="success-icon"><i class="fas fa-check-circle"></i></div>
+        <h2 style="font-size:1.4rem;margin-bottom:8px;">You're all set!</h2>
+        <p style="color:var(--gray-500);margin-bottom:20px;">Your account is active and your Free Ride Code has been generated. A confirmation text has been sent to your phone.</p>
+        <div class="code-display" id="successCode">FREE-XXXXXX</div>
+        <p style="font-size:0.82rem;color:var(--gray-500);margin-bottom:20px;" id="codeExpiry">Valid for 30 days</p>
+        <div style="background:var(--gray-100);border-radius:8px;padding:16px;margin-bottom:20px;text-align:left;">
+          <div class="info-row"><span class="label">Rider Name</span><span class="value" id="successName">—</span></div>
+          <div class="info-row"><span class="label">Phone</span><span class="value" id="successPhone">—</span></div>
+          <div class="info-row"><span class="label">Credit Balance</span><span class="value" style="color:var(--green)">$100.00</span></div>
+          <div class="info-row"><span class="label">Code Expires</span><span class="value" id="successExpiry">—</span></div>
+        </div>
+        <div class="alert alert-info" style="text-align:left;">
+          <strong>How to use your code:</strong> When a dispatcher books your trip, give them your Free Ride Code and it will be applied automatically. Your balance will decrease by the trip fare.
+        </div>
+        <a href="/" class="btn btn-secondary btn-full" style="margin-top:12px;text-decoration:none;">
+          <i class="fas fa-home"></i> Back to Rydeworks
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── State ──────────────────────────────────────────────
+    let stripe, cardElement, paymentMethod = 'card';
+    let stripePublishableKey = '';
+
+    // ── Init ───────────────────────────────────────────────
+    async function init() {
+      try {
+        const res = await fetch('/api/book/stripe-key');
+        const data = await res.json();
+        if (data.publishableKey) {
+          stripePublishableKey = data.publishableKey;
+          stripe = Stripe(stripePublishableKey);
+        }
+      } catch (err) {
+        console.error('Stripe init error:', err);
+      }
+    }
+
+    function mountStripeCard() {
+      if (!stripe || cardElement) return; // already mounted or stripe not ready
+      try {
+        const elements = stripe.elements();
+        cardElement = elements.create('card', {
+          style: {
+            base: { fontFamily: 'Inter, sans-serif', fontSize: '16px', color: '#0A1628', '::placeholder': { color: '#9ca3af' } },
+            invalid: { color: '#c0392b' }
+          },
+          hidePostalCode: false
+        });
+        cardElement.mount('#stripe-card-element');
+        cardElement.on('change', e => {
+          document.getElementById('card-errors').textContent = e.error ? e.error.message : '';
+        });
+      } catch (err) {
+        console.error('Stripe mount error:', err);
+      }
+    }
+
+    // ── Step navigation ────────────────────────────────────
+    function goToStep(n) {
+      document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+      document.getElementById(`step${n}`).classList.add('active');
+      for (let i = 1; i <= 5; i++) {
+        const dot = document.getElementById(`dot${i}`);
+        dot.classList.remove('active', 'done');
+        if (i < n) { dot.classList.add('done'); dot.innerHTML = '<i class="fas fa-check" style="font-size:0.7rem"></i>'; }
+        else if (i === n) { dot.classList.add('active'); dot.textContent = i; }
+        else { dot.textContent = i; }
+      }
+      for (let i = 1; i <= 4; i++) {
+        const line = document.getElementById(`line${i}`);
+        line.classList.toggle('done', i < n);
+      }
+      window.scrollTo(0, 0);
+      if (n === 4) {
+        setTimeout(() => {
+          mountStripeCard();
+          // Force Stripe iframe to recalculate dimensions after CSS transition
+          setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 200);
+        }, 150);
+      }
+    }
+
+    function toggleRecurReturn() {
+      const isRound = document.getElementById('recurTripType').value === 'round_trip';
+      document.getElementById('recurReturnGroup').style.display = isRound ? 'block' : 'none';
+    }
+
+    function selectWeekdays() {
+      document.querySelectorAll('.recur-day').forEach(cb => {
+        cb.checked = ['1','2','3','4','5'].includes(cb.value);
+      });
+    }
+
+    let recurringData = null;
+
+    function skipRecurring() {
+      recurringData = null;
+      goToStep(4);
+    }
+
+    function goToStep4FromRecurring() {
+      const dest = document.getElementById('recurDestination').value.trim();
+      const time = document.getElementById('recurPickupTime').value;
+      const days = [...document.querySelectorAll('.recur-day:checked')].map(c => parseInt(c.value));
+      const errEl = document.getElementById('step3-error');
+      const anyFilled = dest || time || days.length > 0;
+      if (anyFilled) {
+        if (!dest) { errEl.textContent = 'Please enter a destination address.'; errEl.style.display = 'block'; return; }
+        if (!time) { errEl.textContent = 'Please enter a pickup time.'; errEl.style.display = 'block'; return; }
+        if (days.length === 0) { errEl.textContent = 'Please select at least one repeat day.'; errEl.style.display = 'block'; return; }
+        const rPickupApt = document.getElementById('recurPickupApt').value.trim();
+        const rPickupCity = document.getElementById('recurPickupCity').value.trim();
+        const rPickupState = document.getElementById('recurPickupState').value.trim();
+        const rPickupZip = document.getElementById('recurPickupZip').value.trim();
+        const rDestApt = document.getElementById('recurDestApt').value.trim();
+        const rDestCity = document.getElementById('recurDestCity').value.trim();
+        const rDestState = document.getElementById('recurDestState').value.trim();
+        const rDestZip = document.getElementById('recurDestZip').value.trim();
+        const fullPickup = [document.getElementById('recurPickup').value.trim(), rPickupApt, rPickupCity, rPickupState, rPickupZip].filter(Boolean).join(', ');
+        const fullDest = [dest, rDestApt, rDestCity, rDestState, rDestZip].filter(Boolean).join(', ');
+        recurringData = {
+          pickupAddress: fullPickup,
+          destination: fullDest,
+          pickupTime: time,
+          returnTime: document.getElementById('recurReturnTime').value || null,
+          tripType: document.getElementById('recurTripType').value,
+          repeatDays: days,
+          startDate: document.getElementById('recurStartDate').value || null
+        };
+      } else {
+        recurringData = null;
+      }
+      errEl.style.display = 'none';
+      goToStep(4);
+    }
+
+    function goToStep2() {
+      const fn = document.getElementById('riderFirstName').value.trim();
+      const ln = document.getElementById('riderLastName').value.trim();
+      const ph = document.getElementById('riderPhone').value.trim();
+      const street = document.getElementById('riderStreet').value.trim();
+      const city = document.getElementById('riderCity').value.trim();
+      const state = document.getElementById('riderState').value.trim();
+      const zip = document.getElementById('riderZip').value.trim();
+      const err = document.getElementById('step1-error');
+      if (!fn || !ln || !ph || !street || !city || !state || !zip) {
+        err.textContent = 'Please fill in all required fields.';
+        err.style.display = 'block';
+        return;
+      }
+      err.style.display = 'none';
+      goToStep(2);
+    }
+
+    function toggleAgree() {
+      const cb = document.getElementById('agreeCheck');
+      cb.checked = !cb.checked;
+    }
+
+    function goToStep3() {
+      const street = document.getElementById('riderStreet').value.trim();
+      const apt = document.getElementById('riderApt').value.trim();
+      const city = document.getElementById('riderCity').value.trim();
+      const state = document.getElementById('riderState').value.trim();
+      const zip = document.getElementById('riderZip').value.trim();
+      const homeAddr = [street, apt, city, state, zip].filter(Boolean).join(', ');
+      const recurPickup = document.getElementById('recurPickup');
+      const recurCity = document.getElementById('recurPickupCity');
+      const recurState = document.getElementById('recurPickupState');
+      const recurZip = document.getElementById('recurPickupZip');
+      if (street && !recurPickup.value) recurPickup.value = street;
+      if (apt) { const recurApt = document.getElementById('recurPickupApt'); if (!recurApt.value) recurApt.value = apt; }
+      if (city && !recurCity.value) recurCity.value = city;
+      if (state && !recurState.value) recurState.value = state;
+      if (zip && !recurZip.value) recurZip.value = zip;
+      if (!document.getElementById('agreeCheck').checked) {
+        const err = document.getElementById('step2-error');
+        err.textContent = 'You must agree to the Terms & Conditions to continue.';
+        err.style.display = 'block';
+        return;
+      }
+      document.getElementById('step2-error').style.display = 'none';
+      goToStep(3);
+    }
+
+    function switchPaymentTab(tab) {
+      paymentMethod = tab;
+      document.querySelectorAll('.payment-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.payment-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(`tab-${tab}`).classList.add('active');
+      document.getElementById(`panel-${tab}`).classList.add('active');
+    }
+
+    // ── Process Payment ────────────────────────────────────
+    async function processPayment() {
+      const btn = document.getElementById('payBtn');
+      const errEl = document.getElementById('step4-error');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Processing...';
+
+      try {
+        const firstName = document.getElementById('riderFirstName').value.trim();
+        const lastName  = document.getElementById('riderLastName').value.trim();
+        const phone     = document.getElementById('riderPhone').value.trim();
+        const email     = document.getElementById('riderEmail').value.trim();
+        const street  = document.getElementById('riderStreet').value.trim();
+        const apt     = document.getElementById('riderApt').value.trim();
+        const city    = document.getElementById('riderCity').value.trim();
+        const state   = document.getElementById('riderState').value.trim();
+        const zip     = document.getElementById('riderZip').value.trim();
+        const address = [street, apt, city, state, zip].filter(Boolean).join(', ');
+
+        let paymentMethodId = null;
+
+        if (paymentMethod === 'card') {
+          if (!stripe || !cardElement) {
+            throw new Error('Payment system not loaded. Please refresh and try again.');
+          }
+          const { paymentMethod: pm, error } = await stripe.createPaymentMethod({
+            type: 'card',
+            card: cardElement,
+            billing_details: { name: `${firstName} ${lastName}`, email, phone }
+          });
+          if (error) throw new Error(error.message);
+          paymentMethodId = pm.id;
+        } else {
+          // ACH
+          const achName    = document.getElementById('achName').value.trim();
+          const achRouting = document.getElementById('achRouting').value.trim();
+          const achAccount = document.getElementById('achAccount').value.trim();
+          const achType    = document.getElementById('achType').value;
+          if (!achName || !achRouting || !achAccount) throw new Error('Please fill in all bank account fields.');
+          const { paymentMethod: pm, error } = await stripe.createPaymentMethod({
+            type: 'us_bank_account',
+            us_bank_account: { routing_number: achRouting, account_number: achAccount, account_holder_type: 'individual', account_type: achType },
+            billing_details: { name: achName, email, phone }
+          });
+          if (error) throw new Error(error.message);
+          paymentMethodId = pm.id;
+        }
+
+        // Send to server
+        const res = await fetch('/api/book/enroll', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ firstName, lastName, phone, email, homeAddress: address, paymentMethodId, recurringData })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Enrollment failed. Please try again.');
+
+        // Handle Stripe 3D Secure if needed
+        if (data.requiresAction && data.clientSecret) {
+          const { error: confirmError } = await stripe.confirmCardPayment(data.clientSecret);
+          if (confirmError) throw new Error(confirmError.message);
+          // Confirm with server
+          const confirmRes = await fetch('/api/book/confirm-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enrollmentId: data.enrollmentId })
+          });
+          const confirmData = await confirmRes.json();
+          if (!confirmData.success) throw new Error(confirmData.error || 'Payment confirmation failed.');
+          showSuccess(confirmData);
+        } else {
+          showSuccess(data);
+        }
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-lock"></i> Pay $100 & Get Code';
+      }
+    }
+
+    function showSuccess(data) {
+      document.getElementById('successCode').textContent = data.freeRideCode || 'FREE-XXXXXX';
+      document.getElementById('successName').textContent = `${document.getElementById('riderFirstName').value} ${document.getElementById('riderLastName').value}`;
+      document.getElementById('successPhone').textContent = document.getElementById('riderPhone').value;
+      const exp = data.codeExpiresAt ? new Date(data.codeExpiresAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '30 days from today';
+      document.getElementById('codeExpiry').textContent = `Valid until ${exp}`;
+      document.getElementById('successExpiry').textContent = exp;
+      goToStep(5);
+    }
+
+    // ── Phone formatting ───────────────────────────────────
+    document.getElementById('riderPhone').addEventListener('input', function() {
+      const digits = this.value.replace(/\D/g, '').substring(0, 10);
+      const len = digits.length;
+      if (len === 0) this.value = '';
+      else if (len < 4) this.value = `(${digits}`;
+      else if (len < 7) this.value = `(${digits.slice(0,3)}) ${digits.slice(3)}`;
+      else this.value = `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+    });
+
+    init();
+  </script>
+</body>
+</html>

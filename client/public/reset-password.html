@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Password — Rydeworks</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green:      #2E7D32;
+      --green-dark: #1B5E20;
+      --green-light:#4CAF50;
+      --gold:       #FFC107;
+      --white:      #FFFFFF;
+      --gray-100:   #F5F5F5;
+      --gray-300:   #E0E0E0;
+      --gray-500:   #9E9E9E;
+      --gray-700:   #616161;
+      --gray-900:   #212121;
+      --danger:     #EF4444;
+      --radius:     12px;
+      --shadow:     0 20px 60px rgba(0,0,0,0.15);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, var(--green-dark) 0%, var(--green) 50%, #236B27 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: var(--white);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      width: 100%;
+      max-width: 420px;
+      overflow: hidden;
+    }
+    .card-header {
+      background: linear-gradient(135deg, var(--green-dark), var(--green));
+      padding: 36px 32px 28px;
+      text-align: center;
+    }
+    .logo-circle {
+      width: 70px; height: 70px;
+      border-radius: 50%;
+      border: 3px solid var(--gold);
+      margin: 0 auto 16px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.1);
+    }
+    .logo-circle i { font-size: 30px; color: var(--gold); }
+    .card-header h1 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--gold);
+    }
+    .card-header p { font-size: 13px; color: rgba(255,255,255,0.75); margin-top: 4px; }
+    .card-body { padding: 32px; }
+    .form-group { margin-bottom: 20px; }
+    .form-label { display: block; font-size: 13px; font-weight: 600; color: var(--gray-700); margin-bottom: 8px; }
+    .input-wrapper { position: relative; display: flex; align-items: center; }
+    .input-icon { position: absolute; left: 14px; color: var(--gray-500); font-size: 15px; pointer-events: none; }
+    .form-input {
+      width: 100%;
+      padding: 13px 14px 13px 42px;
+      border: 2px solid var(--gray-300);
+      border-radius: var(--radius);
+      font-size: 15px;
+      font-family: 'Inter', sans-serif;
+      color: var(--gray-900);
+      background: var(--gray-100);
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    .form-input:focus { border-color: var(--green); background: var(--white); }
+    .toggle-password { position: absolute; right: 14px; background: none; border: none; cursor: pointer; color: var(--gray-500); font-size: 15px; padding: 4px; }
+    .toggle-password:hover { color: var(--green); }
+    .btn {
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(135deg, var(--green), var(--green-dark));
+      color: var(--white);
+      border: none;
+      border-radius: var(--radius);
+      font-size: 16px;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.92; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .msg { display: none; padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 20px; }
+    .msg.error { background: #FEE2E2; color: var(--danger); border: 1px solid #FECACA; }
+    .msg.success { background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0; }
+    .card-footer { padding: 16px 32px 24px; text-align: center; border-top: 1px solid var(--gray-300); }
+    .card-footer a { color: var(--green); text-decoration: none; font-size: 13px; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="card-header">
+      <div class="logo-circle"><i class="fas fa-lock"></i></div>
+      <h1>Reset Your Password</h1>
+      <p>Enter a new password for your account</p>
+    </div>
+    <div class="card-body">
+      <div class="msg" id="msg"></div>
+      <div id="formSection">
+        <div class="form-group">
+          <label class="form-label" for="newPassword">New Password</label>
+          <div class="input-wrapper">
+            <i class="fas fa-lock input-icon"></i>
+            <input type="password" id="newPassword" class="form-input" placeholder="At least 8 characters" autocomplete="new-password">
+            <button type="button" class="toggle-password" onclick="togglePwd('newPassword', 'eye1')">
+              <i class="fas fa-eye" id="eye1"></i>
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="confirmPassword">Confirm Password</label>
+          <div class="input-wrapper">
+            <i class="fas fa-lock input-icon"></i>
+            <input type="password" id="confirmPassword" class="form-input" placeholder="Repeat your new password" autocomplete="new-password">
+            <button type="button" class="toggle-password" onclick="togglePwd('confirmPassword', 'eye2')">
+              <i class="fas fa-eye" id="eye2"></i>
+            </button>
+          </div>
+        </div>
+        <button class="btn" id="submitBtn" onclick="resetPassword()">
+          <i class="fas fa-check"></i> Set New Password
+        </button>
+      </div>
+    </div>
+    <div class="card-footer">
+      <a href="/login.html"><i class="fas fa-arrow-left"></i> Back to Login</a>
+    </div>
+  </div>
+
+  <script>
+    function togglePwd(inputId, iconId) {
+      const input = document.getElementById(inputId);
+      const icon = document.getElementById(iconId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+      } else {
+        input.type = 'password';
+        icon.className = 'fas fa-eye';
+      }
+    }
+
+    function getToken() {
+      return new URLSearchParams(window.location.search).get('token');
+    }
+
+    // Check token on load
+    const token = getToken();
+    if (!token) {
+      const msg = document.getElementById('msg');
+      msg.textContent = 'Invalid or missing reset link. Please request a new one.';
+      msg.className = 'msg error';
+      msg.style.display = 'block';
+      document.getElementById('formSection').style.display = 'none';
+    }
+
+    async function resetPassword() {
+      const password = document.getElementById('newPassword').value;
+      const confirm  = document.getElementById('confirmPassword').value;
+      const btn      = document.getElementById('submitBtn');
+      const msg      = document.getElementById('msg');
+
+      msg.style.display = 'none';
+
+      if (!password || password.length < 8) {
+        msg.textContent = 'Password must be at least 8 characters.';
+        msg.className = 'msg error';
+        msg.style.display = 'block';
+        return;
+      }
+      if (password !== confirm) {
+        msg.textContent = 'Passwords do not match.';
+        msg.className = 'msg error';
+        msg.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resetting...';
+
+      try {
+        const res = await fetch('/api/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, password })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          msg.textContent = 'Password reset successfully! Redirecting to login...';
+          msg.className = 'msg success';
+          msg.style.display = 'block';
+          document.getElementById('formSection').style.display = 'none';
+          setTimeout(() => { window.location.href = '/login.html'; }, 2500);
+        } else {
+          msg.textContent = data.error || 'Reset failed. The link may have expired.';
+          msg.className = 'msg error';
+          msg.style.display = 'block';
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-check"></i> Set New Password';
+        }
+      } catch (err) {
+        msg.textContent = 'Connection error. Please try again.';
+        msg.className = 'msg error';
+        msg.style.display = 'block';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check"></i> Set New Password';
+      }
+    }
+  </script>
+</body>
+</html>
