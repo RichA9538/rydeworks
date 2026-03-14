@@ -10,7 +10,10 @@ export async function connectMongoDB(): Promise<void> {
     throw new Error('MONGODB_URI environment variable is not set.');
   }
 
-  await mongoose.connect(uri);
+  await mongoose.connect(uri, {
+    serverSelectionTimeoutMS: 10000, // fail fast so retry loop can run
+    socketTimeoutMS: 45000,
+  });
   isConnected = true;
   console.log('✅ MongoDB connected');
 
