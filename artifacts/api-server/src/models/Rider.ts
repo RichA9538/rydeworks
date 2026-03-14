@@ -9,6 +9,9 @@ const riderSchema = new mongoose.Schema({
   phone:        { type: String, trim: true },
   email:        { type: String, trim: true, lowercase: true },
   homeAddress:  { type: String },
+  homeCity:     { type: String },
+  homeState:    { type: String, default: 'FL' },
+  homeZip:      { type: String },
   homeAddressLat: { type: Number },
   homeAddressLng: { type: Number },
   commonDestinations: [{

@@ -6,6 +6,7 @@ const vehicleSchema = new mongoose.Schema({
   make:         { type: String },
   model:        { type: String },
   year:         { type: Number },
+  vin:          { type: String, uppercase: true, trim: true },
   licensePlate: { type: String, uppercase: true },
   color:        { type: String },
   capacity:     { type: Number, default: 7 },

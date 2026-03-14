@@ -45,9 +45,15 @@ router.post('/riders', requireRole('admin', 'dispatcher') as any, async (req: Au
     const prefix = ((org as any).reportingPrefix || 'RWK').substring(0, 3).toUpperCase();
     const seq = String((org as any).riderSequence).padStart(4, '0');
     const riderId = `${prefix}-${seq}`;
-    const { firstName, lastName, phone, email, homeAddress, homeAddressLat, homeAddressLng, notes, commonDestinations } = req.body;
+    const { firstName, lastName, phone, email, homeAddress, homeCity, homeState, homeZip, homeAddressLat, homeAddressLng, notes, commonDestinations } = req.body;
+    const fullAddress = homeAddress
+      ? [homeAddress, homeCity, homeState ? `${homeState}${homeZip ? ' ' + homeZip : ''}` : homeZip].filter(Boolean).join(', ')
+      : undefined;
     const rider = new Rider({
-      firstName, lastName, phone, email, homeAddress, homeAddressLat, homeAddressLng, notes, commonDestinations,
+      firstName, lastName, phone, email,
+      homeAddress: fullAddress || homeAddress,
+      homeCity, homeState, homeZip,
+      homeAddressLat, homeAddressLng, notes, commonDestinations,
       organization: req.organizationId,
       riderId
     });
@@ -269,6 +275,123 @@ router.patch('/:id/stops/:stopId/status', async (req: AuthRequest, res) => {
 
     await trip.save();
     res.json({ success: true, trip });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Create recurring trips (same trip for multiple dates)
+router.post('/recurring', requireRole('admin', 'dispatcher') as any, async (req: AuthRequest, res) => {
+  try {
+    const { baseTripData, dates } = req.body;
+    if (!dates || !Array.isArray(dates) || dates.length === 0) {
+      res.status(400).json({ success: false, error: 'dates array is required' });
+      return;
+    }
+    if (dates.length > 30) {
+      res.status(400).json({ success: false, error: 'Max 30 dates per recurring batch' });
+      return;
+    }
+
+    const org = await Organization.findById(req.organizationId);
+    const trips = [];
+
+    for (const dateStr of dates) {
+      const tripDate = new Date(dateStr);
+      if (isNaN(tripDate.getTime())) continue;
+
+      const geocodedStops = await geocodeStops(
+        (baseTripData.stops || []).map((s: any, i: number) => {
+          // Shift the stop's scheduledTime to match the new date
+          let scheduledTime = s.scheduledTime;
+          if (scheduledTime) {
+            const orig = new Date(scheduledTime);
+            const shifted = new Date(tripDate);
+            shifted.setHours(orig.getHours(), orig.getMinutes(), 0, 0);
+            scheduledTime = shifted.toISOString();
+          }
+          let appointmentTime = s.appointmentTime;
+          if (appointmentTime) {
+            const orig = new Date(appointmentTime);
+            const shifted = new Date(tripDate);
+            shifted.setHours(orig.getHours(), orig.getMinutes(), 0, 0);
+            appointmentTime = shifted.toISOString();
+          }
+          return { ...s, stopOrder: i, status: 'pending', scheduledTime, appointmentTime };
+        })
+      );
+
+      const homeBase = baseTripData.homeBaseId
+        ? (org as any)?.homeBases?.id(baseTripData.homeBaseId)
+        : (org as any)?.homeBases?.find((b: any) => b.isDefault) || (org as any)?.homeBases?.[0];
+
+      const trip: any = new Trip({
+        organization: req.organizationId,
+        tripDate,
+        driver:   baseTripData.driverId  || undefined,
+        vehicle:  baseTripData.vehicleId || undefined,
+        homeBase: homeBase ? { name: homeBase.name, address: homeBase.address, lat: homeBase.lat, lng: homeBase.lng } : undefined,
+        stops:    geocodedStops,
+        payment:  baseTripData.payment || { type: 'none' },
+        notes:    baseTripData.notes,
+        createdBy: req.user._id
+      });
+      await trip.save();
+      trips.push(trip);
+    }
+
+    res.status(201).json({ success: true, trips, count: trips.length });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Calculate reverse departure time from appointment time
+router.post('/calculate-departure', requireRole('admin', 'dispatcher') as any, async (req: AuthRequest, res) => {
+  try {
+    const { pickupAddress, dropoffAddress, appointmentTime } = req.body;
+    if (!pickupAddress || !dropoffAddress || !appointmentTime) {
+      res.status(400).json({ success: false, error: 'pickupAddress, dropoffAddress, appointmentTime required' });
+      return;
+    }
+
+    const appointment = new Date(appointmentTime);
+
+    // Try to get travel time from OSRM
+    let travelMinutes = 30; // default fallback
+    try {
+      const { geocodeAddress } = await import('../lib/geocode.js');
+      const [pickupGeo, dropoffGeo] = await Promise.all([
+        geocodeAddress(pickupAddress),
+        geocodeAddress(dropoffAddress)
+      ]);
+
+      if (pickupGeo && dropoffGeo) {
+        const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${pickupGeo.lng},${pickupGeo.lat};${dropoffGeo.lng},${dropoffGeo.lat}?overview=false`;
+        const response = await fetch(osrmUrl, {
+          headers: { 'User-Agent': 'RydeWorks/1.0' },
+          signal: AbortSignal.timeout(5000)
+        });
+        if (response.ok) {
+          const data: any = await response.json();
+          if (data.routes?.[0]?.duration) {
+            travelMinutes = Math.ceil(data.routes[0].duration / 60);
+          }
+        }
+      }
+    } catch { /* use default */ }
+
+    // Add 15min buffer for pickup + 10min dispatch buffer
+    const totalBufferMins = travelMinutes + 15 + 10;
+    const suggestedPickupTime = new Date(appointment.getTime() - totalBufferMins * 60_000);
+
+    res.json({
+      success: true,
+      travelMinutes,
+      totalBufferMins,
+      suggestedPickupTime: suggestedPickupTime.toISOString(),
+      appointmentTime: appointment.toISOString()
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

@@ -3,6 +3,8 @@ import { User } from '../models/User.js';
 import { Vehicle } from '../models/Vehicle.js';
 import { Organization } from '../models/Organization.js';
 import { Trip } from '../models/Trip.js';
+import { Rider } from '../models/Rider.js';
+import { AccessCode } from '../models/AccessCode.js';
 import { authenticate, requireRole, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
@@ -75,7 +77,7 @@ router.patch('/users/:id', requireRole('admin') as any, async (req: AuthRequest,
     if (firstName) (user as any).firstName = firstName;
     if (lastName)  (user as any).lastName  = lastName;
     if (email)     (user as any).email     = email.toLowerCase();
-    if (phone)     (user as any).phone     = phone;
+    if (phone !== undefined) (user as any).phone = phone;
     if (roles)     (user as any).roles     = roles;
     if (typeof isActive === 'boolean') (user as any).isActive = isActive;
     if (password)  (user as any).password  = password;
@@ -161,12 +163,11 @@ router.get('/org', async (req: AuthRequest, res) => {
 router.patch('/org', requireRole('admin') as any, async (req: AuthRequest, res) => {
   try {
     const allowed = ['name', 'email', 'phone', 'address', 'logo', 'primaryColor', 'accentColor',
-      'appName', 'homeBases', 'fareZones', 'partnerRates', 'selfPayConfig', 'settings', 'paymentProvider'];
+      'appName', 'homeBases', 'fareZones', 'partnerRates', 'partnerAgencies', 'grants', 'selfPayConfig', 'settings', 'paymentProvider'];
     const updates: any = {};
     allowed.forEach(key => { if (req.body[key] !== undefined) updates[key] = req.body[key]; });
     updates.updatedAt = new Date();
 
-    // Geocode new home bases without coords
     if (updates.homeBases) {
       for (const base of updates.homeBases) {
         if (base.address && (!base.lat || !base.lng)) {
@@ -179,6 +180,60 @@ router.patch('/org', requireRole('admin') as any, async (req: AuthRequest, res) 
     const org = await Organization.findByIdAndUpdate(req.organizationId, updates, { new: true });
     if (!org) { res.status(404).json({ success: false, error: 'Organization not found.' }); return; }
     res.json({ success: true, org });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ── Access Codes (Free Ride Codes) ──────────────────────────────────
+router.get('/access-codes', requireRole('admin', 'dispatcher') as any, async (req: AuthRequest, res) => {
+  try {
+    const codes = await AccessCode.find({ organization: req.organizationId })
+      .populate('rider', 'firstName lastName riderId')
+      .populate('createdBy', 'firstName lastName')
+      .sort({ createdAt: -1 })
+      .limit(200);
+    res.json({ success: true, codes });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/access-codes', requireRole('admin', 'dispatcher') as any, async (req: AuthRequest, res) => {
+  try {
+    const { type = 'free_ride', ridesAllowed = 1, riderId } = req.body;
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+
+    const code: any = new AccessCode({
+      organization: req.organizationId,
+      type,
+      status: 'available',
+      rider: riderId || undefined,
+      freeRide: { expiresAt, ridesAllowed, ridesUsed: 0 },
+      createdBy: req.userId
+    });
+    await code.save();
+
+    if (riderId) {
+      await Rider.findByIdAndUpdate(riderId, { freeRideCode: code._id });
+    }
+
+    res.status(201).json({ success: true, code: await code.populate('rider', 'firstName lastName riderId') });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.delete('/access-codes/:id', requireRole('admin') as any, async (req: AuthRequest, res) => {
+  try {
+    const code = await AccessCode.findOneAndUpdate(
+      { _id: req.params.id, organization: req.organizationId },
+      { status: 'revoked', updatedAt: new Date() },
+      { new: true }
+    );
+    if (!code) { res.status(404).json({ success: false, error: 'Code not found.' }); return; }
+    res.json({ success: true, code });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -198,7 +253,7 @@ router.get('/reports/trips', requireRole('admin', 'dispatcher') as any, async (r
       .populate('driver', 'firstName lastName')
       .populate('vehicle', 'name licensePlate')
       .sort({ tripDate: -1 })
-      .limit(500);
+      .limit(1000);
 
     const summary = {
       total: trips.length,
@@ -206,21 +261,34 @@ router.get('/reports/trips', requireRole('admin', 'dispatcher') as any, async (r
       canceled:  trips.filter(t => (t as any).status === 'canceled').length,
       scheduled: trips.filter(t => (t as any).status === 'scheduled').length,
       inProgress: trips.filter(t => (t as any).status === 'in_progress').length,
-      totalFare: trips.reduce((sum, t) => sum + ((t as any).payment?.actualFare || 0), 0)
+      totalFare: trips.reduce((sum, t) => sum + ((t as any).payment?.actualFare || 0), 0),
+      totalMiles: trips.reduce((sum, t) => sum + ((t as any).optimizedRoute?.totalDistanceMiles || 0), 0)
     };
 
     if (format === 'csv') {
-      const header = 'Trip Number,Date,Driver,Vehicle,Passengers,Status,Payment Type,Fare\n';
-      const rows = trips.map(t => {
+      const header = 'Trip Number,Date,Driver,Vehicle,Client ID,Passenger,Pickup Address,Dropoff Address,Miles,Status,Payment Type,Fare,Grant Name\n';
+      const rows: string[] = [];
+      for (const t of trips) {
         const d = t as any;
         const driver = d.driver ? `${d.driver.firstName} ${d.driver.lastName}` : 'Unassigned';
         const vehicle = d.vehicle?.name || '';
-        const passengers = [...new Set(d.stops?.filter((s: any) => s.type === 'pickup').map((s: any) => s.riderName))].join('; ');
-        return `${d.tripNumber},${d.tripDate?.toISOString().slice(0,10)},${driver},${vehicle},"${passengers}",${d.status},${d.payment?.type || ''},${d.payment?.actualFare || 0}`;
-      }).join('\n');
+        const miles = (d.optimizedRoute?.totalDistanceMiles || 0).toFixed(2);
+        const grantName = d.payment?.grantName || '';
+        const pickups = d.stops?.filter((s: any) => s.type === 'pickup') || [];
+        const dropoffs = d.stops?.filter((s: any) => s.type === 'dropoff') || [];
+        if (pickups.length === 0) {
+          rows.push(`${d.tripNumber},${d.tripDate?.toISOString().slice(0,10)},${driver},${vehicle},,"","",${miles},${d.status},${d.payment?.type || ''},${d.payment?.actualFare || 0},"${grantName}"`);
+        } else {
+          for (let i = 0; i < pickups.length; i++) {
+            const pickup = pickups[i];
+            const dropoff = dropoffs[i] || dropoffs[0];
+            rows.push(`${d.tripNumber},${d.tripDate?.toISOString().slice(0,10)},${driver},${vehicle},${pickup.riderId || ''},"${pickup.riderName || ''}","${pickup.address || ''}","${dropoff?.address || ''}",${miles},${d.status},${d.payment?.type || ''},${d.payment?.actualFare || 0},"${grantName}"`);
+          }
+        }
+      }
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename=trips-report-${new Date().toISOString().slice(0,10)}.csv`);
-      res.send(header + rows);
+      res.setHeader('Content-Disposition', `attachment; filename=grant-report-${new Date().toISOString().slice(0,10)}.csv`);
+      res.send(header + rows.join('\n'));
       return;
     }
 
@@ -244,7 +312,6 @@ router.get('/reports/drivers', requireRole('admin', 'dispatcher') as any, async 
       .populate('driver', 'firstName lastName email')
       .sort({ tripDate: -1 });
 
-    // Aggregate by driver
     const driverMap: Record<string, any> = {};
     for (const trip of trips) {
       const t = trip as any;
@@ -257,14 +324,14 @@ router.get('/reports/drivers', requireRole('admin', 'dispatcher') as any, async 
           completedTrips: 0,
           canceledTrips: 0,
           totalPassengers: 0,
-          startMileage: 0,
-          endMileage: 0
+          totalMiles: 0
         };
       }
       driverMap[driverId].totalTrips++;
       if (t.status === 'completed') driverMap[driverId].completedTrips++;
       if (t.status === 'canceled')  driverMap[driverId].canceledTrips++;
       driverMap[driverId].totalPassengers += t.stops?.filter((s: any) => s.type === 'pickup').length || 0;
+      driverMap[driverId].totalMiles += t.optimizedRoute?.totalDistanceMiles || 0;
     }
 
     res.json({ success: true, data: Object.values(driverMap), summary: { totalDrivers: Object.keys(driverMap).length } });
