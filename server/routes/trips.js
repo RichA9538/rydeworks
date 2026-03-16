@@ -268,7 +268,7 @@ router.get('/', requireRole('admin', 'dispatcher'), async (req, res) => {
     else if (excludeStatus) query.status = { $ne: excludeStatus };
 
     const trips = await Trip.find(query)
-      .populate('driver', 'firstName lastName phone')
+      .populate('driver', 'firstName lastName phone driverInfo')
       .populate('vehicle', 'name licensePlate')
       .populate('stops.riderId', 'firstName lastName phone anonymousId')
       .sort({ tripDate: 1, createdAt: 1 });

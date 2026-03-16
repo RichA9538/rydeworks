@@ -330,4 +330,35 @@ router.post('/access-codes/generate', requireRole('admin', 'dispatcher'), async 
   }
 });
 
+// ============================================================
+// INTEGRATION STATUS
+// ============================================================
+
+// GET /api/admin/integration-status — check which third-party services are configured
+router.get('/integration-status', requireRole('admin', 'dispatcher'), async (req, res) => {
+  const stripe = !!(process.env.STRIPE_SECRET_KEY?.trim() && process.env.STRIPE_PUBLISHABLE_KEY?.trim());
+  const twilio = !!(process.env.TWILIO_ACCOUNT_SID?.trim() && process.env.TWILIO_AUTH_TOKEN?.trim() && process.env.TWILIO_PHONE_NUMBER?.trim());
+  const mapbox = !!process.env.MAPBOX_TOKEN?.trim();
+
+  // Attempt a lightweight Stripe connectivity check
+  let stripeConnected = false;
+  if (stripe) {
+    try {
+      const Stripe = require('stripe');
+      const s = Stripe(process.env.STRIPE_SECRET_KEY.trim());
+      await s.balance.retrieve();
+      stripeConnected = true;
+    } catch (e) {
+      stripeConnected = false;
+    }
+  }
+
+  res.json({
+    success: true,
+    stripe: { configured: stripe, connected: stripeConnected },
+    twilio: { configured: twilio },
+    mapbox: { configured: mapbox }
+  });
+});
+
 module.exports = router;

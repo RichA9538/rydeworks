@@ -5,6 +5,7 @@ const RiderSubscription = require('../models/RiderSubscription');
 const Rider   = require('../models/Rider');
 const AccessCode = require('../models/AccessCode');
 const Organization = require('../models/Organization');
+const Trip = require('../models/Trip');
 
 // ── Helpers ────────────────────────────────────────────────
 function generateCode(prefix = 'FREE') {
@@ -29,6 +30,70 @@ function getStripe() {
   if (!key) throw new Error('Payment processing is not configured. Contact support.');
   return Stripe(key);
 }
+
+// ── GET /api/book/check-availability ──────────────────────
+// Public endpoint — checks trip load on a given date/time so riders can
+// avoid scheduling conflicts when self-booking recurring trips.
+// ?date=YYYY-MM-DD&time=HH:MM
+router.get('/check-availability', async (req, res) => {
+  try {
+    const { date, time } = req.query;
+    if (!date || !time) return res.json({ available: true, tripsAtTime: 0 });
+
+    const org = await Organization.findOne({}).sort({ createdAt: 1 });
+    if (!org) return res.json({ available: true, tripsAtTime: 0 });
+
+    // Build a 90-minute window centred on requested time
+    const base = new Date(`${date}T${time}:00-05:00`);
+    const windowStart = new Date(base.getTime() - 45 * 60 * 1000);
+    const windowEnd   = new Date(base.getTime() + 45 * 60 * 1000);
+
+    const trips = await Trip.find({
+      organization: org._id,
+      status: { $nin: ['canceled', 'completed'] },
+      tripDate: { $gte: new Date(`${date}T00:00:00-05:00`), $lte: new Date(`${date}T23:59:59-05:00`) }
+    }).select('stops');
+
+    // Count trips that have a pickup stop within the window
+    let tripsAtTime = 0;
+    for (const trip of trips) {
+      const hasOverlap = (trip.stops || []).some(s => {
+        if (s.type !== 'pickup') return false;
+        const t = s.scheduledTime ? new Date(s.scheduledTime).getTime() : null;
+        return t && t >= windowStart.getTime() && t <= windowEnd.getTime();
+      });
+      if (hasOverlap) tripsAtTime++;
+    }
+
+    // Suggest up to 3 alternative 30-min slots with fewer trips
+    const suggestions = [];
+    for (const offsetMins of [-60, -30, 30, 60, 90]) {
+      if (suggestions.length >= 3) break;
+      const altBase = new Date(base.getTime() + offsetMins * 60 * 1000);
+      const altStart = new Date(altBase.getTime() - 45 * 60 * 1000);
+      const altEnd   = new Date(altBase.getTime() + 45 * 60 * 1000);
+      let altCount = 0;
+      for (const trip of trips) {
+        const hasOverlap = (trip.stops || []).some(s => {
+          if (s.type !== 'pickup') return false;
+          const t = s.scheduledTime ? new Date(s.scheduledTime).getTime() : null;
+          return t && t >= altStart.getTime() && t <= altEnd.getTime();
+        });
+        if (hasOverlap) altCount++;
+      }
+      if (altCount < tripsAtTime) {
+        const h = altBase.getUTCHours().toString().padStart(2, '0');
+        const m = altBase.getUTCMinutes().toString().padStart(2, '0');
+        suggestions.push(`${h}:${m}`);
+      }
+    }
+
+    const available = tripsAtTime < 3; // warn if 3+ concurrent trips (adjust as needed)
+    res.json({ available, tripsAtTime, suggestions });
+  } catch (err) {
+    res.json({ available: true, tripsAtTime: 0 }); // fail open
+  }
+});
 
 // ── GET /api/book/stripe-key ───────────────────────────────
 // Returns the Stripe publishable key for the frontend

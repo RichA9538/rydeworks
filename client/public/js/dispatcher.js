@@ -597,14 +597,24 @@ function removeRiderRow(idx) {
   document.getElementById(`riderRow-${idx}`)?.remove();
 }
 
-// When appointment time is entered, auto-calculate pickup time 45 min before (if not already set)
+// When appointment time is entered, auto-calculate pickup time based on distance (or 45-min default)
 function onApptTimeChange(idx) {
   const apptEl   = document.getElementById(`riderApptTime-${idx}`);
   const pickupEl = document.getElementById(`riderPickupTime-${idx}`);
   if (!apptEl?.value) return;
   if (pickupEl?.value) return; // don't overwrite if dispatcher already set a pickup time
+
+  // Use distance-based buffer if the fare calculation has already run for this row
+  const riderRow  = document.getElementById(`riderRow-${idx}`);
+  const distMiles = parseFloat(riderRow?.dataset?.distMiles || '0');
+  let bufferMins  = 45; // default
+  if (distMiles > 0) {
+    // Estimate at 30 mph avg urban speed + 15 min boarding/arrival buffer
+    bufferMins = Math.max(30, Math.ceil((distMiles / 30) * 60) + 15);
+  }
+
   const [h, m] = apptEl.value.split(':').map(Number);
-  const totalMins = h * 60 + m - 45; // 45-min default buffer before appointment
+  const totalMins = h * 60 + m - bufferMins;
   const pickupH = ((Math.floor(totalMins / 60)) % 24 + 24) % 24;
   const pickupM = ((totalMins % 60) + 60) % 60;
   pickupEl.value = `${String(pickupH).padStart(2, '0')}:${String(pickupM).padStart(2, '0')}`;
@@ -716,8 +726,18 @@ async function onDestinationBlur(idx) {
       ? `${fareRes.zone.name} • ${fareRes.distanceMiles} mi`
       : '';
 
-    // Travel time warning: estimate drive time at 20 mph average (urban + stops)
+    // Store distMiles on rider row for smart pickup time calculation
     const distMiles = fareRes.distanceMiles || 0;
+    const riderRowEl = document.getElementById(`riderRow-${idx}`);
+    if (riderRowEl && distMiles > 0) {
+      riderRowEl.dataset.distMiles = distMiles;
+      // Recalculate pickup time if appointment is set but pickup isn't yet
+      const apptEl   = document.getElementById(`riderApptTime-${idx}`);
+      const pickupEl = document.getElementById(`riderPickupTime-${idx}`);
+      if (apptEl?.value && !pickupEl?.value) onApptTimeChange(idx);
+    }
+
+    // Travel time warning: estimate drive time at 20 mph average (urban + stops)
     if (distMiles > 0) {
       const pickupTimeEl = document.getElementById(`riderPickupTime-${idx}`);
       const tripDateEl   = document.getElementById('tripDate');
@@ -1869,9 +1889,47 @@ function exportCanceledTrips() {
 }
 
 // ── ADMIN SETTINGS ─────────────────────────────────────────
+async function checkIntegrations() {
+  const body = document.getElementById('integrationsBody');
+  if (!body) return;
+  body.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i></div>';
+  const res = await ZakAuth.apiFetch('/api/admin/integration-status');
+  if (!res?.success) { body.innerHTML = '<p style="color:var(--danger);">Could not load integration status.</p>'; return; }
+
+  function statusBadge(configured, connected) {
+    if (!configured) return '<span style="background:#fee2e2;color:#b91c1c;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">Not Configured</span>';
+    if (connected === false) return '<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">Key Set — Not Verified</span>';
+    return '<span style="background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">Connected</span>';
+  }
+
+  body.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border:1px solid var(--gray-200);border-radius:8px;">
+        <div><div style="font-weight:700;font-size:14px;"><i class="fas fa-credit-card" style="color:#635bff;margin-right:6px;"></i>Stripe Payments</div>
+        <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">STRIPE_SECRET_KEY + STRIPE_PUBLISHABLE_KEY</div></div>
+        ${statusBadge(res.stripe.configured, res.stripe.connected)}
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border:1px solid var(--gray-200);border-radius:8px;">
+        <div><div style="font-weight:700;font-size:14px;"><i class="fas fa-sms" style="color:#f22f46;margin-right:6px;"></i>Twilio SMS</div>
+        <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_PHONE_NUMBER</div></div>
+        ${statusBadge(res.twilio.configured, res.twilio.configured ? undefined : false)}
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border:1px solid var(--gray-200);border-radius:8px;">
+        <div><div style="font-weight:700;font-size:14px;"><i class="fas fa-map" style="color:#0ea5e9;margin-right:6px;"></i>Mapbox (Live Maps)</div>
+        <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">MAPBOX_TOKEN — required for live van tracking on dispatch map</div></div>
+        ${statusBadge(res.mapbox.configured, res.mapbox.configured ? undefined : false)}
+      </div>
+      ${(!res.stripe.configured || !res.twilio.configured || !res.mapbox.configured) ? `
+        <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:12px 14px;font-size:13px;color:#78350f;">
+          <i class="fas fa-info-circle"></i> <strong>To configure:</strong> Go to your Railway project → Variables and add the missing keys. See <code>.env.example</code> in the repo for the full list.
+        </div>` : ''}
+    </div>`;
+}
+
 async function loadAdminSettings() {
   const org = appData.org;
   if (!org) return;
+  checkIntegrations();
 
   // Fare zones
   const fareBody = document.getElementById('fareZonesBody');
