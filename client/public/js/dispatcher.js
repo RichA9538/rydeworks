@@ -237,15 +237,18 @@ async function loadAppData() {
 }
 
 function populateFormDropdowns() {
-  // Drivers dropdown — deduplicate by _id
+  // Drivers dropdown — deduplicate by _id and full name
   const driverSel = document.getElementById('tripDriver');
   if (driverSel) {
     driverSel.innerHTML = '<option value="">Select driver...</option>';
-    const seen = new Set();
+    const seenIds = new Set();
+    const seenNames = new Set();
     appData.drivers.forEach(d => {
-      const key = String(d._id);
-      if (seen.has(key)) return;
-      seen.add(key);
+      const idKey = String(d._id);
+      const nameKey = `${d.firstName} ${d.lastName}`.toLowerCase().trim();
+      if (seenIds.has(idKey) || seenNames.has(nameKey)) return;
+      seenIds.add(idKey);
+      seenNames.add(nameKey);
       driverSel.innerHTML += `<option value="${d._id}">${d.firstName} ${d.lastName}</option>`;
     });
   }
@@ -2419,7 +2422,7 @@ async function saveEditHomeBase() {
   const ehState  = document.getElementById('editHbState').value.trim().toUpperCase();
   const ehZip    = document.getElementById('editHbZip').value.trim();
   const addrParts = [ehStreet, ehCity && ehState ? `${ehCity}, ${ehState}` : ehCity || ehState, ehZip].filter(Boolean);
-  const address  = addrParts.join(' ');
+  const address  = addrParts.join(', ');
   const isDef    = document.getElementById('editHbDefault').checked;
   if (!name || !ehStreet || !ehCity) { showToast('Name, street, and city are required.', 'error'); return; }
   const bases = [...(appData.org?.homeBases || [])];
@@ -2488,7 +2491,7 @@ async function saveEditVehicle() {
   const evbState    = document.getElementById('editVehBaseState').value.trim().toUpperCase();
   const evbZip      = document.getElementById('editVehBaseZip').value.trim();
   const evbParts    = [evbStreet, evbCity && evbState ? `${evbCity}, ${evbState}` : evbCity || evbState, evbZip].filter(Boolean);
-  const baseAddress = evbParts.join(' ');
+  const baseAddress = evbParts.join(', ');
   const baseName    = document.getElementById('editVehBaseName').value.trim();
   if (!name) { showToast('Vehicle name is required.', 'error'); return; }
   const res = await ZakAuth.apiFetch(`/api/admin/vehicles/${id}`, {
@@ -2670,7 +2673,7 @@ async function saveHomeBase() {
   const hbState   = document.getElementById('hbState').value.trim().toUpperCase();
   const hbZip     = document.getElementById('hbZip').value.trim();
   const addrParts = [hbStreet, hbCity && hbState ? `${hbCity}, ${hbState}` : hbCity || hbState, hbZip].filter(Boolean);
-  const address   = addrParts.join(' ');
+  const address   = addrParts.join(', ');
   const isDefault = document.getElementById('hbDefault').checked;
 
   if (!name || !hbStreet || !hbCity) {
