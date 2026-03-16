@@ -280,6 +280,15 @@ function populateFormDropdowns() {
     });
   }
 
+  // Grant sub-dropdown for recurring trip form
+  const recGrantSel = document.getElementById('recGrantSelect');
+  if (recGrantSel) {
+    recGrantSel.innerHTML = '<option value="">Select grant...</option>';
+    appData.grants.forEach(g => {
+      recGrantSel.innerHTML += `<option value="${g._id}">${g.name}</option>`;
+    });
+  }
+
   // Partner Agency sub-dropdown (appears when "Partner Agency" is selected as payment type)
   const partnerSel = document.getElementById('partnerSelect');
   if (partnerSel) {
@@ -645,6 +654,13 @@ function onPaymentTypeChange() {
     document.getElementById('fareDisplay').style.color       = '';
     refreshFareAfterPaymentChange();
   }
+}
+
+// Payment type toggle for recurring trip form
+function onRecPaymentTypeChange() {
+  const type = document.getElementById('recPaymentType')?.value;
+  const g = document.getElementById('recGrantSelectGroup');
+  if (g) g.style.display = type === 'grant' ? 'block' : 'none';
 }
 
 // ── FARE AUTO-CALCULATION ─────────────────────────────────
@@ -1118,7 +1134,20 @@ async function viewTrip(tripId) {
       <div><strong>Driver:</strong> ${t.driver?.firstName || '—'} ${t.driver?.lastName || ''}</div>
       <div><strong>Vehicle:</strong> ${t.vehicle?.name || '—'}</div>
       <div><strong>Home Base:</strong> ${t.homeBase || '—'}</div>
-      <div><strong>Payment:</strong> ${t.payment?.type || '—'}</div>
+      <div><strong>Payment:</strong> ${(() => {
+        const pt = t.payment?.type || '';
+        const labels = { self_pay: 'Self Pay', grant: 'Grant Funded', partner: 'Partner Agency', free_ride: 'Free Ride Code' };
+        let label = labels[pt] || pt || '—';
+        if (pt === 'grant' && t.payment?.grantId) {
+          const g = (appData.grants || []).find(x => String(x._id) === String(t.payment.grantId));
+          if (g) label += ` — ${g.name}`;
+        }
+        if (pt === 'partner' && t.payment?.partnerId) {
+          const p = (appData.partners || []).find(x => String(x._id) === String(t.payment.partnerId));
+          if (p) label += ` — ${p.name}`;
+        }
+        return label;
+      })()}</div>
     </div>
     <h4 style="margin-bottom:12px;color:var(--green);">Pickup & Drop-off Timeline</h4>
     ${(t.stops || []).map((s, i) => `
@@ -1191,21 +1220,28 @@ function openEditTrip() {
           Stop ${i+1} — ${isPickup ? '🟢 Pickup' : '🔴 Drop-off'}:
           ${s.riderId?.firstName || 'Unknown'} ${s.riderId?.lastName || ''}
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div>
-            <label style="font-size:12px;color:var(--gray-500);">Address</label>
-            <input type="text" class="form-input" id="editStop_addr_${i}" value="${(s.address||'').replace(/"/g,'&quot;')}" style="font-size:13px;">
+        <div style="margin-bottom:8px;">
+          <label style="font-size:12px;color:var(--gray-500);">Address</label>
+          ${(() => { const a = parseAddressComponents(s.address||''); return `
+          <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:4px;">
+            <input type="text" class="form-input" id="editStop_street_${i}" value="${(a.street||'').replace(/"/g,'&quot;')}" placeholder="Street address" style="font-size:13px;">
+            <input type="text" class="form-input" id="editStop_apt_${i}" value="${(a.apt||'').replace(/"/g,'&quot;')}" placeholder="Apt/Suite" style="font-size:13px;width:90px;">
           </div>
-          ${isPickup ? `
-          <div>
-            <label style="font-size:12px;color:var(--gray-500);">Pickup Time (EST)</label>
-            <input type="time" class="form-input" id="editStop_time_${i}" value="${timeVal}">
-          </div>` : `
-          <div>
-            <label style="font-size:12px;color:var(--gray-500);">Appt/Work Time (EST)</label>
-            <input type="time" class="form-input" id="editStop_appt_${i}" value="${apptVal}">
-          </div>`}
+          <div style="display:grid;grid-template-columns:1fr 60px 80px;gap:6px;">
+            <input type="text" class="form-input" id="editStop_city_${i}" value="${(a.city||'').replace(/"/g,'&quot;')}" placeholder="City" style="font-size:13px;">
+            <input type="text" class="form-input" id="editStop_state_${i}" value="${(a.state||'FL').replace(/"/g,'&quot;')}" placeholder="ST" style="font-size:13px;text-transform:uppercase;" maxlength="2">
+            <input type="text" class="form-input" id="editStop_zip_${i}" value="${(a.zip||'').replace(/"/g,'&quot;')}" placeholder="ZIP" style="font-size:13px;" maxlength="5">
+          </div>`; })()}
         </div>
+        ${isPickup ? `
+        <div style="margin-bottom:8px;">
+          <label style="font-size:12px;color:var(--gray-500);">Pickup Time (EST)</label>
+          <input type="time" class="form-input" id="editStop_time_${i}" value="${timeVal}">
+        </div>` : `
+        <div style="margin-bottom:8px;">
+          <label style="font-size:12px;color:var(--gray-500);">Appt/Work Time (EST)</label>
+          <input type="time" class="form-input" id="editStop_appt_${i}" value="${apptVal}">
+        </div>`}
         <div style="margin-top:8px;">
           <label style="font-size:12px;color:var(--gray-500);">Notes</label>
           <input type="text" class="form-input" id="editStop_notes_${i}" value="${(s.notes||'').replace(/"/g,'&quot;')}" placeholder="Optional notes" style="font-size:13px;">
@@ -1250,7 +1286,12 @@ async function saveEditTrip() {
   const stopUpdates = [];
   for (let i = 0; i < stopCount; i++) {
     const stopId  = document.getElementById(`editStop_id_${i}`)?.value;
-    const address = document.getElementById(`editStop_addr_${i}`)?.value;
+    const _street = document.getElementById(`editStop_street_${i}`)?.value?.trim() || '';
+    const _apt    = document.getElementById(`editStop_apt_${i}`)?.value?.trim() || '';
+    const _city   = document.getElementById(`editStop_city_${i}`)?.value?.trim() || '';
+    const _state  = document.getElementById(`editStop_state_${i}`)?.value?.trim() || '';
+    const _zip    = document.getElementById(`editStop_zip_${i}`)?.value?.trim() || '';
+    const address = [_street, _apt, _city && _state ? `${_city}, ${_state}` : _city || _state, _zip].filter(Boolean).join(', ');
     const notes_s = document.getElementById(`editStop_notes_${i}`)?.value;
     const timeEl  = document.getElementById(`editStop_time_${i}`);
     const apptEl  = document.getElementById(`editStop_appt_${i}`);
@@ -3037,6 +3078,7 @@ async function submitRecurringTrips(e) {
   const vehicle      = document.getElementById('recVehicle')?.value;
   const homeBaseName = document.getElementById('recHomeBase')?.value;
   const paymentType  = document.getElementById('recPaymentType')?.value;
+  const recGrantId   = document.getElementById('recGrantSelect')?.value;
   const homeBase     = appData.org?.homeBases?.find(b => b.name === homeBaseName) || { name: homeBaseName };
   // Eastern Time ISO helper (same as in scheduleTrip)
   const toEasternISO = (dateStr, timeStr) => {
@@ -3069,11 +3111,13 @@ async function submitRecurringTrips(e) {
         status: 'pending'
       }
     ];
+    const recPayment = { type: paymentType };
+    if (paymentType === 'grant' && recGrantId) recPayment.grantId = recGrantId;
     const body = {
       tripDate: new Date(dateStr).toISOString(),
       driver, vehicle, homeBase,
       stops,
-      payment: { type: paymentType }
+      payment: recPayment
     };
     const res = await ZakAuth.apiFetch('/api/trips', { method: 'POST', body: JSON.stringify(body) });
     if (res?.success) { created++; } else { failed++; }
@@ -3099,7 +3143,7 @@ async function submitRecurringTrips(e) {
         driver, vehicle, homeBase,
         notes: '[RETURN TRIP]',
         stops: returnStops,
-        payment: { type: paymentType }
+        payment: recPayment
       };
       const retRes = await ZakAuth.apiFetch('/api/trips', { method: 'POST', body: JSON.stringify(returnBody) });
       if (retRes?.success) { created++; } else { failed++; }

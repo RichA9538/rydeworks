@@ -655,12 +655,18 @@
             </div>
             <div class="form-group">
               <label class="form-label">Payment Type</label>
-              <select class="form-input" id="recPaymentType">
+              <select class="form-input" id="recPaymentType" onchange="onRecPaymentTypeChange()">
                 <option value="none">None</option>
                 <option value="grant">Grant</option>
                 <option value="self_pay">Self Pay</option>
                 <option value="partner">Partner</option>
                 <option value="free_ride">Free Ride Code</option>
+              </select>
+            </div>
+            <div class="form-group" id="recGrantSelectGroup" style="display:none">
+              <label class="form-label">Grant</label>
+              <select class="form-input" id="recGrantSelect">
+                <option value="">Select grant...</option>
               </select>
             </div>
             <hr style="margin:16px 0;border-color:var(--gray-200);">
