@@ -151,20 +151,30 @@ function hasPersistedShiftStarted() {
 
 // ── INIT ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  loadProfile();
-  await loadTodayTrip();
-  if (!shiftStarted) {
+  try { loadProfile(); } catch (e) { console.error('loadProfile error:', e); }
+
+  // Show "Switch to Dispatch" button immediately — must not wait on the API call
+  try {
+    const user = ZakAuth.getUser();
+    const canDispatch = (user?.roles || []).some(r => ['super_admin','admin','dispatcher'].includes(r));
+    if (canDispatch) {
+      const btn = document.getElementById('switchToDispatchBtn');
+      if (btn) btn.style.display = '';
+    }
+  } catch (e) { console.error('dispatch button error:', e); }
+
+  try {
+    await loadTodayTrip();
+  } catch (e) {
+    console.error('Failed to load trips:', e);
+    renderNoTrips();
+  }
+
+  // Only redirect to Start Shift when there is a trip to start — no trips means stay on route
+  if (!shiftStarted && currentTrip) {
     showScreen('start', false);
   }
   startLocationTracking();
-
-  // Show "Switch to Dispatch" button for multi-role users
-  const user = ZakAuth.getUser();
-  const canDispatch = (user?.roles || []).some(r => ['super_admin','admin','dispatcher'].includes(r));
-  if (canDispatch) {
-    const btn = document.getElementById('switchToDispatchBtn');
-    if (btn) btn.style.display = '';
-  }
 });
 
 // ── SCREEN NAVIGATION ─────────────────────────────────────
@@ -214,7 +224,7 @@ async function loadTodayTrip() {
   const today = getEasternDateString();
   const res = await ZakAuth.apiFetch('/api/trips/driver/my-trips');
 
-  if (!res?.success || res.trips.length === 0) {
+  if (!res?.success || !res.trips?.length) {
     currentTrip = null;
     shiftStarted = false;
     persistShiftStarted(false);
@@ -491,8 +501,9 @@ function renderNoTrips() {
       <i class="fas fa-calendar-times"></i>
       <h3>No Trips Today</h3>
       <p>You have no trips scheduled for today.<br>Contact your dispatcher if you believe this is an error.</p>
-      <div style="margin-top:16px;">
+      <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px;">
         <button class="btn-big btn-outline" onclick="setDriverAvailability(true)"><i class="fas fa-user-check"></i> Mark Available</button>
+        <button class="btn-big btn-outline" onclick="showQRCode()"><i class="fas fa-qrcode"></i> Show Rider Booking QR Code</button>
       </div>
     </div>
   `;

@@ -4,7 +4,13 @@
 
 const ZakAuth = {
   getToken() { return localStorage.getItem('zak_token'); },
-  getUser()  { return JSON.parse(localStorage.getItem('zak_user') || 'null'); },
+  getUser() {
+    try {
+      return JSON.parse(localStorage.getItem('zak_user') || 'null');
+    } catch (e) {
+      return null;
+    }
+  },
 
   isLoggedIn() { return !!this.getToken(); },
 
@@ -55,7 +61,11 @@ const ZakAuth = {
       this.logout();
       return null;
     }
-    return res.json();
+    try {
+      return await res.json();
+    } catch (e) {
+      return null;
+    }
   }
 };
 
