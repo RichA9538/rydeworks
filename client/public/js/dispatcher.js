@@ -1380,16 +1380,10 @@ function initMap() {
   if (dispatchMap) return; // already initialized
 
   dispatchMap = L.map('dispatchMap').setView([27.7731, -82.6398], 11);
-  if (MAPBOX_TOKEN) {
-    L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`, {
-      attribution: '© <a href="https://www.mapbox.com/">Mapbox</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19, tileSize: 256
-    }).addTo(dispatchMap);
-  } else {
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(dispatchMap);
-  }
+  L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoicmFsdmFyejM4IiwiYSI6ImNtbXBucDIzczBzN2oyb210OWdleW16cnUifQ.7Bm56XnSFG2in8gGGw8unA', {
+    attribution: '© <a href="https://www.mapbox.com/">Mapbox</a>',
+    maxZoom: 19, tileSize: 256
+  }).addTo(dispatchMap);
 
   // Add PERC home bases
   if (appData.org?.homeBases) {
@@ -1501,13 +1495,9 @@ async function loadMapTrips() {
 function initDashboardMap() {
   if (dashboardMap || !document.getElementById('dashboardMap')) return;
   dashboardMap = L.map('dashboardMap', { zoomControl: false, attributionControl: false }).setView([27.7731, -82.6398], 10);
-  if (MAPBOX_TOKEN) {
-    L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`, {
-      maxZoom: 19, tileSize: 256
-    }).addTo(dashboardMap);
-  } else {
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(dashboardMap);
-  }
+  L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoicmFsdmFyejM4IiwiYSI6ImNtbXBucDIzczBzN2oyb210OWdleW16cnUifQ.7Bm56XnSFG2in8gGGw8unA', {
+    maxZoom: 19, tileSize: 256
+  }).addTo(dashboardMap);
   if (appData.org?.homeBases) {
     appData.org.homeBases.forEach(base => {
       if (base.lat && base.lng) {

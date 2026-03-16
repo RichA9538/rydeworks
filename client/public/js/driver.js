@@ -790,17 +790,10 @@ function initDriverMap() {
     const cached = JSON.parse(localStorage.getItem('rydeworks_last_driver_loc') || 'null');
     if (Array.isArray(cached) && cached.length === 2) lastKnownDriverLocation = cached;
   } catch (e) {}
-  // Use Mapbox Streets tiles when token is available, fall back to OSM
-  if (MAPBOX_TOKEN) {
-    L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`, {
-      attribution: '© <a href="https://www.mapbox.com/">Mapbox</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19, tileSize: 256
-    }).addTo(driverMapInstance);
-  } else {
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors', maxZoom: 18
-    }).addTo(driverMapInstance);
-  }
+  L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoicmFsdmFyejM4IiwiYSI6ImNtbXBucDIzczBzN2oyb210OWdleW16cnUifQ.7Bm56XnSFG2in8gGGw8unA', {
+    attribution: '© <a href="https://www.mapbox.com/">Mapbox</a>',
+    maxZoom: 19, tileSize: 256
+  }).addTo(driverMapInstance);
 
   // Watch driver location and update marker
   if (navigator.geolocation) {
