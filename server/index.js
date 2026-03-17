@@ -40,6 +40,7 @@ app.set('trust proxy', 1); // Trust Railway's reverse proxy for correct IP detec
 // ── Security ──────────────────────────────────────────────
 app.use(helmet({
   crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: false,
   contentSecurityPolicy: {
     directives: {
       defaultSrc:  ["'self'"],
