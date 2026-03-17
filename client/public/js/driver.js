@@ -223,7 +223,6 @@ async function loadTodayTrip() {
   if (!res?.success || res.trips.length === 0) {
     currentTrip = null;
     shiftStarted = false;
-    persistShiftStarted(false);
     renderNoTrips();
     return;
   }
