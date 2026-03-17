@@ -153,14 +153,23 @@ function hasPersistedShiftStarted() {
 document.addEventListener('DOMContentLoaded', async () => {
   try { loadProfile(); } catch (e) { console.error('loadProfile error:', e); }
 
-  // Show "Switch to Dispatch" button immediately — must not wait on the API call
+  // Refresh user from server so roles are always current (stale localStorage
+  // would otherwise hide the dispatch button for users whose roles were updated
+  // after their last login).
+  try {
+    const meRes = await ZakAuth.apiFetch('/api/auth/me');
+    if (meRes?.success && meRes.user) {
+      localStorage.setItem('zak_user', JSON.stringify(meRes.user));
+      loadProfile(); // re-render header with fresh data
+    }
+  } catch (e) { /* non-fatal — fall through to cached user */ }
+
+  // Show "Switch to Dispatch" button using freshly-loaded roles
   try {
     const user = ZakAuth.getUser();
     const canDispatch = (user?.roles || []).some(r => ['super_admin','admin','dispatcher'].includes(r));
-    if (canDispatch) {
-      const btn = document.getElementById('switchToDispatchBtn');
-      if (btn) btn.style.display = '';
-    }
+    const btn = document.getElementById('switchToDispatchBtn');
+    if (btn) btn.style.display = canDispatch ? '' : 'none';
   } catch (e) { console.error('dispatch button error:', e); }
 
   try {
