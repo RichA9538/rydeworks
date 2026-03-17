@@ -136,14 +136,20 @@ function getShiftStorageKey() {
 
 function persistShiftStarted(value) {
   try {
-    if (value) localStorage.setItem(getShiftStorageKey(), '1');
-    else localStorage.removeItem(getShiftStorageKey());
+    if (value) {
+      localStorage.setItem(getShiftStorageKey(), '1');
+      localStorage.setItem('zak_shift_active', 'true');
+    } else {
+      localStorage.removeItem(getShiftStorageKey());
+      localStorage.removeItem('zak_shift_active');
+    }
   } catch (e) {}
 }
 
 function hasPersistedShiftStarted() {
   try {
-    return localStorage.getItem(getShiftStorageKey()) === '1';
+    return localStorage.getItem(getShiftStorageKey()) === '1' ||
+           localStorage.getItem('zak_shift_active') === 'true';
   } catch (e) {
     return false;
   }
