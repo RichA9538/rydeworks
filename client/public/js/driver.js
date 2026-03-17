@@ -42,6 +42,7 @@ function sortStopsByOrder(stops = []) {
 }
 
 function isStopDone(stop) {
+  if (stop?.type === 'pickup' && stop?.status === 'aboard') return true;
   return ['completed', 'no_show', 'canceled'].includes(stop?.status);
 }
 
@@ -91,24 +92,17 @@ function getStopAddress(stop) {
 function getStopActionConfig(stop) {
   const status = stop?.status || 'pending';
   const isPickup = stop?.type !== 'dropoff';
-  if (['completed', 'no_show', 'canceled'].includes(status)) return [];
-  if (status === 'pending') {
-    return [{ status: 'en_route', label: 'En Route', icon: 'fas fa-car', style: 'background:var(--gold);color:var(--gray-900);' }];
+  if (isStopDone(stop)) return [];
+
+  if (isPickup) {
+    if (status === 'pending') {
+      return [{ status: 'en_route', label: 'En Route', icon: 'fas fa-car', style: 'background:var(--gold);color:var(--gray-900);' }];
+    }
+    // en_route or arrived: next action is Rider On Board
+    return [{ status: 'aboard', label: 'Rider On Board', icon: 'fas fa-user-check', style: 'background:#f59e0b;color:#fff;' }];
   }
-  if (status === 'en_route') {
-    return isPickup
-      ? [{ status: 'aboard',  label: 'Rider On Board', icon: 'fas fa-user-check', style: 'background:#f59e0b;color:#fff;' },
-         { status: 'arrived', label: 'Arrived', icon: 'fas fa-bell', style: 'background:#DBEAFE;color:#1D4ED8;' }]
-      : [{ status: 'completed', label: 'Dropped Off', icon: 'fas fa-flag-checkered', style: '' }];
-  }
-  if (status === 'arrived') {
-    return isPickup
-      ? [{ status: 'aboard', label: 'Rider On Board', icon: 'fas fa-user-check', style: 'background:#f59e0b;color:#fff;' }]
-      : [{ status: 'completed', label: 'Dropped Off', icon: 'fas fa-flag-checkered', style: '' }];
-  }
-  if (status === 'aboard') {
-    return [{ status: 'completed', label: 'Dropped Off', icon: 'fas fa-flag-checkered', style: '' }];
-  }
+
+  // Dropoff: rider is already on board, just need Dropped Off
   return [{ status: 'completed', label: 'Dropped Off', icon: 'fas fa-flag-checkered', style: '' }];
 }
 
@@ -511,11 +505,8 @@ async function updateStopStatus(tripId, stopId, status) {
   });
 
   if (res?.success) {
-    currentTrip = res.trip;
-    renderRoute(res.trip);
-
     const messages = {
-      en_route:  '🚐 En route to stop',
+      en_route:  '🚐 En route to pickup',
       arrived:   '📍 Arrived at stop',
       aboard:    '🧑 Rider on board!',
       completed: '✅ Dropped off!',
@@ -524,15 +515,12 @@ async function updateStopStatus(tripId, stopId, status) {
     };
     showToast(messages[status] || 'Status updated', status === 'no_show' ? 'error' : 'success');
 
-    // Auto-navigate to next stop
-    if (status === 'completed' || status === 'no_show') {
-      const stops = res.trip.stops || [];
-      const nextStop = stops.find(s => !['completed','no_show','canceled'].includes(s.status));
-      if (nextStop) {
-        setTimeout(() => {
-          showToast(`Next: ${nextStop.riderId?.firstName || 'Rider'} — ${nextStop.pickupAddress}`, '');
-        }, 1500);
-      }
+    if (status === 'completed') {
+      // Dropoff completed — reload trips to show next trip or no-trips screen
+      setTimeout(() => loadTodayTrip(), 800);
+    } else {
+      currentTrip = res.trip;
+      renderRoute(res.trip);
     }
   } else {
     showToast(res?.error || 'Failed to update status', 'error');
