@@ -159,7 +159,7 @@ function hasPersistedShiftStarted() {
 document.addEventListener('DOMContentLoaded', async () => {
   loadProfile();
   await loadTodayTrip();
-  if (!shiftStarted) {
+  if (!shiftStarted && !hasPersistedShiftStarted()) {
     showScreen('start', false);
   }
   startLocationTracking();
