@@ -384,9 +384,10 @@ function renderRoute(trip) {
       </div>
       ${!['canceled','completed'].includes(trip.status) ? `
         <div style="margin-top:8px;">
-          <button onclick="driverCancelTrip('${trip._id}')" style="background:transparent;color:#e53e3e;border:1px solid #e53e3e;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;width:100%;">
-            <i class="fas fa-ban"></i> Cancel Trip (Passenger Request)
-          </button>
+          ${(window.appTrips?.length > 1)
+            ? `<button onclick="driverCancelTrip('${trip._id}')" style="background:transparent;color:#e53e3e;border:1px solid #e53e3e;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;width:100%;"><i class="fas fa-ban"></i> Cancel This Leg (Passenger Request)</button>`
+            : `<button onclick="driverCancelTrip('${trip._id}')" style="background:transparent;color:#e53e3e;border:1px solid #e53e3e;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;width:100%;"><i class="fas fa-ban"></i> Cancel Trip (Passenger Request)</button>`
+          }
         </div>
       ` : ''}
     </div>
@@ -463,9 +464,6 @@ function renderRoute(trip) {
               ` : ''}
               <button class="stop-btn stop-btn-noshow" onclick="confirmNoShow('${trip._id}','${stop._id}')">
                 <i class="fas fa-user-times"></i> No Show
-              </button>
-              <button class="stop-btn" style="background:transparent;color:#e53e3e;border:1px solid #e53e3e;" onclick="confirmCancelLeg('${trip._id}','${stop._id}','${riderEscaped}')">
-                <i class="fas fa-times-circle"></i> Cancel Leg
               </button>
             </div>
           `}
