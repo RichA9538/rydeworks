@@ -1380,7 +1380,7 @@ function initMap() {
   if (dispatchMap) return; // already initialized
 
   dispatchMap = L.map('dispatchMap').setView([27.7731, -82.6398], 11);
-  L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoicmFsdmFyejM4IiwiYSI6ImNtbXBucDIzczBzN2oyb210OWdleW16cnUifQ.7Bm56XnSFG2in8gGGw8unA', {
+  L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoicmFsdmFyZXozOCIsImEiOiJjbW10dnVwa2Uxc3gxMm9xNmQ3NnptZjJxIn0.kmT9Oz_nuajfGV4TFPZMCw', {
     attribution: '© <a href="https://www.mapbox.com/">Mapbox</a>',
     maxZoom: 19, tileSize: 512, zoomOffset: -1
   }).addTo(dispatchMap);
@@ -1495,7 +1495,7 @@ async function loadMapTrips() {
 function initDashboardMap() {
   if (dashboardMap || !document.getElementById('dashboardMap')) return;
   dashboardMap = L.map('dashboardMap', { zoomControl: false, attributionControl: false }).setView([27.7731, -82.6398], 10);
-  L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoicmFsdmFyejM4IiwiYSI6ImNtbXBucDIzczBzN2oyb210OWdleW16cnUifQ.7Bm56XnSFG2in8gGGw8unA', {
+  L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoicmFsdmFyZXozOCIsImEiOiJjbW10dnVwa2Uxc3gxMm9xNmQ3NnptZjJxIn0.kmT9Oz_nuajfGV4TFPZMCw', {
     maxZoom: 19, tileSize: 512, zoomOffset: -1
   }).addTo(dashboardMap);
   if (appData.org?.homeBases) {

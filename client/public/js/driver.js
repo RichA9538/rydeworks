@@ -790,7 +790,7 @@ function initDriverMap() {
     const cached = JSON.parse(localStorage.getItem('rydeworks_last_driver_loc') || 'null');
     if (Array.isArray(cached) && cached.length === 2) lastKnownDriverLocation = cached;
   } catch (e) {}
-  L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoicmFsdmFyejM4IiwiYSI6ImNtbXBucDIzczBzN2oyb210OWdleW16cnUifQ.7Bm56XnSFG2in8gGGw8unA', {
+  L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoicmFsdmFyZXozOCIsImEiOiJjbW10dnVwa2Uxc3gxMm9xNmQ3NnptZjJxIn0.kmT9Oz_nuajfGV4TFPZMCw', {
     attribution: '© <a href="https://www.mapbox.com/">Mapbox</a>',
     maxZoom: 19, tileSize: 512, zoomOffset: -1
   }).addTo(driverMapInstance);
