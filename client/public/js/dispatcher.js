@@ -1382,7 +1382,7 @@ function initMap() {
   dispatchMap = L.map('dispatchMap').setView([27.7731, -82.6398], 11);
   L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoicmFsdmFyejM4IiwiYSI6ImNtbXBucDIzczBzN2oyb210OWdleW16cnUifQ.7Bm56XnSFG2in8gGGw8unA', {
     attribution: '© <a href="https://www.mapbox.com/">Mapbox</a>',
-    maxZoom: 19, tileSize: 256
+    maxZoom: 19, tileSize: 512, zoomOffset: -1
   }).addTo(dispatchMap);
 
   // Add PERC home bases
@@ -1496,7 +1496,7 @@ function initDashboardMap() {
   if (dashboardMap || !document.getElementById('dashboardMap')) return;
   dashboardMap = L.map('dashboardMap', { zoomControl: false, attributionControl: false }).setView([27.7731, -82.6398], 10);
   L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoicmFsdmFyejM4IiwiYSI6ImNtbXBucDIzczBzN2oyb210OWdleW16cnUifQ.7Bm56XnSFG2in8gGGw8unA', {
-    maxZoom: 19, tileSize: 256
+    maxZoom: 19, tileSize: 512, zoomOffset: -1
   }).addTo(dashboardMap);
   if (appData.org?.homeBases) {
     appData.org.homeBases.forEach(base => {

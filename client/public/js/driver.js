@@ -792,7 +792,7 @@ function initDriverMap() {
   } catch (e) {}
   L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoicmFsdmFyejM4IiwiYSI6ImNtbXBucDIzczBzN2oyb210OWdleW16cnUifQ.7Bm56XnSFG2in8gGGw8unA', {
     attribution: '© <a href="https://www.mapbox.com/">Mapbox</a>',
-    maxZoom: 19, tileSize: 256
+    maxZoom: 19, tileSize: 512, zoomOffset: -1
   }).addTo(driverMapInstance);
 
   // Watch driver location and update marker
