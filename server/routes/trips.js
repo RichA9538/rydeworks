@@ -273,15 +273,19 @@ router.get('/', requireRole('admin', 'dispatcher'), async (req, res) => {
       .populate('stops.riderId', 'firstName lastName phone anonymousId')
       .sort({ tripDate: 1, createdAt: 1 });
 
-    // Secondary sort: order by first pickup stop's scheduledTime so outbound trips
-    // always appear before return trips when they share the same tripDate.
+    // Secondary sort: chronological by first pickup scheduledTime.
+    // Outbound trips often have no scheduledTime; return trips always do (returnTime).
+    // Rule: when a trip has no scheduledTime, non-return trips sort before return trips;
+    // when both have times, sort purely by time (earliest first).
     trips.sort((a, b) => {
       const aPickup = a.stops?.find(s => s.type === 'pickup')?.scheduledTime;
       const bPickup = b.stops?.find(s => s.type === 'pickup')?.scheduledTime;
-      if (!aPickup && !bPickup) return 0;
-      if (!aPickup) return 1;
-      if (!bPickup) return -1;
-      return new Date(aPickup) - new Date(bPickup);
+      const aIsReturn = a.notes?.includes('[RETURN TRIP]') ? 1 : 0;
+      const bIsReturn = b.notes?.includes('[RETURN TRIP]') ? 1 : 0;
+      if (aPickup && bPickup) return new Date(aPickup) - new Date(bPickup);
+      if (!aPickup && !bPickup) return aIsReturn - bIsReturn;
+      if (!aPickup) return aIsReturn ? 1 : -1;
+      return bIsReturn ? -1 : 1;
     });
 
     res.set('Cache-Control', 'no-cache');
