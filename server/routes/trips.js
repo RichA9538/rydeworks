@@ -592,6 +592,18 @@ router.post('/:id/stops/:stopId/status', async (req, res) => {
       trip.status = 'in_progress';
     }
 
+    // When a stop is canceled, also cancel its paired stop (pickup↔dropoff for the same rider)
+    // so the full leg is canceled and the trip status can resolve correctly.
+    if (status === 'canceled' && stop.riderId) {
+      const pairedType = stop.type === 'pickup' ? 'dropoff' : 'pickup';
+      const paired = trip.stops.find(
+        s => s.riderId?.toString() === stop.riderId.toString() &&
+             s.type === pairedType &&
+             !['completed', 'no_show', 'canceled'].includes(s.status)
+      );
+      if (paired) paired.status = 'canceled';
+    }
+
     await trip.save();
 
     if (status === 'arrived') {
@@ -613,10 +625,11 @@ router.post('/:id/stops/:stopId/status', async (req, res) => {
       }
     }
 
-    // Check if all stops are done → complete the trip
+    // Check if all stops are done → complete or cancel the trip
     const allDone = trip.stops.every(s => ['completed','no_show','canceled'].includes(s.status));
     if (allDone) {
-      trip.status = 'completed';
+      const allCanceled = trip.stops.every(s => s.status === 'canceled');
+      trip.status = allCanceled ? 'canceled' : 'completed';
       trip.driverLog.endTime = new Date();
       await trip.save();
       // Free up vehicle
