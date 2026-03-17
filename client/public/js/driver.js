@@ -232,7 +232,6 @@ async function loadTodayTrip() {
   if (actionableTrips.length === 0) {
     currentTrip = null;
     shiftStarted = false;
-    persistShiftStarted(false);
     window.appTrips = [];
     renderNoTrips();
     return;
