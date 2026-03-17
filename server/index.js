@@ -38,7 +38,29 @@ const app = express();
 app.set('trust proxy', 1); // Trust Railway's reverse proxy for correct IP detection
 
 // ── Security ──────────────────────────────────────────────
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:  ["'self'"],
+      scriptSrc:   ["'self'", "'unsafe-inline'", "'unsafe-eval'",
+                    "cdnjs.cloudflare.com", "unpkg.com", "js.stripe.com"],
+      styleSrc:    ["'self'", "'unsafe-inline'",
+                    "cdnjs.cloudflare.com", "unpkg.com",
+                    "fonts.googleapis.com"],
+      fontSrc:     ["'self'", "data:",
+                    "cdnjs.cloudflare.com", "unpkg.com",
+                    "fonts.googleapis.com", "fonts.gstatic.com"],
+      imgSrc:      ["'self'", "data:", "blob:",
+                    "https://api.mapbox.com"],
+      connectSrc:  ["'self'",
+                    "https://api.mapbox.com",
+                    "https://events.mapbox.com"],
+      workerSrc:   ["'self'", "blob:"],
+      frameSrc:    ["'self'", "js.stripe.com", "buy.stripe.com", "square.link"],
+    }
+  }
+}));
 
 const allowedOrigins = [
   'https://rydeworks.com',
