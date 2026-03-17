@@ -914,6 +914,18 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
     if (res?.success) {
       // Auto-create return trips for any round-trip riders
       const riderRowEls2 = document.querySelectorAll('.rider-row');
+
+      // Determine if return trip rolls over to next day (return time earlier than outbound pickup)
+      const advanceDay = (d) => { const dt = new Date(`${d}T12:00:00`); dt.setDate(dt.getDate() + 1); return dt.toISOString().slice(0, 10); };
+      let returnDate = tripDate;
+      for (const row of riderRowEls2) {
+        const id = row.id.replace('riderRow-', '');
+        if (document.getElementById(`riderTripType-${id}`)?.value !== 'round_trip') continue;
+        const rt = document.getElementById(`riderReturnTime-${id}`)?.value;
+        const pt = document.getElementById(`riderPickupTime-${id}`)?.value;
+        if (rt && pt && rt < pt) { returnDate = advanceDay(tripDate); break; }
+      }
+
       const returnTripStops = [];
       let returnStopOrder = 0;
       let hasReturnTrip = false;
@@ -934,7 +946,7 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
           type: 'pickup',
           riderId: rId,
           address: dest,  // reversed: original destination is now pickup
-          scheduledTime: toEasternISO(tripDate, returnTime),
+          scheduledTime: toEasternISO(returnDate, returnTime),
           notes: riderNote ? `[RETURN] ${riderNote}` : '[RETURN TRIP]',
           status: 'pending'
         });
@@ -948,7 +960,7 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
       }
       if (hasReturnTrip && returnTripStops.length > 0) {
         const returnBody = {
-          tripDate: getEasternNoonISOString(tripDate),
+          tripDate: getEasternNoonISOString(returnDate),
           driver, vehicle, homeBase,
           notes: `[RETURN TRIP] ${notes || ''}`.trim(),
           stops: returnTripStops,
@@ -3124,11 +3136,15 @@ async function submitRecurringTrips(e) {
 
     // Build return trip if round trip
     if (tripType === 'round_trip' && returnTime) {
+      // Roll over to next day if return time is earlier than outbound pickup time
+      const returnDateStr = (pickupTime && returnTime < pickupTime)
+        ? (() => { const d = new Date(`${dateStr}T12:00:00`); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })()
+        : dateStr;
       const returnStops = [
         {
           stopOrder: 0, type: 'pickup', riderId: riderId || null,
           address: dest,
-          scheduledTime: toEasternISO(dateStr, returnTime),
+          scheduledTime: toEasternISO(returnDateStr, returnTime),
           notes: '[RETURN TRIP]',
           status: 'pending'
         },
@@ -3139,7 +3155,7 @@ async function submitRecurringTrips(e) {
         }
       ];
       const returnBody = {
-        tripDate: new Date(dateStr).toISOString(),
+        tripDate: getEasternNoonISOString(returnDateStr),
         driver, vehicle, homeBase,
         notes: '[RETURN TRIP]',
         stops: returnStops,
