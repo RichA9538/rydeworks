@@ -102,9 +102,10 @@ function getDerivedTripStatus(trip) {
 
 function getVehicleMapState(driver, trip) {
   const derived = getDerivedTripStatus(trip);
-  if (derived === 'aboard') return { key: 'aboard', label: 'Passenger On Board', color: '#f59e0b' };
+  if (derived === 'aboard') return { key: 'aboard', label: 'Rider On Board', color: '#f59e0b' };
   if (derived === 'arrived' || derived === 'en_route' || derived === 'in_progress') return { key: 'en_route', label: 'En Route', color: '#2563eb' };
-  if (driver?.driverInfo?.isAvailable === false) return { key: 'break', label: 'Break / Unavailable', color: '#6b7280' };
+  if (derived === 'completed') return { key: 'completed', label: 'Completed', color: '#6b7280' };
+  if (driver?.driverInfo?.isAvailable === false) return { key: 'unavailable', label: 'Not Available', color: '#ef4444' };
   return { key: 'available', label: 'Available', color: '#10b981' };
 }
 
@@ -1145,7 +1146,7 @@ async function viewTrip(tripId) {
       <div><strong>Status:</strong> ${statusBadge(getDerivedTripStatus(t))}</div>
       <div><strong>Driver:</strong> ${t.driver?.firstName || '—'} ${t.driver?.lastName || ''}</div>
       <div><strong>Vehicle:</strong> ${t.vehicle?.name || '—'}</div>
-      <div><strong>Home Base:</strong> ${t.homeBase || '—'}</div>
+      <div><strong>Home Base:</strong> ${t.homeBase?.name || (typeof t.homeBase === 'string' ? t.homeBase : '') || '—'}</div>
       <div><strong>Payment:</strong> ${(() => {
         const pt = t.payment?.type || '';
         const labels = { self_pay: 'Self Pay', grant: 'Grant Funded', partner: 'Partner Agency', free_ride: 'Free Ride Code' };

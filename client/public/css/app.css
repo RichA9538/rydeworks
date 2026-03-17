@@ -471,9 +471,11 @@ textarea.form-input { resize: vertical; }
 }
 .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; }
 .dot { width: 10px; height: 10px; border-radius: 50%; }
-.dot.green  { background: var(--success); }
-.dot.gold   { background: var(--gold); }
-.dot.red    { background: var(--danger); }
+.dot.green  { background: #10b981; }
+.dot.blue   { background: #2563eb; }
+.dot.orange { background: #f59e0b; }
+.dot.gray   { background: #6b7280; }
+.dot.red    { background: #ef4444; }
 
 /* ── MODALS ──────────────────────────────────────────────── */
 .modal-overlay {
