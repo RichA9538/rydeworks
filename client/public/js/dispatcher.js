@@ -105,7 +105,7 @@ function getVehicleMapState(driver, trip) {
   if (derived === 'aboard') return { key: 'aboard', label: 'Rider On Board', color: '#f59e0b' };
   if (derived === 'arrived' || derived === 'en_route' || derived === 'in_progress') return { key: 'en_route', label: 'En Route', color: '#2563eb' };
   if (derived === 'completed') return { key: 'completed', label: 'Completed', color: '#6b7280' };
-  if (driver?.driverInfo?.isAvailable === false) return { key: 'unavailable', label: 'Not Available', color: '#ef4444' };
+  if (driver?.driverInfo?.isAvailable === false) return { key: 'unavailable', label: 'Break / Unavailable', color: '#6b7280' };
   return { key: 'available', label: 'Available', color: '#10b981' };
 }
 

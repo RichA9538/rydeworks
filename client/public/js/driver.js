@@ -458,7 +458,9 @@ function renderRoute(trip) {
     });
   }
 
-  if (!['canceled','completed'].includes(trip.status)) {
+  const allDone = stops.length > 0 && stops.every(s => isStopDone(s));
+
+  if (!allDone && !['canceled','completed'].includes(trip.status)) {
     const isRoundTrip = (window.appTrips?.length > 1);
     const cancelLabel = isRoundTrip ? 'Cancel This Leg' : 'Cancel This Trip';
     html += `
@@ -470,7 +472,6 @@ function renderRoute(trip) {
     `;
   }
 
-  const allDone = stops.length > 0 && stops.every(s => isStopDone(s));
   if (allDone) {
     html += `
       <div style="background:var(--green-pale);border:2px solid var(--green-light);border-radius:var(--radius);padding:20px;text-align:center;margin-top:8px;">

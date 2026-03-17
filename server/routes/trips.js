@@ -632,17 +632,21 @@ router.post('/:id/stops/:stopId/status', async (req, res) => {
     }
 
     // Check if all stops are done → complete or cancel the trip
-    const allDone = trip.stops.every(s => ['completed','no_show','canceled'].includes(s.status));
+    // Pickup stops in 'aboard' state count as done (rider is on board, pickup complete)
+    const allDone = trip.stops.every(s => {
+      if (s.type === 'pickup' && s.status === 'aboard') return true;
+      return ['completed', 'no_show', 'canceled'].includes(s.status);
+    });
     if (allDone) {
       const allCanceled = trip.stops.every(s => s.status === 'canceled');
       trip.status = allCanceled ? 'canceled' : 'completed';
       trip.driverLog.endTime = new Date();
       await trip.save();
-      // Free up vehicle
+      // Free up vehicle and mark driver available
       if (trip.vehicle) {
         await Vehicle.findByIdAndUpdate(trip.vehicle, { status: 'available', currentDriver: null });
       }
-      await User.findByIdAndUpdate(req.user._id, { 'driverInfo.isAvailable': false, updatedAt: Date.now() });
+      await User.findByIdAndUpdate(req.user._id, { 'driverInfo.isAvailable': true, updatedAt: Date.now() });
     }
 
     res.json({ success: true, trip });
