@@ -52,10 +52,11 @@ app.use(helmet({
                     "cdnjs.cloudflare.com", "unpkg.com",
                     "fonts.googleapis.com", "fonts.gstatic.com"],
       imgSrc:      ["'self'", "data:", "blob:",
-                    "https://api.mapbox.com"],
+                    "https://api.mapbox.com", "https://*.mapbox.com"],
       connectSrc:  ["'self'",
                     "https://api.mapbox.com",
-                    "https://events.mapbox.com"],
+                    "https://events.mapbox.com",
+                    "https://*.mapbox.com"],
       workerSrc:   ["'self'", "blob:"],
       frameSrc:    ["'self'", "js.stripe.com", "buy.stripe.com", "square.link"],
     }

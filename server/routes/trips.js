@@ -284,6 +284,7 @@ router.get('/', requireRole('admin', 'dispatcher'), async (req, res) => {
       return new Date(aPickup) - new Date(bPickup);
     });
 
+    res.set('Cache-Control', 'no-cache');
     res.json({ success: true, trips });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
