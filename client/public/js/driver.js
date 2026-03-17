@@ -273,18 +273,18 @@ function renderPreShiftGate(trip, trips = []) {
           <div style="font-size:12px;color:#92400E;margin-top:2px;">You can preview your stops below. Complete your pre-trip inspection to unlock trip actions.</div>
         </div>
       </div>
-      <button onclick="showScreen(‘start’)" style="width:100%;background:#D97706;color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:’Inter’,sans-serif;">
+      <button onclick="showScreen('start')" style="width:100%;background:#D97706;color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">
         <i class="fas fa-clipboard-check"></i> Go to Pre-Trip Checklist
       </button>
     </div>
     <div class="route-header">
-      <h3><i class="fas fa-route"></i> Today’s Route Preview</h3>
+      <h3><i class="fas fa-route"></i> Today's Route Preview</h3>
       <div class="route-meta">
-        <span><i class="fas fa-calendar-day"></i> ${tripCount} trip${tripCount !== 1 ? ‘s’ : ‘’} assigned</span>
-        <span><i class="fas fa-map-pin"></i> ${stopCount} stop${stopCount !== 1 ? ‘s’ : ‘’} queued</span>
+        <span><i class="fas fa-calendar-day"></i> ${tripCount} trip${tripCount !== 1 ? "s" : ""} assigned</span>
+        <span><i class="fas fa-map-pin"></i> ${stopCount} stop${stopCount !== 1 ? "s" : ""} queued</span>
       </div>
       <div style="margin-top:8px;">
-        <button onclick="showQRCode()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.25);border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;width:100%;font-family:’Inter’,sans-serif;">
+        <button onclick="showQRCode()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.25);border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;width:100%;font-family:'Inter',sans-serif;">
           <i class="fas fa-qrcode"></i> Show Rider Booking QR Code
         </button>
       </div>
@@ -297,38 +297,38 @@ function renderPreShiftGate(trip, trips = []) {
     stops.forEach((stop, i) => {
       const riderName = getRiderDisplayName(stop);
       const currentAddress = getStopAddress(stop);
-      const pairedAddress = normalizeAddress(stop.pairedAddress || ‘’);
+      const pairedAddress = normalizeAddress(stop.pairedAddress || '');
       const stopLabel = getStopTypeLabel(stop);
-      const timeLabel = stop.type === ‘pickup’ ? ‘Target pickup’ : ‘Target drop-off’;
-      const timeValue = stop.type === ‘pickup’ ? stop.scheduledTime : (stop.appointmentTime || stop.scheduledTime);
+      const timeLabel = stop.type === 'pickup' ? 'Target pickup' : 'Target drop-off';
+      const timeValue = stop.type === 'pickup' ? stop.scheduledTime : (stop.appointmentTime || stop.scheduledTime);
 
       html += `
         <div class="stop-card" id="stop-prev-${stop._id}">
           <div class="stop-number">${i + 1}</div>
           <div class="stop-rider">
             ${riderName}
-            <span style="font-size:12px;background:${stop.type === ‘pickup’ ? ‘rgba(0,212,200,0.12)’ : ‘rgba(239,68,68,0.12)’};color:${stop.type === ‘pickup’ ? ‘var(--green)’ : ‘var(--danger)’};padding:2px 8px;border-radius:12px;margin-left:8px;">${stopLabel}</span>
+            <span style="font-size:12px;background:${stop.type === 'pickup' ? 'rgba(0,212,200,0.12)' : 'rgba(239,68,68,0.12)'};color:${stop.type === 'pickup' ? 'var(--green)' : 'var(--danger)'};padding:2px 8px;border-radius:12px;margin-left:8px;">${stopLabel}</span>
           </div>
-          ${stop.riderId?.phone ? `<div class="stop-phone"><a href="tel:${stop.riderId.phone}"><i class="fas fa-phone"></i> ${stop.riderId.phone}</a></div>` : ‘’}
+          ${stop.riderId?.phone ? `<div class="stop-phone"><a href="tel:${stop.riderId.phone}"><i class="fas fa-phone"></i> ${stop.riderId.phone}</a></div>` : ''}
           <div class="stop-address">
-            <i class="${stop.type === ‘pickup’ ? ‘fas fa-map-pin’ : ‘fas fa-flag’}"></i>
+            <i class="${stop.type === 'pickup' ? 'fas fa-map-pin' : 'fas fa-flag'}"></i>
             <div>
-              <div style="font-size:11px;color:${stop.type === ‘pickup’ ? ‘var(--gray-500)’ : ‘var(--danger)’};font-weight:600;text-transform:uppercase;margin-bottom:2px;">${stopLabel}</div>
-              <div>${currentAddress || ‘No address’}</div>
+              <div style="font-size:11px;color:${stop.type === 'pickup' ? 'var(--gray-500)' : 'var(--danger)'};font-weight:600;text-transform:uppercase;margin-bottom:2px;">${stopLabel}</div>
+              <div>${currentAddress || 'No address'}</div>
             </div>
           </div>
           ${pairedAddress ? `
-            <div class="stop-address" style="background:${stop.type === ‘pickup’ ? ‘var(--danger-light)’ : ‘var(--green-pale)’};">
-              <i class="${stop.type === ‘pickup’ ? ‘fas fa-flag’ : ‘fas fa-map-pin’}" style="color:${stop.type === ‘pickup’ ? ‘var(--danger)’ : ‘var(--green)’};"></i>
+            <div class="stop-address" style="background:${stop.type === 'pickup' ? 'var(--danger-light)' : 'var(--green-pale)'};">
+              <i class="${stop.type === 'pickup' ? 'fas fa-flag' : 'fas fa-map-pin'}" style="color:${stop.type === 'pickup' ? 'var(--danger)' : 'var(--green)'};"></i>
               <div>
-                <div style="font-size:11px;color:${stop.type === ‘pickup’ ? ‘var(--danger)’ : ‘var(--green)’};font-weight:600;text-transform:uppercase;margin-bottom:2px;">${stop.type === ‘pickup’ ? ‘Later drop-off’ : ‘Original pickup’}</div>
+                <div style="font-size:11px;color:${stop.type === 'pickup' ? 'var(--danger)' : 'var(--green)'};font-weight:600;text-transform:uppercase;margin-bottom:2px;">${stop.type === 'pickup' ? 'Later drop-off' : 'Original pickup'}</div>
                 <div>${pairedAddress}</div>
               </div>
             </div>
-          ` : ‘’}
-          ${timeValue ? `<div class="stop-time"><i class="fas fa-clock"></i> ${timeLabel}: ${formatTime(timeValue)}</div>` : ‘’}
-          ${stop.notes ? `<div class="stop-notes"><i class="fas fa-sticky-note"></i> ${stop.notes}</div>` : ‘’}
-          ${stop.riderId?.notes ? `<div class="stop-notes"><i class="fas fa-info-circle"></i> ${stop.riderId.notes}</div>` : ‘’}
+          ` : ''}
+          ${timeValue ? `<div class="stop-time"><i class="fas fa-clock"></i> ${timeLabel}: ${formatTime(timeValue)}</div>` : ''}
+          ${stop.notes ? `<div class="stop-notes"><i class="fas fa-sticky-note"></i> ${stop.notes}</div>` : ''}
+          ${stop.riderId?.notes ? `<div class="stop-notes"><i class="fas fa-info-circle"></i> ${stop.riderId.notes}</div>` : ''}
           <div style="background:var(--gray-100);border-radius:8px;padding:10px 12px;text-align:center;font-size:12px;color:var(--gray-500);">
             <i class="fas fa-lock" style="margin-right:4px;"></i> Complete checklist to unlock trip actions
           </div>
@@ -337,7 +337,7 @@ function renderPreShiftGate(trip, trips = []) {
     });
   }
 
-  document.getElementById(‘routeContent’).innerHTML = html;
+  document.getElementById('routeContent').innerHTML = html;
 }
 
 function renderRoute(trip) {
