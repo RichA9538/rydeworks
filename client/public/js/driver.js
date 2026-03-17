@@ -151,39 +151,20 @@ function hasPersistedShiftStarted() {
 
 // ── INIT ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  try { loadProfile(); } catch (e) { console.error('loadProfile error:', e); }
-
-  // Refresh user from server so roles are always current (stale localStorage
-  // would otherwise hide the dispatch button for users whose roles were updated
-  // after their last login).
-  try {
-    const meRes = await ZakAuth.apiFetch('/api/auth/me');
-    if (meRes?.success && meRes.user) {
-      localStorage.setItem('zak_user', JSON.stringify(meRes.user));
-      loadProfile(); // re-render header with fresh data
-    }
-  } catch (e) { /* non-fatal — fall through to cached user */ }
-
-  // Show "Switch to Dispatch" button using freshly-loaded roles
-  try {
-    const user = ZakAuth.getUser();
-    const canDispatch = (user?.roles || []).some(r => ['super_admin','admin','dispatcher'].includes(r));
-    const btn = document.getElementById('switchToDispatchBtn');
-    if (btn) btn.style.display = canDispatch ? '' : 'none';
-  } catch (e) { console.error('dispatch button error:', e); }
-
-  try {
-    await loadTodayTrip();
-  } catch (e) {
-    console.error('Failed to load trips:', e);
-    renderNoTrips();
-  }
-
-  // Only redirect to Start Shift when there is a trip to start — no trips means stay on route
-  if (!shiftStarted && currentTrip) {
+  loadProfile();
+  await loadTodayTrip();
+  if (!shiftStarted) {
     showScreen('start', false);
   }
   startLocationTracking();
+
+  // Show "Switch to Dispatch" button for multi-role users
+  const user = ZakAuth.getUser();
+  const canDispatch = (user?.roles || []).some(r => ['super_admin','admin','dispatcher'].includes(r));
+  if (canDispatch) {
+    const btn = document.getElementById('switchToDispatchBtn');
+    if (btn) btn.style.display = '';
+  }
 });
 
 // ── SCREEN NAVIGATION ─────────────────────────────────────
@@ -233,7 +214,7 @@ async function loadTodayTrip() {
   const today = getEasternDateString();
   const res = await ZakAuth.apiFetch('/api/trips/driver/my-trips');
 
-  if (!res?.success || !res.trips?.length) {
+  if (!res?.success || res.trips.length === 0) {
     currentTrip = null;
     shiftStarted = false;
     persistShiftStarted(false);
@@ -510,9 +491,8 @@ function renderNoTrips() {
       <i class="fas fa-calendar-times"></i>
       <h3>No Trips Today</h3>
       <p>You have no trips scheduled for today.<br>Contact your dispatcher if you believe this is an error.</p>
-      <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px;">
+      <div style="margin-top:16px;">
         <button class="btn-big btn-outline" onclick="setDriverAvailability(true)"><i class="fas fa-user-check"></i> Mark Available</button>
-        <button class="btn-big btn-outline" onclick="showQRCode()"><i class="fas fa-qrcode"></i> Show Rider Booking QR Code</button>
       </div>
     </div>
   `;
@@ -799,10 +779,17 @@ function initDriverMap() {
     const cached = JSON.parse(localStorage.getItem('rydeworks_last_driver_loc') || 'null');
     if (Array.isArray(cached) && cached.length === 2) lastKnownDriverLocation = cached;
   } catch (e) {}
-  L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoicmFsdmFyZXozOCIsImEiOiJjbW10dnVwa2Uxc3gxMm9xNmQ3NnptZjJxIn0.kmT9Oz_nuajfGV4TFPZMCw', {
-    attribution: '© <a href="https://www.mapbox.com/">Mapbox</a>',
-    maxZoom: 19, tileSize: 512, zoomOffset: -1
-  }).addTo(driverMapInstance);
+  // Use Mapbox Streets tiles when token is available, fall back to OSM
+  if (MAPBOX_TOKEN) {
+    L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`, {
+      attribution: '© <a href="https://www.mapbox.com/">Mapbox</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19, tileSize: 256
+    }).addTo(driverMapInstance);
+  } else {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors', maxZoom: 18
+    }).addTo(driverMapInstance);
+  }
 
   // Watch driver location and update marker
   if (navigator.geolocation) {
