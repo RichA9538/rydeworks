@@ -59,6 +59,7 @@ app.use(helmet({
                     "https://events.mapbox.com",
                     "https://*.mapbox.com"],
       workerSrc:   ["'self'", "blob:"],
+      childSrc:    ["'self'", "blob:"],
       frameSrc:    ["'self'", "js.stripe.com", "buy.stripe.com", "square.link"],
     }
   }
