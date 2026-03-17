@@ -97,8 +97,8 @@ function getStopActionConfig(stop) {
   }
   if (status === 'en_route') {
     return isPickup
-      ? [{ status: 'arrived', label: 'Arrived', icon: 'fas fa-bell', style: 'background:#DBEAFE;color:#1D4ED8;' },
-         { status: 'aboard',  label: 'Rider On Board', icon: 'fas fa-user-check', style: 'background:#f59e0b;color:#fff;' }]
+      ? [{ status: 'aboard',  label: 'Rider On Board', icon: 'fas fa-user-check', style: 'background:#f59e0b;color:#fff;' },
+         { status: 'arrived', label: 'Arrived', icon: 'fas fa-bell', style: 'background:#DBEAFE;color:#1D4ED8;' }]
       : [{ status: 'completed', label: 'Dropped Off', icon: 'fas fa-flag-checkered', style: '' }];
   }
   if (status === 'arrived') {
@@ -382,14 +382,6 @@ function renderRoute(trip) {
           <i class="fas fa-qrcode"></i> Show Rider Booking QR Code
         </button>
       </div>
-      ${!['canceled','completed'].includes(trip.status) ? `
-        <div style="margin-top:8px;">
-          ${(window.appTrips?.length > 1)
-            ? `<button onclick="driverCancelTrip('${trip._id}')" style="background:transparent;color:#e53e3e;border:1px solid #e53e3e;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;width:100%;"><i class="fas fa-ban"></i> Cancel This Leg (Passenger Request)</button>`
-            : `<button onclick="driverCancelTrip('${trip._id}')" style="background:transparent;color:#e53e3e;border:1px solid #e53e3e;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;width:100%;"><i class="fas fa-ban"></i> Cancel Trip (Passenger Request)</button>`
-          }
-        </div>
-      ` : ''}
     </div>
   `;
 
@@ -470,6 +462,18 @@ function renderRoute(trip) {
         </div>
       `;
     });
+  }
+
+  if (!['canceled','completed'].includes(trip.status)) {
+    const isRoundTrip = (window.appTrips?.length > 1);
+    const cancelLabel = isRoundTrip ? 'Cancel This Leg' : 'Cancel This Trip';
+    html += `
+      <div style="margin-top:12px;">
+        <button onclick="driverCancelTrip('${trip._id}')" style="background:transparent;color:#e53e3e;border:1px solid #e53e3e;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;width:100%;">
+          <i class="fas fa-ban"></i> ${cancelLabel}
+        </button>
+      </div>
+    `;
   }
 
   const allDone = stops.length > 0 && stops.every(s => isStopDone(s));

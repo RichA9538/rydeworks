@@ -450,17 +450,23 @@ router.get('/driver/my-trips', async (req, res) => {
     const { date } = req.query;
     const query = { driver: req.user._id, organization: req.organizationId };
 
+    let findQuery;
     if (date) {
       const { start, end } = getEasternRange(date);
-      query.tripDate = { $gte: start, $lte: end };
+      findQuery = { ...query, tripDate: { $gte: start, $lte: end }, status: { $nin: ['canceled','completed'] } };
     } else {
-      // Default: today and future in Eastern Time
+      // Default: today and future, but always include scheduled/in_progress trips regardless of date
       const todayEt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
       const { start } = getEasternRange(todayEt);
-      query.tripDate = { $gte: start };
+      findQuery = {
+        $or: [
+          { ...query, status: { $nin: ['canceled','completed'] }, tripDate: { $gte: start } },
+          { ...query, status: { $in: ['in_progress', 'scheduled'] } }
+        ]
+      };
     }
 
-    const rawTrips = await Trip.find({ ...query, status: { $nin: ['canceled','completed'] } })
+    const rawTrips = await Trip.find(findQuery)
       .populate('vehicle', 'name licensePlate color')
       .populate('stops.riderId', 'firstName lastName phone notes')
       .sort({ tripDate: 1 });
