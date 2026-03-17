@@ -473,15 +473,12 @@ function renderRoute(trip) {
   }
 
   const allDone = stops.length > 0 && stops.every(s => isStopDone(s));
-  if (allDone && trip.status !== 'completed') {
+  if (allDone) {
     html += `
       <div style="background:var(--green-pale);border:2px solid var(--green-light);border-radius:var(--radius);padding:20px;text-align:center;margin-top:8px;">
-        <i class="fas fa-trophy" style="font-size:36px;color:var(--gold);margin-bottom:12px;display:block;"></i>
-        <h3 style="color:var(--green);margin-bottom:8px;">Route Complete!</h3>
-        <p style="font-size:14px;color:var(--gray-600);margin-bottom:16px;">All stops have been completed. Log your ending mileage to finish your shift.</p>
-        <button class="btn-big btn-green" onclick="showScreen('end')" style="margin:0;">
-          <i class="fas fa-flag-checkered"></i> End Shift
-        </button>
+        <i class="fas fa-check-circle" style="font-size:36px;color:var(--green);margin-bottom:12px;display:block;"></i>
+        <h3 style="color:var(--green);margin-bottom:8px;">All Stops Complete</h3>
+        <p style="font-size:14px;color:var(--gray-600);">You are available. Waiting for dispatch to assign additional trips.</p>
       </div>
     `;
   }
