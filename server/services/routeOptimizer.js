@@ -1,13 +1,17 @@
 /**
  * Route Optimization Service
- * Uses OSRM (Open Source Routing Machine) public API — free, no key required
- * Docs: http://router.project-osrm.org
+ * Primary:  Google Maps Distance Matrix API (real-time traffic) — requires GOOGLE_MAPS_API_KEY
+ * Fallback: OSRM (historical speeds, free, no key required)
+ * Docs:     https://developers.google.com/maps/documentation/distance-matrix
+ *           http://router.project-osrm.org
  */
 
 const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
 
 const OSRM_BASE = 'https://router.project-osrm.org';
 const DWELL_MINUTES = 3; // minutes assumed at each stop for pickup/dropoff
+
+const GOOGLE_MAPS_KEY = () => process.env.GOOGLE_MAPS_API_KEY || '';
 
 /**
  * Geocode a US address.
@@ -57,14 +61,31 @@ async function geocodeAddress(address) {
 }
 
 /**
- * Get drive time in minutes between two lat/lng points using OSRM
+ * Get drive time in minutes between two lat/lng points.
+ * Uses Google Directions API (with live traffic) when key is available, else OSRM.
  */
 async function getDriveTime(from, to) {
+  const key = GOOGLE_MAPS_KEY();
+  if (key) {
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&departure_time=now&traffic_model=best_guess&key=${key}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.status === 'OK' && data.routes?.[0]?.legs?.[0]) {
+      const leg = data.routes[0].legs[0];
+      const secs = (leg.duration_in_traffic || leg.duration).value;
+      return {
+        durationMins: Math.ceil(secs / 60),
+        distanceMiles: Math.round(leg.distance.value / 1609.34 * 10) / 10
+      };
+    }
+    console.warn('Google Directions API failed, falling back to OSRM:', data.status);
+  }
+  // OSRM fallback
   const url = `${OSRM_BASE}/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`;
   const res = await fetch(url, { headers: { 'User-Agent': 'RydeworksDispatch/1.0' } });
   const data = await res.json();
   if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
-    throw new Error(`OSRM routing failed between ${JSON.stringify(from)} and ${JSON.stringify(to)}`);
+    throw new Error(`Routing failed between ${JSON.stringify(from)} and ${JSON.stringify(to)}`);
   }
   return {
     durationMins: Math.ceil(data.routes[0].duration / 60),
@@ -73,15 +94,38 @@ async function getDriveTime(from, to) {
 }
 
 /**
- * Get a full drive time matrix between N points using OSRM Table API
+ * Get a full drive time matrix between N points.
+ * Uses Google Distance Matrix API (with live traffic) when key is available, else OSRM Table API.
  */
 async function getDriveTimeMatrix(points) {
+  const key = GOOGLE_MAPS_KEY();
+  if (key) {
+    try {
+      // Google Distance Matrix supports max 25 origins/destinations per call
+      const coords = points.map(p => `${p.lat},${p.lng}`).join('|');
+      const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(coords)}&destinations=${encodeURIComponent(coords)}&departure_time=now&traffic_model=best_guess&key=${key}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.status === 'OK' && data.rows) {
+        return data.rows.map(row =>
+          row.elements.map(el => {
+            if (el.status !== 'OK') return 999; // unreachable — will be deprioritized
+            const secs = (el.duration_in_traffic || el.duration).value;
+            return Math.ceil(secs / 60);
+          })
+        );
+      }
+      console.warn('Google Distance Matrix API failed, falling back to OSRM:', data.status);
+    } catch (e) {
+      console.warn('Google Distance Matrix error, falling back to OSRM:', e.message);
+    }
+  }
+  // OSRM fallback
   const coords = points.map(p => `${p.lng},${p.lat}`).join(';');
   const url = `${OSRM_BASE}/table/v1/driving/${coords}?annotations=duration,distance`;
   const res = await fetch(url, { headers: { 'User-Agent': 'RydeworksDispatch/1.0' } });
   const data = await res.json();
   if (data.code !== 'Ok') throw new Error('OSRM table API failed');
-  // durations is in seconds, convert to minutes
   return data.durations.map(row => row.map(s => Math.ceil(s / 60)));
 }
 
@@ -299,19 +343,16 @@ async function optimizeRoute({ homeBase, stops, tripDate }) {
     prevIdx = idx;
   }
 
-  // Step 7: Calculate total route stats
-  // Get total distance by calling OSRM route with optimized waypoints
+  // Step 7: Calculate total route stats (sequential leg sum — avoids waypoint limit issues)
   let totalDurationMins = 0;
   try {
-    const waypointCoords = [origin, ...optimizedOrder.map(i => allPoints[i])];
-    const coordStr = waypointCoords.map(p => `${p.lng},${p.lat}`).join(';');
-    const routeUrl = `${OSRM_BASE}/route/v1/driving/${coordStr}?overview=false`;
-    const routeRes = await fetch(routeUrl, { headers: { 'User-Agent': 'RydeworksDispatch/1.0' } });
-    const routeData = await routeRes.json();
-    if (routeData.code === 'Ok' && routeData.routes[0]) {
-      totalDurationMins = Math.ceil(routeData.routes[0].duration / 60);
-      totalDistanceMiles = Math.round(routeData.routes[0].distance / 1609.34 * 10) / 10;
+    const routePoints = [origin, ...optimizedOrder.map(i => allPoints[i])];
+    for (let i = 0; i < routePoints.length - 1; i++) {
+      const leg = await getDriveTime(routePoints[i], routePoints[i + 1]);
+      totalDurationMins  += leg.durationMins;
+      totalDistanceMiles += leg.distanceMiles;
     }
+    totalDistanceMiles = Math.round(totalDistanceMiles * 10) / 10;
   } catch (e) {
     // Non-fatal — just won't have total stats
   }

@@ -1101,6 +1101,29 @@
     </div>
   </div>
 
+  <!-- Collect Card Modal (dispatcher takes card over the phone to clear payment failure) -->
+  <div class="modal" id="collectCardModal" style="max-width:480px;">
+    <div class="modal-header">
+      <h3><i class="fas fa-credit-card"></i> Collect Card — Clear Payment Block</h3>
+      <button class="modal-close" onclick="closeModal('collectCardModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div id="collectCardRiderName" style="background:var(--gray-50);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:14px;font-weight:600;"></div>
+      <p style="font-size:13px;color:var(--gray-600);margin-bottom:12px;">Enter the rider's new card information below. The card will be saved on file and the booking block will be cleared. <strong>No charge today</strong> — normal weekly billing resumes.</p>
+      <div id="collectCardStripeEl" style="padding:12px;border:1px solid var(--gray-300);border-radius:8px;background:#fff;min-height:44px;"></div>
+      <div id="collectCardError" style="color:#e53e3e;font-size:13px;margin-top:8px;display:none;"></div>
+      <div id="collectCardSuccess" style="display:none;margin-top:16px;padding:14px;background:#d1e7dd;border-radius:8px;border:1px solid #a3cfbb;">
+        <div style="font-weight:700;color:#0a3622;font-size:14px;"><i class="fas fa-check-circle"></i> Card saved — booking block cleared!</div>
+      </div>
+    </div>
+    <div class="modal-footer" id="collectCardFooter">
+      <button class="btn btn-secondary" onclick="closeModal('collectCardModal')">Cancel</button>
+      <button class="btn btn-primary" id="collectCardSubmitBtn" onclick="submitCollectCard()">
+        <i class="fas fa-lock"></i> Save Card &amp; Clear Block
+      </button>
+    </div>
+  </div>
+
   <!-- Manage Rider Modal -->
   <div class="modal" id="manageRiderModal" style="max-width:500px;">
     <div class="modal-header">
@@ -1281,6 +1304,13 @@
         </div>
       </div>
       <div class="form-group"><label class="form-label">Notes for Driver</label><textarea class="form-input" id="editRiderNotes" rows="2" placeholder="Accessibility needs, preferences..."></textarea></div>
+      <div class="form-group">
+        <label class="form-label" style="margin-bottom:8px">Common Destinations <span style="font-weight:400;color:var(--gray-500);font-size:12px">(shown as quick-fill suggestions when booking)</span></label>
+        <div id="editRiderCommonDests" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
+        <button type="button" onclick="addCommonDestRow()" style="padding:6px 14px;border:1px dashed var(--gray-400);border-radius:8px;background:none;cursor:pointer;color:var(--gray-600);font-size:13px;font-family:'Inter',sans-serif;">
+          <i class="fas fa-plus"></i> Add Destination
+        </button>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('editRiderModal')">Cancel</button>

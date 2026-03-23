@@ -826,6 +826,8 @@ function initDriverMap() {
       const { latitude: lat, longitude: lng } = pos.coords;
       lastKnownDriverLocation = [lat, lng];
       try { localStorage.setItem('rydeworks_last_driver_loc', JSON.stringify(lastKnownDriverLocation)); } catch (e) {}
+      // Center map on driver's actual location on first fix
+      driverMapInstance.setView([lat, lng], 14);
       if (!driverLocationMarker) {
         const vanIcon = L.divIcon({
           html: '<div style="background:#0A1628;color:#00D4C8;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid #00D4C8;box-shadow:0 2px 8px rgba(0,0,0,0.4);">🚐</div>',

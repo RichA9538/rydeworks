@@ -39,6 +39,10 @@ const riderSchema = new mongoose.Schema({
   totalTrips:    { type: Number, default: 0 },
   totalFarePaid: { type: Number, default: 0 },
 
+  // Payment failure flag — set when weekly billing fails; cleared when rider updates payment method
+  paymentFailed:   { type: Boolean, default: false },
+  paymentFailedAt: { type: Date },
+
   isActive:  { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }

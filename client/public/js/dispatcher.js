@@ -52,6 +52,23 @@ function showRiderPaymentState(state) {
     return;
   }
   currentSelectedRiderState = state;
+
+  // Payment failure takes priority — show prominent warning
+  if (state.paymentFailed) {
+    box.style.display = 'block';
+    box.style.background = '#fff5f5';
+    box.style.borderColor = '#fc8181';
+    box.style.color = '#c53030';
+    txt.innerHTML = `<i class="fas fa-exclamation-triangle"></i> <strong>Payment Failed</strong> — Booking is blocked until the rider updates their payment method.
+      <button type="button" onclick="openCollectCardModal()" style="margin-left:10px;padding:3px 10px;font-size:12px;background:#e53e3e;color:#fff;border:none;border-radius:4px;cursor:pointer;">
+        <i class="fas fa-credit-card"></i> Collect New Card
+      </button>`;
+    return;
+  }
+
+  box.style.background = '';
+  box.style.borderColor = '';
+  box.style.color = '';
   const bits = [];
   bits.push(`Rider ID: ${state.riderId || '—'}`);
   bits.push(`Payment: ${state.paymentModeLabel || 'Not set'}`);
@@ -60,6 +77,96 @@ function showRiderPaymentState(state) {
   if (state.subscriptionStatusLabel) bits.push(`Wallet: ${state.subscriptionStatusLabel}`);
   box.style.display = 'block';
   txt.textContent = bits.join(' • ');
+}
+
+// Dispatcher collect-card modal (for payment failures)
+let _collectCardStripe = null;
+let _collectCardElement = null;
+
+async function openCollectCardModal() {
+  if (!currentSelectedRiderState) return;
+  const riderId = window._currentSelectedRiderId;
+  const riderName = window._currentSelectedRiderName || 'Rider';
+  document.getElementById('collectCardRiderName').textContent = riderName;
+  document.getElementById('collectCardError').style.display = 'none';
+  document.getElementById('collectCardSuccess').style.display = 'none';
+  document.getElementById('collectCardFooter').style.display = 'flex';
+  const btn = document.getElementById('collectCardSubmitBtn');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-lock"></i> Save Card & Clear Block';
+  openModal('collectCardModal');
+
+  try {
+    const keyRes = await ZakAuth.apiFetch('/api/book/stripe-key');
+    const pubKey = keyRes?.publishableKey;
+    if (!pubKey) {
+      document.getElementById('collectCardStripeEl').innerHTML = '<p style="color:#e53e3e;font-size:13px;">Stripe is not configured. Add Stripe keys in Admin Settings.</p>';
+      btn.disabled = true;
+      return;
+    }
+    _collectCardStripe = Stripe(pubKey);
+    const elements = _collectCardStripe.elements();
+    _collectCardElement = elements.create('card', {
+      style: { base: { fontSize: '15px', fontFamily: 'Inter, sans-serif', color: '#1a202c' } }
+    });
+    document.getElementById('collectCardStripeEl').innerHTML = '';
+    _collectCardElement.mount('#collectCardStripeEl');
+    _collectCardElement.on('change', e => {
+      const errEl = document.getElementById('collectCardError');
+      if (e.error) { errEl.textContent = e.error.message; errEl.style.display = 'block'; }
+      else { errEl.style.display = 'none'; }
+    });
+  } catch (e) {
+    document.getElementById('collectCardStripeEl').innerHTML = '<p style="color:#e53e3e;font-size:13px;">Failed to load payment form. Please refresh and try again.</p>';
+  }
+}
+
+async function submitCollectCard() {
+  const btn = document.getElementById('collectCardSubmitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+  const errEl = document.getElementById('collectCardError');
+  errEl.style.display = 'none';
+
+  try {
+    const riderId = window._currentSelectedRiderId;
+    if (!riderId) throw new Error('No rider selected.');
+
+    // Step 1: Create setup intent
+    const rider = appData.riders?.find(r => r._id === riderId) || {};
+    const siRes = await fetch('/api/book/setup-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ firstName: rider.firstName || 'Rider', lastName: rider.lastName || '', phone: rider.phone || '0000000000' })
+    });
+    const siData = await siRes.json();
+    if (!siData.success) throw new Error(siData.error || 'Could not initialize payment.');
+
+    // Step 2: Confirm card setup
+    const { setupIntent, error } = await _collectCardStripe.confirmCardSetup(siData.clientSecret, {
+      payment_method: { card: _collectCardElement, billing_details: { name: `${rider.firstName || ''} ${rider.lastName || ''}`.trim() } }
+    });
+    if (error) throw new Error(error.message);
+
+    // Step 3: Clear payment failure flag on server
+    await ZakAuth.apiFetch(`/api/trips/riders/${riderId}/clear-payment-failure`, { method: 'POST' });
+
+    document.getElementById('collectCardFooter').style.display = 'none';
+    document.getElementById('collectCardSuccess').style.display = 'block';
+
+    // Refresh rider state in the form
+    setTimeout(() => {
+      closeModal('collectCardModal');
+      // Re-fetch rider info to refresh the payment state banner
+      const riderSelect = document.querySelector(`[id^="riderSelect-"]`);
+      if (riderSelect) onRiderSelect(riderSelect.id.replace('riderSelect-', ''));
+    }, 1500);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-lock"></i> Save Card & Clear Block';
+  }
 }
 
 // Tracks the last fare calculated by the fare engine (used as estimatedFare even for free_ride/grant)
@@ -683,6 +790,10 @@ function addRiderRow() {
       <div class="form-group" style="flex:0 0 85px"><label class="form-label">ZIP</label><input type="text" class="form-input" id="riderPickupZip-${idx}" placeholder="33701" maxlength="5" inputmode="numeric"></div>
     </div>
     <div class="form-group">
+      <label class="form-label">Business / Destination Name <span style="font-weight:400;color:var(--gray-500);font-size:11px">(optional)</span></label>
+      <input type="text" class="form-input" id="riderDestName-${idx}" placeholder="e.g. Publix, Bayfront Medical, ABC Construction">
+    </div>
+    <div class="form-group">
       <label class="form-label">Destination Street *</label>
       <input type="text" class="form-input" id="riderDest-${idx}" placeholder="456 Work Ave" oninput="onDestStreetInput(${idx})">
     </div>
@@ -784,6 +895,10 @@ async function onRiderSelect(idx) {
   const res = await ZakAuth.apiFetch(`/api/trips/riders/${val}`);
   if (!res?.success) return;
   const r = res.rider;
+
+  // Store for payment failure / collect-card modal
+  window._currentSelectedRiderId   = r._id;
+  window._currentSelectedRiderName = `${r.firstName} ${r.lastName}`;
 
   if (r.homeAddress) {
     fillPickupFromAddress(idx, r.homeAddress);
@@ -1037,8 +1152,59 @@ async function onDestinationBlur(idx) {
         }
       }
     }
+
+    // Show "Save as common destination" button if a rider is selected
+    const selectedRider = document.getElementById(`riderSelect-${idx}`)?.value;
+    if (selectedRider && selectedRider !== 'new' && distMiles > 0) {
+      let saveDestBtn = document.getElementById(`saveDestBtn-${idx}`);
+      if (!saveDestBtn) {
+        saveDestBtn = document.createElement('button');
+        saveDestBtn.id = `saveDestBtn-${idx}`;
+        saveDestBtn.type = 'button';
+        saveDestBtn.style.cssText = 'margin-top:6px;padding:6px 14px;border:1px solid var(--green);border-radius:8px;background:none;cursor:pointer;color:var(--green);font-size:12px;font-weight:600;font-family:\'Inter\',sans-serif;';
+        saveDestBtn.innerHTML = '<i class="fas fa-bookmark"></i> Save as common destination for this rider';
+        saveDestBtn.onclick = () => saveCommonDest(idx);
+        document.getElementById(`riderRow-${idx}`)?.appendChild(saveDestBtn);
+      }
+    }
   } catch (err) {
     document.getElementById('fareAmount').textContent = '$0.00';
+  }
+}
+
+// Save the current destination as a common destination for the selected rider
+async function saveCommonDest(idx) {
+  const riderId = document.getElementById(`riderSelect-${idx}`)?.value;
+  if (!riderId || riderId === 'new') return;
+  const destName = document.getElementById(`riderDestName-${idx}`)?.value.trim();
+  const street   = document.getElementById(`riderDest-${idx}`)?.value.trim();
+  const apt      = document.getElementById(`riderDestApt-${idx}`)?.value.trim();
+  const city     = document.getElementById(`riderDestCity-${idx}`)?.value.trim();
+  const state    = document.getElementById(`riderDestState-${idx}`)?.value.trim();
+  const zip      = document.getElementById(`riderDestZip-${idx}`)?.value.trim();
+  if (!street || !zip) { showToast('Enter a full destination first.', 'error'); return; }
+  const parts = [street, apt, city && state ? `${city}, ${state}` : city || state, zip].filter(Boolean);
+  const address = parts.join(', ');
+  const label   = destName || city || 'Destination';
+  const res = await ZakAuth.apiFetch(`/api/trips/riders/${riderId}/common-destinations`, {
+    method: 'POST',
+    body: JSON.stringify({ label, address })
+  });
+  if (res?.success) {
+    showToast(`Saved "${label}" to rider's common destinations.`, 'success');
+    // Update in-memory common dests so it shows next time this rider is selected
+    if (!riderCommonDests[idx]) riderCommonDests[idx] = [];
+    riderCommonDests[idx].push({ label, address });
+    const destList = document.getElementById(`riderDestList-${idx}`);
+    if (destList) {
+      const opt = document.createElement('option');
+      opt.value = address;
+      opt.label = label;
+      destList.appendChild(opt);
+    }
+    document.getElementById(`saveDestBtn-${idx}`)?.remove();
+  } else {
+    showToast(res?.error || 'Failed to save destination.', 'error');
   }
 }
 
@@ -1238,6 +1404,12 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
       riderCount = 0;
       _lastCalculatedFare = 0;
       showView('dashboard');
+    } else if (res?.paymentFailed) {
+      showToast(res.error || 'Booking blocked — rider payment failed.', 'error');
+      // Offer to collect card inline
+      if (confirm('Payment on file failed. Would you like to collect a new card now?')) {
+        openCollectCardModal();
+      }
     } else {
       showToast(res?.error || 'Failed to schedule trip.', 'error');
     }
@@ -3084,7 +3256,30 @@ async function editRider(riderId) {
   document.getElementById('editRiderZip').value       = zip;
   document.getElementById('editRiderNotes').value     = r.notes || '';
 
+  // Populate common destinations
+  const destContainer = document.getElementById('editRiderCommonDests');
+  if (destContainer) {
+    destContainer.innerHTML = '';
+    (r.commonDestinations || []).forEach((d, i) => addCommonDestRow(d.label, d.address));
+  }
+
   openModal('editRiderModal');
+}
+
+function addCommonDestRow(label = '', address = '') {
+  const container = document.getElementById('editRiderCommonDests');
+  if (!container) return;
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px;align-items:center;';
+  row.innerHTML = `
+    <input type="text" class="form-input" placeholder="Label (e.g. Work, Doctor)" value="${label.replace(/"/g,'&quot;')}"
+      style="flex:0 0 140px;font-size:13px;" data-dest-label>
+    <input type="text" class="form-input" placeholder="Full address" value="${address.replace(/"/g,'&quot;')}"
+      style="flex:1;font-size:13px;" data-dest-address>
+    <button type="button" onclick="this.parentElement.remove()"
+      style="flex-shrink:0;width:32px;height:38px;border:1px solid #fca5a5;border-radius:8px;background:none;cursor:pointer;color:#ef4444;font-size:14px;">
+      <i class="fas fa-times"></i></button>`;
+  container.appendChild(row);
 }
 
 async function saveEditRider() {
@@ -3108,9 +3303,17 @@ async function saveEditRider() {
     return;
   }
 
+  // Collect common destinations from the dynamic rows
+  const commonDestinations = [];
+  document.querySelectorAll('#editRiderCommonDests [data-dest-label]').forEach(labelEl => {
+    const label   = labelEl.value.trim();
+    const address = labelEl.parentElement.querySelector('[data-dest-address]')?.value.trim();
+    if (address) commonDestinations.push({ label: label || address, address });
+  });
+
   const res = await ZakAuth.apiFetch(`/api/trips/riders/${riderId}`, {
     method: 'PUT',
-    body: JSON.stringify({ firstName, lastName, phone, email, homeAddress, notes })
+    body: JSON.stringify({ firstName, lastName, phone, email, homeAddress, notes, commonDestinations })
   });
 
   if (res?.success) {

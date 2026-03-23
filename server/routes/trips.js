@@ -162,7 +162,9 @@ router.get('/riders/:id', requireRole('admin', 'dispatcher'), async (req, res) =
       freeRideExpiresAtLabel: freeRideExpiresAt ? new Date(freeRideExpiresAt).toLocaleDateString('en-US') : null,
       paymentMode: freeRideActive ? 'free_ride' : (sub ? 'self_pay' : 'none'),
       paymentModeLabel: freeRideActive ? 'Free Ride Code' : (sub ? 'Self Pay / Wallet' : 'Not configured'),
-      subscriptionStatusLabel: sub ? `$${Number(sub.creditBalance || 0).toFixed(2)} balance` : null
+      subscriptionStatusLabel: sub ? `$${Number(sub.creditBalance || 0).toFixed(2)} balance` : null,
+      paymentFailed: rider.paymentFailed || false,
+      paymentFailedAt: rider.paymentFailedAt || null
     };
     res.json({ success: true, rider, paymentState });
   } catch (err) {
@@ -178,6 +180,38 @@ router.put('/riders/:id', requireRole('admin', 'dispatcher'), async (req, res) =
     const rider = await Rider.findOneAndUpdate(
       { _id: req.params.id, organization: req.organizationId },
       { firstName, lastName, phone, email, homeAddress, homeAddressLat, homeAddressLng, notes, commonDestinations, updatedAt: Date.now() },
+      { new: true }
+    );
+    if (!rider) return res.status(404).json({ success: false, error: 'Rider not found.' });
+    res.json({ success: true, rider });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/trips/riders/:id/clear-payment-failure — dispatcher clears the paymentFailed flag after rider updates card
+router.post('/riders/:id/clear-payment-failure', requireRole('admin', 'dispatcher'), async (req, res) => {
+  try {
+    const rider = await Rider.findOneAndUpdate(
+      { _id: req.params.id, organization: req.organizationId },
+      { paymentFailed: false, paymentFailedAt: null, updatedAt: Date.now() },
+      { new: true }
+    );
+    if (!rider) return res.status(404).json({ success: false, error: 'Rider not found.' });
+    res.json({ success: true, rider });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/trips/riders/:id/common-destinations — quick-add a single common destination
+router.post('/riders/:id/common-destinations', requireRole('admin', 'dispatcher'), async (req, res) => {
+  try {
+    const { label, address } = req.body;
+    if (!address) return res.status(400).json({ success: false, error: 'Address is required.' });
+    const rider = await Rider.findOneAndUpdate(
+      { _id: req.params.id, organization: req.organizationId },
+      { $push: { commonDestinations: { label: label || address, address } } },
       { new: true }
     );
     if (!rider) return res.status(404).json({ success: false, error: 'Rider not found.' });
@@ -320,6 +354,28 @@ router.get('/:id', async (req, res) => {
 // POST /api/trips — create trip
 router.post('/', requireRole('admin', 'dispatcher'), async (req, res) => {
   try {
+    // Block self_pay trips for riders with failed payment
+    if (req.body.payment?.type === 'self_pay' && Array.isArray(req.body.stops)) {
+      const riderIds = [...new Set(req.body.stops.map(s => s.riderId).filter(Boolean))];
+      if (riderIds.length > 0) {
+        const failedRiders = await Rider.find({
+          _id: { $in: riderIds },
+          organization: req.organizationId,
+          paymentFailed: true,
+          isActive: true
+        }).select('firstName lastName');
+        if (failedRiders.length > 0) {
+          const names = failedRiders.map(r => `${r.firstName} ${r.lastName}`).join(', ');
+          return res.status(402).json({
+            success: false,
+            error: `Booking blocked — payment on file has failed for: ${names}. Rider must update their payment method before new trips can be booked.`,
+            paymentFailed: true,
+            blockedRiders: failedRiders.map(r => ({ id: r._id, name: `${r.firstName} ${r.lastName}` }))
+          });
+        }
+      }
+    }
+
     const trip = new Trip({
       ...req.body,
       organization: req.organizationId,
@@ -384,9 +440,34 @@ router.post('/', requireRole('admin', 'dispatcher'), async (req, res) => {
                 sub.creditBalance += 100;
                 sub.payments.push({ amount: 100, stripePaymentIntentId: pi.id, type: 'replenishment' });
                 await sendSms(sub.phone, `Rydeworks: Your ride credit balance was replenished with $100. New balance: $${sub.creditBalance.toFixed(2)}.`);
+              } else {
+                // Payment did not succeed — flag the rider and send reminder SMS
+                try {
+                  const riderToFlag = await Rider.findOne({ $or: [{ _id: sub.rider }, { phone: sub.phone }], organization: req.organizationId });
+                  if (riderToFlag) {
+                    riderToFlag.paymentFailed   = true;
+                    riderToFlag.paymentFailedAt = new Date();
+                    await riderToFlag.save();
+                  }
+                } catch (flagErr) { console.warn('[paymentFailed flag]', flagErr.message); }
+                if (sub.phone) {
+                  await sendSms(sub.phone, `Rydeworks: Your payment of $100 did not go through. Future ride bookings will be paused until you update your payment method at rydeworks.com/book or call dispatch.`).catch(() => {});
+                }
               }
             } catch (replenishErr) {
               console.error('[Auto-replenish] Failed:', replenishErr.message);
+              // Also flag on exception (card declined, invalid, etc.)
+              try {
+                const riderToFlag = await Rider.findOne({ $or: [{ _id: sub.rider }, { phone: sub.phone }], organization: req.organizationId });
+                if (riderToFlag && !riderToFlag.paymentFailed) {
+                  riderToFlag.paymentFailed   = true;
+                  riderToFlag.paymentFailedAt = new Date();
+                  await riderToFlag.save();
+                }
+              } catch (flagErr) { console.warn('[paymentFailed flag]', flagErr.message); }
+              if (sub.phone) {
+                await sendSms(sub.phone, `Rydeworks: We were unable to process your payment. Please update your payment method at rydeworks.com/book or call dispatch to avoid interruption to your service.`).catch(() => {});
+              }
             }
           }
           await sub.save();
