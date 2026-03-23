@@ -317,12 +317,12 @@ document.addEventListener('change', (e) => {
     if (baseSel && v?.baseLocation) {
       const vName = (v.baseLocation.name || '').toLowerCase().trim();
       const vAddr = (v.baseLocation.address || '').toLowerCase().trim();
-      // Try exact match first, then case-insensitive, then partial address match
-      const options = Array.from(baseSel.options);
-      const match = options.find(o => o.value.toLowerCase().trim() === vName)
-                 || options.find(o => vName.includes(o.value.toLowerCase().trim()) || o.value.toLowerCase().trim().includes(vName))
-                 || options.find(o => vAddr.includes(o.value.toLowerCase().trim()));
-      if (match) baseSel.value = match.value;
+      // Match against full org home base objects (has address data) for reliable matching
+      const homeBases = appData.org?.homeBases || [];
+      const matched = homeBases.find(b => b.name.toLowerCase().trim() === vName)
+        || homeBases.find(b => { const bn = b.name.toLowerCase().trim(); return vName.includes(bn) || bn.includes(vName); })
+        || homeBases.find(b => vAddr && b.address && (b.address.toLowerCase().includes(vAddr) || vAddr.includes(b.address.toLowerCase())));
+      if (matched) baseSel.value = matched.name;
     }
     refreshFareAfterPaymentChange();
   }
@@ -445,13 +445,53 @@ function toggleDoneTrips() {
 
 // ── HELPERS ──────────────────────────────────────────────
 function tabToNext(event, nextId) {
-  // Only intercept Enter — let Tab work naturally through time input sub-components
-  if (event.key === 'Enter') {
+  if (event.key === 'Enter' || event.key === 'Tab') {
     const next = document.getElementById(nextId);
     if (next) {
       event.preventDefault();
       next.focus();
     }
+  }
+}
+
+// ── TIME INPUT HELPERS ────────────────────────────────────
+// Auto-formats text time inputs as HH:MM (24h) while user types
+function onTimeInput(input) {
+  let v = input.value.replace(/[^0-9]/g, '');
+  if (v.length > 4) v = v.slice(0, 4);
+  if (v.length >= 3) v = v.slice(0, 2) + ':' + v.slice(2);
+  input.value = v;
+}
+
+// Validates and zero-pads on blur; clears if invalid
+function onTimeBlur(input) {
+  const v = (input.value || '').trim();
+  if (!v) return;
+  const clean = v.replace(/[^0-9]/g, '');
+  if (clean.length < 3) { input.value = ''; return; }
+  const h = parseInt(clean.slice(0, 2), 10);
+  const m = parseInt(clean.slice(2, 4) || '0', 10);
+  if (isNaN(h) || isNaN(m) || h > 23 || m > 59) { input.value = ''; return; }
+  input.value = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+}
+
+// ── DESTINATION COMMON-DESTINATION AUTOFILL ───────────────
+// Stores common destinations per rider row so datalist selections can be parsed
+const riderCommonDests = {};
+
+function onDestStreetInput(idx) {
+  const val = document.getElementById(`riderDest-${idx}`)?.value || '';
+  const dests = riderCommonDests[idx] || [];
+  const match = dests.find(d => d.address === val);
+  if (match) {
+    const parsed = parseAddressComponents(match.address);
+    document.getElementById(`riderDest-${idx}`).value        = parsed.street || '';
+    document.getElementById(`riderDestApt-${idx}`).value     = parsed.apt   || '';
+    document.getElementById(`riderDestCity-${idx}`).value    = parsed.city  || '';
+    document.getElementById(`riderDestState-${idx}`).value   = parsed.state || 'FL';
+    document.getElementById(`riderDestZip-${idx}`).value     = parsed.zip   || '';
+    // Trigger fare calculation now that destination is fully filled
+    if (parsed.zip) onDestinationBlur(idx);
   }
 }
 
@@ -547,7 +587,7 @@ function addRiderRow() {
     </div>
     <div class="form-group">
       <label class="form-label">Destination Street *</label>
-      <input type="text" class="form-input" id="riderDest-${idx}" placeholder="456 Work Ave">
+      <input type="text" class="form-input" id="riderDest-${idx}" placeholder="456 Work Ave" oninput="onDestStreetInput(${idx})">
     </div>
     <div class="form-row" style="margin-top:-4px">
       <div class="form-group" style="flex:0 0 120px"><label class="form-label">Apt/Unit</label><input type="text" class="form-input" id="riderDestApt-${idx}" placeholder="Suite 100"></div>
@@ -558,13 +598,18 @@ function addRiderRow() {
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Appt/Work Time <span style="color:var(--gray-400);font-size:11px;">(sets pickup estimate)</span></label>
-        <input type="time" class="form-input" id="riderApptTime-${idx}"
-          onchange="onApptTimeChange(${idx})"
+        <input type="text" inputmode="numeric" maxlength="5" class="form-input" id="riderApptTime-${idx}"
+          placeholder="HH:MM"
+          oninput="onTimeInput(this)"
+          onblur="onTimeBlur(this);onApptTimeChange(${idx})"
           onkeydown="tabToNext(event,'riderPickupTime-${idx}')">
       </div>
       <div class="form-group">
         <label class="form-label">Pickup Time</label>
-        <input type="time" class="form-input" id="riderPickupTime-${idx}"
+        <input type="text" inputmode="numeric" maxlength="5" class="form-input" id="riderPickupTime-${idx}"
+          placeholder="HH:MM"
+          oninput="onTimeInput(this)"
+          onblur="onTimeBlur(this)"
           onkeydown="tabToNext(event,'riderReturnTime-${idx}')">
       </div>
       <div class="form-group">
@@ -576,7 +621,10 @@ function addRiderRow() {
       </div>
       <div class="form-group" id="returnTimeGroup-${idx}">
         <label class="form-label">Return Pickup Time</label>
-        <input type="time" class="form-input" id="riderReturnTime-${idx}" placeholder="Return pickup time">
+        <input type="text" inputmode="numeric" maxlength="5" class="form-input" id="riderReturnTime-${idx}"
+          placeholder="HH:MM"
+          oninput="onTimeInput(this)"
+          onblur="onTimeBlur(this)">
         <small style="color:var(--gray-500);font-size:11px;margin-top:2px;display:block">Time driver picks up for return trip</small>
       </div>
     </div>
@@ -633,7 +681,8 @@ async function onRiderSelect(idx) {
     saveAddressToMemory(r.homeAddress);
   }
 
-  // Populate destination suggestions from rider's common destinations
+  // Store and populate destination suggestions from rider's common destinations
+  riderCommonDests[idx] = r.commonDestinations || [];
   const destListId = `riderDestList-${idx}`;
   let destList = document.getElementById(destListId);
   if (!destList) {
@@ -659,6 +708,24 @@ async function onRiderSelect(idx) {
   }
 
   showRiderPaymentState(res.paymentState || null);
+
+  // Auto-switch to free ride if rider has an active code
+  if (res.paymentState?.freeRideActive) {
+    const payEl = document.getElementById('paymentType');
+    if (payEl && payEl.value !== 'free_ride') {
+      payEl.value = 'free_ride';
+      onPaymentTypeChange();
+    }
+    const codeEl = document.getElementById('freeRideCode');
+    if (codeEl && res.paymentState.freeRideCode) codeEl.value = res.paymentState.freeRideCode;
+    const expiryEl = document.getElementById('freeRideExpiry');
+    if (expiryEl && res.paymentState.freeRideExpiresAtLabel) {
+      expiryEl.style.display = 'block';
+      expiryEl.style.color = '#856404';
+      expiryEl.textContent = `♻️ Active code — valid until ${res.paymentState.freeRideExpiresAtLabel}`;
+    }
+  }
+
   refreshFareAfterPaymentChange();
 }
 
@@ -2033,13 +2100,23 @@ function renderOpsDashboard(d) {
 
   // Stat cards
   const pct = d.trips.total > 0 ? Math.round(d.trips.completed / d.trips.total * 100) : 0;
+  const onTimePct = (() => {
+    const ot = d.service?.onTime;
+    const totalPU = (ot?.pickups?.onTime || 0) + (ot?.pickups?.late || 0);
+    const totalDO = (ot?.dropoffs?.onTime || 0) + (ot?.dropoffs?.late || 0);
+    const total = totalPU + totalDO;
+    if (!total) return null;
+    return Math.round(((ot.pickups.onTime + ot.dropoffs.onTime) / total) * 100);
+  })();
   document.getElementById('opsStatCards').innerHTML = [
-    { label: 'Completed Trips', value: d.trips.completed, sub: `${pct}% completion rate`, color: '#00D4C8' },
+    { label: 'Total Trips Booked', value: d.trips.total, sub: `${d.trips.completed} completed · ${d.trips.canceled} canceled`, color: '#00D4C8' },
+    { label: 'Completed Trips', value: d.trips.completed, sub: `${pct}% completion rate`, color: '#38a169' },
     { label: 'Unique Riders', value: d.riders.activeInPeriod, sub: `of ${d.riders.total} total enrolled`, color: '#5a67d8' },
     { label: 'Miles Provided', value: d.service.totalMiles.toLocaleString(), sub: `avg ${d.service.avgMilesPerTrip} mi/trip`, color: '#38a169' },
     { label: 'Revenue Collected', value: `$${d.financial.revenue.toLocaleString()}`, sub: `$${d.financial.avgFarePerTrip} avg fare`, color: '#d69e2e' },
-    { label: 'Service Value', value: `$${d.financial.totalFareValue.toLocaleString()}`, sub: 'incl. grant-funded trips', color: '#e53e3e' },
-    { label: 'Active Subscribers', value: d.riders.activeSubs, sub: `${d.riders.cancelledSubs} cancelled`, color: '#00B4AA' }
+    { label: 'Service Value', value: `$${d.financial.totalFareValue.toLocaleString()}`, sub: 'incl. grant & free ride trips', color: '#e53e3e' },
+    { label: 'Active Subscribers', value: d.riders.activeSubs, sub: `${d.riders.cancelledSubs} cancelled`, color: '#00B4AA' },
+    ...(onTimePct !== null ? [{ label: 'On-Time Performance', value: `${onTimePct}%`, sub: `pickups & drop-offs combined`, color: onTimePct >= 80 ? '#38a169' : '#d69e2e' }] : [])
   ].map(s => `
     <div class="r-stat-card">
       <div class="r-stat-label">${s.label}</div>
@@ -2174,9 +2251,24 @@ function renderGrantReport(d) {
         <div class="grant-kpi"><div class="kv">${d.summary.totalTrips}</div><div class="kl">Total Trips Provided</div></div>
         <div class="grant-kpi"><div class="kv">${d.summary.uniqueRiders}</div><div class="kl">Unduplicated Riders Served</div></div>
         <div class="grant-kpi"><div class="kv">${d.summary.totalMiles.toLocaleString()}</div><div class="kl">Total Miles of Transportation</div></div>
-        <div class="grant-kpi"><div class="kv">$${d.summary.totalFareValue.toLocaleString()}</div><div class="kl">Value of Services Delivered</div></div>
+        <div class="grant-kpi"><div class="kv">$${d.summary.totalFareValue.toLocaleString()}</div><div class="kl">Potential Revenue Generated</div></div>
         <div class="grant-kpi"><div class="kv">${d.summary.avgMilesPerTrip}</div><div class="kl">Avg Miles Per Trip</div></div>
-        <div class="grant-kpi"><div class="kv">$${d.summary.costPerRider.toFixed(2)}</div><div class="kl">Cost Per Rider Served</div></div>
+        <div class="grant-kpi"><div class="kv">$${d.summary.costPerRider.toFixed(2)}</div><div class="kl">Avg Value Per Rider Served</div></div>
+        ${d.summary.grantTrips || d.summary.freeRideTrips ? `
+        <div class="grant-kpi"><div class="kv">${d.summary.grantTrips || 0}</div><div class="kl">Grant-Funded Trips</div></div>
+        <div class="grant-kpi"><div class="kv">${d.summary.freeRideTrips || 0}</div><div class="kl">Free Ride Trips</div></div>` : ''}
+        ${(() => {
+          const ot = d.summary.onTime;
+          if (!ot) return '';
+          const puTotal  = (ot.pickups.onTime  + ot.pickups.late);
+          const doTotal  = (ot.dropoffs.onTime + ot.dropoffs.late);
+          const puPct    = puTotal  ? Math.round(ot.pickups.onTime  / puTotal  * 100) : null;
+          const doPct    = doTotal  ? Math.round(ot.dropoffs.onTime / doTotal  * 100) : null;
+          if (puPct === null && doPct === null) return '';
+          return `
+          ${puPct !== null ? `<div class="grant-kpi"><div class="kv">${puPct}%</div><div class="kl">On-Time Pickup Rate</div></div>` : ''}
+          ${doPct !== null ? `<div class="grant-kpi"><div class="kv">${doPct}%</div><div class="kl">On-Time Drop-Off Rate</div></div>` : ''}`;
+        })()}
       </div>
 
       ${d.byZip.length ? `
@@ -2192,11 +2284,11 @@ function renderGrantReport(d) {
 
       ${d.riderRows.length ? `
       <div class="gr-section-title">Rider Activity Summary (Anonymous)</div>
-      <p style="font-size:12px;color:#9ca3af;margin-bottom:10px;">Rider IDs are anonymized system identifiers. No personally identifiable information is included in this report.</p>
+      <p style="font-size:12px;color:#9ca3af;margin-bottom:10px;">Rider IDs are anonymized system identifiers. No personally identifiable information is included in this report. Potential Revenue reflects the calculated fare value of grant-funded and free ride trips — actual costs include driver labor, vehicle, fuel, and insurance not captured here.</p>
       <table class="gr-table">
-        <thead><tr><th>Rider ID</th><th>Zip Code</th><th>Trips</th><th>Miles</th><th>Fare Value</th></tr></thead>
+        <thead><tr><th>Rider ID</th><th>Zip Code</th><th>Trips</th><th>Miles</th><th>Potential Revenue</th></tr></thead>
         <tbody>${riderRows}</tbody>
-      </table>` : '<div style="color:#9ca3af;font-size:13px;padding:20px 0;">No grant-funded trips found for this period.</div>'}
+      </table>` : '<div style="color:#9ca3af;font-size:13px;padding:20px 0;">No grant-funded or free ride trips found for this period.</div>'}
 
       <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:11px;color:#9ca3af;">
         This report was generated by the Rydeworks transportation management platform. All rider data is anonymized in accordance with privacy policy. Contact (727) 313-1241 with questions.

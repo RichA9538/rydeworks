@@ -679,10 +679,21 @@ async function startShift() {
 
 // ── END SHIFT ─────────────────────────────────────────────
 async function endShift() {
-  if (!currentTrip) { showToast('No active trip found', 'error'); return; }
-
   const endMileage = document.getElementById('endMileage').value;
   if (!endMileage) { showToast('Please enter your ending mileage', 'error'); return; }
+
+  // Standby mode — no active trip, just mark driver offline
+  if (!currentTrip) {
+    await ZakAuth.apiFetch('/api/trips/driver/availability', {
+      method: 'POST',
+      body: JSON.stringify({ isAvailable: false })
+    });
+    shiftStarted = false;
+    persistShiftStarted(false);
+    showToast('Shift ended. Have a good rest!', 'success');
+    showScreen('start', false);
+    return;
+  }
 
   const res = await ZakAuth.apiFetch(`/api/trips/${currentTrip._id}/complete`, {
     method: 'POST',
@@ -690,11 +701,16 @@ async function endShift() {
   });
 
   if (res?.success) {
+    // Explicitly mark driver offline so dispatch dashboard reflects off status
+    await ZakAuth.apiFetch('/api/trips/driver/availability', {
+      method: 'POST',
+      body: JSON.stringify({ isAvailable: false })
+    });
     currentTrip = null;
     shiftStarted = false;
     persistShiftStarted(false);
     selectedMapTarget = null;
-    showToast('Shift complete! Great work today. 🎉', 'success');
+    showToast('Shift complete! Great work today.', 'success');
     renderNoTrips();
     showScreen('start', false);
   } else {
