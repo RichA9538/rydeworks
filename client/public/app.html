@@ -128,16 +128,20 @@
       <button class="logout-btn" id="switchToDriverBtn" onclick="window.location.href='/driver.html'" title="Switch to Driver App" style="display:none">
         <i class="fas fa-mobile-alt"></i>
       </button>
+      <button class="logout-btn" onclick="openChangePasswordModal()" title="Change password">
+        <i class="fas fa-key"></i>
+      </button>
       <button class="logout-btn" onclick="ZakAuth.logout()" title="Sign out">
         <i class="fas fa-sign-out-alt"></i>
       </button>
     </div>
   </aside>
   <script>
-    // Show the Switch to Driver App button only if user also has the driver role
+    // Show the Switch to Driver App button for admins and users with driver role
     document.addEventListener('DOMContentLoaded', () => {
       const user = JSON.parse(localStorage.getItem('zak_user') || '{}');
-      if ((user.roles || []).includes('driver')) {
+      const roles = user.roles || [];
+      if (roles.includes('driver') || roles.includes('admin') || roles.includes('super_admin')) {
         const btn = document.getElementById('switchToDriverBtn');
         if (btn) { btn.style.display = ''; btn.title = 'Switch to Driver App'; }
       }
@@ -1089,19 +1093,32 @@
         <i class="fas fa-info-circle"></i> <strong>No charge today.</strong> Save a payment method now — weekly billing begins after their 30-day free ride period ends. A Free Ride Code will be texted to the rider.
       </div>
       <!-- Payment method tabs -->
-      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-        <button type="button" id="enrollTab-card"      onclick="switchEnrollTab('card')"      style="flex:1;padding:8px 4px;border-radius:8px;border:2px solid var(--primary-color);background:rgba(0,212,200,0.08);font-size:13px;font-weight:600;cursor:pointer;color:var(--dark)"><i class="fas fa-credit-card"></i> Card</button>
-        <button type="button" id="enrollTab-venmo"     onclick="switchEnrollTab('venmo')"     style="flex:1;padding:8px 4px;border-radius:8px;border:2px solid var(--gray-300);background:var(--white);font-size:13px;font-weight:600;cursor:pointer;color:var(--dark)"><i class="fab fa-vimeo-v"></i> Venmo</button>
-        <button type="button" id="enrollTab-cashapp"   onclick="switchEnrollTab('cashapp')"   style="flex:1;padding:8px 4px;border-radius:8px;border:2px solid var(--gray-300);background:var(--white);font-size:13px;font-weight:600;cursor:pointer;color:var(--dark)"><i class="fas fa-dollar-sign"></i> Cash App</button>
-        <button type="button" id="enrollTab-payroll"   onclick="switchEnrollTab('payroll')"   style="flex:1;padding:8px 4px;border-radius:8px;border:2px solid var(--gray-300);background:var(--white);font-size:13px;font-weight:600;cursor:pointer;color:var(--dark)"><i class="fas fa-building"></i> Payroll</button>
+      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+        <button type="button" id="enrollTab-card"    onclick="switchEnrollTab('card')"    style="flex:1;padding:8px 4px;border-radius:8px;border:2px solid var(--primary-color);background:rgba(0,212,200,0.08);font-size:12px;font-weight:600;cursor:pointer;color:var(--dark)"><i class="fas fa-credit-card"></i> Card</button>
+        <button type="button" id="enrollTab-ach"     onclick="switchEnrollTab('ach')"     style="flex:1;padding:8px 4px;border-radius:8px;border:2px solid var(--gray-300);background:var(--white);font-size:12px;font-weight:600;cursor:pointer;color:var(--dark)"><i class="fas fa-university"></i> ACH</button>
+        <button type="button" id="enrollTab-venmo"   onclick="switchEnrollTab('venmo')"   style="flex:1;padding:8px 4px;border-radius:8px;border:2px solid var(--gray-300);background:var(--white);font-size:12px;font-weight:600;cursor:pointer;color:var(--dark)"><i class="fab fa-vimeo-v"></i> Venmo</button>
+        <button type="button" id="enrollTab-cashapp" onclick="switchEnrollTab('cashapp')" style="flex:1;padding:8px 4px;border-radius:8px;border:2px solid var(--gray-300);background:var(--white);font-size:12px;font-weight:600;cursor:pointer;color:var(--dark)"><i class="fas fa-dollar-sign"></i> Cash App</button>
+        <button type="button" id="enrollTab-payroll" onclick="switchEnrollTab('payroll')" style="flex:1;padding:8px 4px;border-radius:8px;border:2px solid var(--gray-300);background:var(--white);font-size:12px;font-weight:600;cursor:pointer;color:var(--dark)"><i class="fas fa-building"></i> Payroll</button>
       </div>
       <!-- Card panel -->
       <div id="enrollPanel-card">
         <div id="enrollStripeElement" style="padding:12px;border:1px solid var(--gray-300);border-radius:8px;background:#fff;min-height:44px;"></div>
       </div>
+      <!-- ACH panel -->
+      <div id="enrollPanel-ach" style="display:none;">
+        <p style="font-size:13px;color:var(--gray-600);margin-bottom:8px;">Direct bank withdrawal from rider's personal account. Weekly fares are pulled automatically every Friday.</p>
+        <div class="form-group"><label class="form-label">Account Holder Name</label><input type="text" class="form-input" id="enrollAchName" placeholder="Jane Doe"></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Routing Number</label><input type="text" class="form-input" id="enrollAchRouting" placeholder="021000021" maxlength="9" inputmode="numeric"></div>
+          <div class="form-group"><label class="form-label">Account Number</label><input type="text" class="form-input" id="enrollAchAccount" placeholder="000123456789" inputmode="numeric"></div>
+        </div>
+        <div class="form-group"><label class="form-label">Account Type</label>
+          <select class="form-input" id="enrollAchType"><option value="checking">Checking</option><option value="savings">Savings</option></select>
+        </div>
+      </div>
       <!-- Venmo panel -->
       <div id="enrollPanel-venmo" style="display:none;">
-        <p style="font-size:13px;color:var(--gray-600);margin-bottom:8px;">Rider pays weekly via Venmo. Enter their Venmo handle so you can send payment reminders.</p>
+        <p style="font-size:13px;color:var(--gray-600);margin-bottom:8px;">Rider pays weekly via Venmo. Enter their handle so dispatchers can track payments.</p>
         <input type="text" class="form-input" id="enrollVenmoHandle" placeholder="@rider-venmo-handle">
       </div>
       <!-- Cash App panel -->
@@ -1111,10 +1128,18 @@
       </div>
       <!-- Payroll panel -->
       <div id="enrollPanel-payroll" style="display:none;">
-        <p style="font-size:13px;color:var(--gray-600);margin-bottom:8px;">Fares deducted from rider's paycheck. Employer must be enrolled in the Rydeworks payroll program.</p>
-        <div class="form-group"><label class="form-label">Employer Name</label><input type="text" class="form-input" id="enrollEmployerName" placeholder="ABC Company"></div>
-        <div class="form-group"><label class="form-label">Contact Name</label><input type="text" class="form-input" id="enrollEmployerContact" placeholder="HR Manager"></div>
-        <div class="form-group"><label class="form-label">Contact Email</label><input type="email" class="form-input" id="enrollEmployerEmail" placeholder="hr@company.com"></div>
+        <p style="font-size:13px;color:var(--gray-600);margin-bottom:8px;">Fares deducted from rider's paycheck via employer. Fill in employer info and their bank details for ACH pull on payroll dates.</p>
+        <div class="form-group"><label class="form-label">Employer Name *</label><input type="text" class="form-input" id="enrollEmployerName" placeholder="ABC Company"></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">HR Contact Name</label><input type="text" class="form-input" id="enrollEmployerContact" placeholder="Jane Smith"></div>
+          <div class="form-group"><label class="form-label">HR Contact Email</label><input type="email" class="form-input" id="enrollEmployerEmail" placeholder="hr@company.com"></div>
+        </div>
+        <div style="border-top:1px solid var(--gray-200);margin:10px 0 10px;padding-top:10px;font-size:12px;font-weight:700;color:var(--gray-600);">EMPLOYER BANK ACCOUNT (for ACH deduction)</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Routing Number</label><input type="text" class="form-input" id="enrollPayrollRouting" placeholder="021000021" maxlength="9" inputmode="numeric"></div>
+          <div class="form-group"><label class="form-label">Account Number</label><input type="text" class="form-input" id="enrollPayrollAccount" placeholder="000123456789" inputmode="numeric"></div>
+        </div>
+        <p style="font-size:11px;color:var(--gray-500);margin-top:4px;"><i class="fas fa-lock"></i> Bank details are stored securely and used solely for authorized payroll deduction of transportation fares.</p>
       </div>
       <div id="enrollCardError" style="color:#e53e3e;font-size:13px;margin-top:8px;display:none;"></div>
       <div id="enrollSuccessBox" style="display:none;margin-top:16px;padding:16px;background:#d1e7dd;border-radius:8px;border:1px solid #a3cfbb;">
@@ -1128,6 +1153,34 @@
       <button class="btn btn-primary" id="enrollSubmitBtn" onclick="submitEnrollment()">
         <i class="fas fa-user-check"></i> Enroll Rider
       </button>
+    </div>
+  </div>
+
+  <!-- Change Password Modal -->
+  <div class="modal" id="changePasswordModal" style="max-width:400px;">
+    <div class="modal-header">
+      <h3><i class="fas fa-key"></i> Change Password</h3>
+      <button class="modal-close" onclick="closeModal('changePasswordModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Current Password</label>
+        <input type="password" class="form-input" id="cpCurrentPassword" placeholder="Your current password">
+      </div>
+      <div class="form-group">
+        <label class="form-label">New Password</label>
+        <input type="password" class="form-input" id="cpNewPassword" placeholder="At least 8 characters">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirm New Password</label>
+        <input type="password" class="form-input" id="cpConfirmPassword" placeholder="Repeat new password">
+      </div>
+      <div id="cpError" style="color:#e53e3e;font-size:13px;display:none;"></div>
+      <div id="cpSuccess" style="color:#28a745;font-size:13px;display:none;"><i class="fas fa-check-circle"></i> Password changed successfully.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('changePasswordModal')">Cancel</button>
+      <button class="btn btn-primary" id="cpSubmitBtn" onclick="submitChangePassword()"><i class="fas fa-lock"></i> Update Password</button>
     </div>
   </div>
 

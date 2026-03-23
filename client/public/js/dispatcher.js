@@ -79,6 +79,52 @@ function showRiderPaymentState(state) {
   txt.textContent = bits.join(' • ');
 }
 
+// Change Password modal
+function openChangePasswordModal() {
+  document.getElementById('cpCurrentPassword').value = '';
+  document.getElementById('cpNewPassword').value = '';
+  document.getElementById('cpConfirmPassword').value = '';
+  document.getElementById('cpError').style.display = 'none';
+  document.getElementById('cpSuccess').style.display = 'none';
+  document.getElementById('cpSubmitBtn').disabled = false;
+  document.getElementById('cpSubmitBtn').innerHTML = '<i class="fas fa-lock"></i> Update Password';
+  openModal('changePasswordModal');
+}
+
+async function submitChangePassword() {
+  const current  = document.getElementById('cpCurrentPassword').value;
+  const newPass  = document.getElementById('cpNewPassword').value;
+  const confirm  = document.getElementById('cpConfirmPassword').value;
+  const errEl    = document.getElementById('cpError');
+  const successEl = document.getElementById('cpSuccess');
+  const btn = document.getElementById('cpSubmitBtn');
+  errEl.style.display = 'none';
+  successEl.style.display = 'none';
+
+  if (!current || !newPass || !confirm) { errEl.textContent = 'All fields are required.'; errEl.style.display = 'block'; return; }
+  if (newPass.length < 8) { errEl.textContent = 'New password must be at least 8 characters.'; errEl.style.display = 'block'; return; }
+  if (newPass !== confirm) { errEl.textContent = 'New passwords do not match.'; errEl.style.display = 'block'; return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+
+  const res = await ZakAuth.apiFetch('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword: current, newPassword: newPass })
+  });
+
+  if (res?.success) {
+    successEl.style.display = 'block';
+    btn.innerHTML = '<i class="fas fa-check"></i> Done';
+    setTimeout(() => closeModal('changePasswordModal'), 1500);
+  } else {
+    errEl.textContent = res?.error || 'Failed to update password.';
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-lock"></i> Update Password';
+  }
+}
+
 // Dispatcher collect-card modal (for payment failures)
 let _collectCardStripe = null;
 let _collectCardElement = null;
@@ -2103,7 +2149,7 @@ let _enrollTab = 'card';
 
 function switchEnrollTab(tab) {
   _enrollTab = tab;
-  ['card','venmo','cashapp','payroll'].forEach(t => {
+  ['card','ach','venmo','cashapp','payroll'].forEach(t => {
     const btn = document.getElementById(`enrollTab-${t}`);
     const panel = document.getElementById(`enrollPanel-${t}`);
     if (btn) {
@@ -2121,11 +2167,16 @@ async function openEnrollModal(riderId, firstName, lastName, phone, email, homeA
   document.getElementById('enrollCardError').style.display = 'none';
   document.getElementById('enrollSuccessBox').style.display = 'none';
   document.getElementById('enrollModalFooter').style.display = 'flex';
-  document.getElementById('enrollVenmoHandle').value   = '';
-  document.getElementById('enrollCashAppHandle').value = '';
-  document.getElementById('enrollEmployerName').value  = '';
+  document.getElementById('enrollVenmoHandle').value    = '';
+  document.getElementById('enrollCashAppHandle').value  = '';
+  document.getElementById('enrollEmployerName').value   = '';
   document.getElementById('enrollEmployerContact').value = '';
-  document.getElementById('enrollEmployerEmail').value   = '';
+  document.getElementById('enrollEmployerEmail').value  = '';
+  document.getElementById('enrollAchName').value        = '';
+  document.getElementById('enrollAchRouting').value     = '';
+  document.getElementById('enrollAchAccount').value     = '';
+  document.getElementById('enrollPayrollRouting').value = '';
+  document.getElementById('enrollPayrollAccount').value = '';
   const submitBtn = document.getElementById('enrollSubmitBtn');
   submitBtn.disabled = false;
   submitBtn.innerHTML = '<i class="fas fa-user-check"></i> Enroll Rider';
@@ -2201,6 +2252,16 @@ async function submitEnrollment() {
       payload.paymentMethodId  = setupIntent.payment_method;
       payload.stripeCustomerId = siData.customerId;
 
+    } else if (_enrollTab === 'ach') {
+      const achName    = document.getElementById('enrollAchName').value.trim();
+      const achRouting = document.getElementById('enrollAchRouting').value.trim();
+      const achAccount = document.getElementById('enrollAchAccount').value.trim();
+      const achType    = document.getElementById('enrollAchType').value;
+      if (!achName || !achRouting || !achAccount) throw new Error('Please fill in all bank account fields.');
+      if (!/^\d{9}$/.test(achRouting)) throw new Error('Routing number must be exactly 9 digits.');
+      payload.achName = achName; payload.achRouting = achRouting;
+      payload.achAccount = achAccount; payload.achAccountType = achType;
+
     } else if (_enrollTab === 'venmo') {
       const handle = document.getElementById('enrollVenmoHandle').value.trim();
       if (!handle) throw new Error('Please enter the rider\'s Venmo handle.');
@@ -2215,6 +2276,8 @@ async function submitEnrollment() {
       payload.employerName    = document.getElementById('enrollEmployerName').value.trim();
       payload.employerContact = document.getElementById('enrollEmployerContact').value.trim();
       payload.employerEmail   = document.getElementById('enrollEmployerEmail').value.trim();
+      payload.payrollRouting  = document.getElementById('enrollPayrollRouting').value.trim();
+      payload.payrollAccount  = document.getElementById('enrollPayrollAccount').value.trim();
       if (!payload.employerName) throw new Error('Please enter the employer name.');
     }
 
