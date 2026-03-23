@@ -328,6 +328,12 @@
         localStorage.setItem('zak_token', data.token);
         localStorage.setItem('zak_user', JSON.stringify(data.user));
 
+        // First-login: must change password before accessing the app
+        if (data.mustChangePassword) {
+          window.location.href = '/reset-password.html?firstLogin=1';
+          return;
+        }
+
         // Redirect based on roles
         redirectByRole(data.user);
 

@@ -308,6 +308,24 @@ function populateFormDropdowns() {
       userVehSel.innerHTML += `<option value="${v._id}">${v.name}</option>`;
     });
   }
+
+  // Vehicle modal home base selects — populated from org home bases
+  const baseOpts = (appData.org?.homeBases || []).map(b => `<option value="${b.name}">${b.name}</option>`).join('');
+  ['vehBaseName','editVehBaseName'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (sel) sel.innerHTML = '<option value="">No base assigned</option>' + baseOpts;
+  });
+}
+
+// When a home base is selected in a vehicle modal, store its address in hidden fields
+function onVehicleBaseSelect(selId, streetId, cityId, stateId, zipId) {
+  const baseName = document.getElementById(selId)?.value;
+  const base = (appData.org?.homeBases || []).find(b => b.name === baseName);
+  const parsed = parseAddressComponents(base?.address || '');
+  document.getElementById(streetId).value = parsed.street || '';
+  document.getElementById(cityId).value   = parsed.city   || '';
+  document.getElementById(stateId).value  = parsed.state  || 'FL';
+  document.getElementById(zipId).value    = parsed.zip    || '';
 }
 
 document.addEventListener('change', (e) => {
@@ -321,7 +339,8 @@ document.addEventListener('change', (e) => {
       const homeBases = appData.org?.homeBases || [];
       const matched = homeBases.find(b => b.name.toLowerCase().trim() === vName)
         || homeBases.find(b => { const bn = b.name.toLowerCase().trim(); return vName.includes(bn) || bn.includes(vName); })
-        || homeBases.find(b => vAddr && b.address && (b.address.toLowerCase().includes(vAddr) || vAddr.includes(b.address.toLowerCase())));
+        || homeBases.find(b => vAddr && b.address && (b.address.toLowerCase().includes(vAddr) || vAddr.includes(b.address.toLowerCase())))
+        || homeBases.find(b => b.isDefault);
       if (matched) baseSel.value = matched.name;
     }
     refreshFareAfterPaymentChange();
@@ -2736,32 +2755,63 @@ async function saveNewRider() {
   }
 }
 
+function previewUserEmail() {
+  const first = (document.getElementById('userFirstName')?.value || '').trim();
+  const last  = (document.getElementById('userLastName')?.value  || '').trim();
+  const prev  = document.getElementById('userEmailPreview');
+  if (!prev) return;
+  if (!first || !last) { prev.textContent = 'Enter first and last name above...'; return; }
+  const base = first.toLowerCase().replace(/[^a-z]/g, '') + last[0].toLowerCase();
+  prev.textContent = `${base}@rydeworks.com`;
+}
+
 async function saveNewUser() {
   const firstName = document.getElementById('userFirstName').value.trim();
   const lastName  = document.getElementById('userLastName').value.trim();
-  const email     = document.getElementById('userEmail').value.trim();
   const phone     = document.getElementById('userPhone').value.trim();
-  const password  = document.getElementById('userPassword').value;
   const vehicleId = document.getElementById('userVehicle').value;
 
   const roles = [];
   document.querySelectorAll('#addUserModal .checkbox-group input:checked').forEach(cb => roles.push(cb.value));
 
-  if (!firstName || !lastName || !email || !password) {
-    showToast('All required fields must be filled.', 'error');
+  if (!firstName || !lastName) {
+    showToast('First and last name are required.', 'error');
     return;
   }
 
   const res = await ZakAuth.apiFetch('/api/admin/users', {
     method: 'POST',
-    body: JSON.stringify({ firstName, lastName, email, phone, password, roles, vehicleId: vehicleId || null })
+    body: JSON.stringify({ firstName, lastName, phone, roles, vehicleId: vehicleId || null })
   });
 
   if (res?.success) {
-    showToast(`${firstName} ${lastName} added to team!`, 'success');
+    const { email, tempPassword } = res.credentials || {};
+    // Show generated credentials before closing — admin must copy these to share
     closeModal('addUserModal');
     loadTeam();
     await loadAppData();
+    // Show credentials in a persistent dialog
+    const credBox = document.createElement('div');
+    credBox.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    credBox.innerHTML = `
+      <div style="background:#fff;border-radius:16px;padding:32px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <div style="text-align:center;margin-bottom:20px;">
+          <i class="fas fa-user-check" style="font-size:40px;color:#38a169;"></i>
+          <h3 style="margin-top:12px;font-size:18px;">${firstName} ${lastName} added!</h3>
+          <p style="color:#6b7280;font-size:13px;margin-top:4px;">Share these login credentials with them. They must change their password on first login.</p>
+        </div>
+        <div style="background:#f1f5f9;border-radius:10px;padding:16px;margin-bottom:20px;">
+          <div style="margin-bottom:10px;"><span style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;">Login Email</span><br><span style="font-family:monospace;font-size:15px;color:#1e293b;">${email || '—'}</span></div>
+          <div><span style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;">Temporary Password</span><br><span style="font-family:monospace;font-size:15px;color:#1e293b;">${tempPassword || '—'}</span></div>
+        </div>
+        <button onclick="navigator.clipboard?.writeText('Email: ${email}\\nPassword: ${tempPassword}');this.textContent='Copied!';" style="width:100%;padding:12px;background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;border-radius:8px;font-weight:600;cursor:pointer;margin-bottom:10px;font-size:14px;">
+          <i class="fas fa-copy"></i> Copy Credentials
+        </button>
+        <button onclick="this.closest('[style*=fixed]').remove();" style="width:100%;padding:12px;background:#374151;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;">
+          Done
+        </button>
+      </div>`;
+    document.body.appendChild(credBox);
   } else {
     showToast(res?.error || 'Failed to add team member.', 'error');
   }
@@ -2820,14 +2870,12 @@ async function saveVehicle() {
   const model      = document.getElementById('vehModel').value.trim();
   const year       = parseInt(document.getElementById('vehYear').value) || null;
   const capacity   = parseInt(document.getElementById('vehCapacity').value) || 7;
-  const vbStreet   = document.getElementById('vehBaseStreet').value.trim();
-  const vbCity     = document.getElementById('vehBaseCity').value.trim();
-  const vbState    = document.getElementById('vehBaseState').value.trim().toUpperCase();
-  const vbZip      = document.getElementById('vehBaseZip').value.trim();
   const vbName     = document.getElementById('vehBaseName').value.trim();
-  const vbAddrParts = [vbStreet, vbCity && vbState ? `${vbCity}, ${vbState}` : vbCity || vbState, vbZip].filter(Boolean);
-  const baseAddress = vbAddrParts.join(' ');
-  const baseLocation = baseAddress ? { address: baseAddress, name: vbName || (name + ' Base') } : null;
+  // Pull full base data from org home bases so name always matches exactly
+  const orgBase    = (appData.org?.homeBases || []).find(b => b.name === vbName);
+  const baseLocation = orgBase
+    ? { name: orgBase.name, address: orgBase.address, lat: orgBase.lat, lng: orgBase.lng }
+    : null;
 
   if (!name) { showToast('Vehicle name is required.', 'error'); return; }
 
@@ -3163,11 +3211,6 @@ function editVehicle(vehicleId) {
   document.getElementById('editVehYear').value     = v.year || '';
   document.getElementById('editVehCapacity').value = v.capacity || 7;
   document.getElementById('editVehStatus').value   = v.status || 'available';
-  const { street: evbStreet, city: evbCity, state: evbState, zip: evbZip } = parseAddressComponents(v.baseLocation?.address || '');
-  document.getElementById('editVehBaseStreet').value = evbStreet;
-  document.getElementById('editVehBaseCity').value   = evbCity;
-  document.getElementById('editVehBaseState').value  = evbState || 'FL';
-  document.getElementById('editVehBaseZip').value    = evbZip;
   document.getElementById('editVehBaseName').value = v.baseLocation?.name || '';
   openModal('editVehicleModal');
 }
@@ -3181,17 +3224,15 @@ async function saveEditVehicle() {
   const year     = parseInt(document.getElementById('editVehYear').value) || null;
   const capacity = parseInt(document.getElementById('editVehCapacity').value) || 7;
   const status   = document.getElementById('editVehStatus').value;
-  const evbStreet   = document.getElementById('editVehBaseStreet').value.trim();
-  const evbCity     = document.getElementById('editVehBaseCity').value.trim();
-  const evbState    = document.getElementById('editVehBaseState').value.trim().toUpperCase();
-  const evbZip      = document.getElementById('editVehBaseZip').value.trim();
-  const evbParts    = [evbStreet, evbCity && evbState ? `${evbCity}, ${evbState}` : evbCity || evbState, evbZip].filter(Boolean);
-  const baseAddress = evbParts.join(', ');
   const baseName    = document.getElementById('editVehBaseName').value.trim();
+  const orgBase     = (appData.org?.homeBases || []).find(b => b.name === baseName);
+  const baseLocation = orgBase
+    ? { name: orgBase.name, address: orgBase.address, lat: orgBase.lat, lng: orgBase.lng }
+    : null;
   if (!name) { showToast('Vehicle name is required.', 'error'); return; }
   const res = await ZakAuth.apiFetch(`/api/admin/vehicles/${id}`, {
     method: 'PUT',
-    body: JSON.stringify({ name, licensePlate: plate, make, model, year, capacity, status, baseLocation: baseAddress ? { address: baseAddress, name: baseName || name + ' Base' } : null })
+    body: JSON.stringify({ name, licensePlate: plate, make, model, year, capacity, status, baseLocation })
   });
   if (res?.success) {
     showToast('Vehicle updated!', 'success');
@@ -3289,6 +3330,37 @@ async function editUser(userId) {
   if (activeToggle) activeToggle.checked = user.isActive !== false;
 
   openModal('editUserModal');
+}
+
+async function adminResetPassword() {
+  const userId = document.getElementById('editUserId').value;
+  const name   = `${document.getElementById('editUserFirstName').value} ${document.getElementById('editUserLastName').value}`.trim();
+  if (!userId) return;
+  if (!confirm(`Reset password for ${name}? A new temporary password will be generated.`)) return;
+  const res = await ZakAuth.apiFetch(`/api/admin/users/${userId}/reset-password`, { method: 'POST' });
+  if (res?.success) {
+    const credBox = document.createElement('div');
+    credBox.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    credBox.innerHTML = `
+      <div style="background:#fff;border-radius:16px;padding:32px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <div style="text-align:center;margin-bottom:20px;">
+          <i class="fas fa-key" style="font-size:36px;color:#d69e2e;"></i>
+          <h3 style="margin-top:12px;font-size:17px;">Password Reset — ${name}</h3>
+          <p style="color:#6b7280;font-size:13px;margin-top:4px;">Share these credentials. They must set a new password on next login.</p>
+        </div>
+        <div style="background:#f1f5f9;border-radius:10px;padding:16px;margin-bottom:20px;">
+          <div style="margin-bottom:10px;"><span style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;">Login Email</span><br><span style="font-family:monospace;font-size:15px;color:#1e293b;">${res.email}</span></div>
+          <div><span style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;">New Temporary Password</span><br><span style="font-family:monospace;font-size:15px;color:#1e293b;">${res.tempPassword}</span></div>
+        </div>
+        <button onclick="navigator.clipboard?.writeText('Email: ${res.email}\\nPassword: ${res.tempPassword}');this.textContent='Copied!';" style="width:100%;padding:12px;background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;border-radius:8px;font-weight:600;cursor:pointer;margin-bottom:10px;font-size:14px;">
+          <i class="fas fa-copy"></i> Copy Credentials
+        </button>
+        <button onclick="this.closest('[style*=fixed]').remove();" style="width:100%;padding:12px;background:#374151;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;">Done</button>
+      </div>`;
+    document.body.appendChild(credBox);
+  } else {
+    showToast(res?.error || 'Failed to reset password.', 'error');
+  }
 }
 
 async function saveEditUser() {

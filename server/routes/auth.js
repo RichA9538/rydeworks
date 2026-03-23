@@ -40,10 +40,12 @@ router.post('/login', async (req, res) => {
     await user.save();
 
     const token = signToken(user._id);
+    const safeUser = user.toSafeObject();
     res.json({
       success: true,
       token,
-      user: user.toSafeObject()
+      user: safeUser,
+      mustChangePassword: !!user.mustChangePassword
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -58,6 +60,25 @@ router.get('/me', authenticate, async (req, res) => {
       .populate('organization')
       .populate('driverInfo.vehicleAssigned');
     res.json({ success: true, user: user.toSafeObject() });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Server error.' });
+  }
+});
+
+// POST /api/auth/set-first-password — used on first login when mustChangePassword is true
+// No current-password required since this is a forced reset with a temp password
+router.post('/set-first-password', authenticate, async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 8) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 8 characters.' });
+    }
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found.' });
+    user.password = newPassword;
+    user.mustChangePassword = false;
+    await user.save();
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Server error.' });
   }
@@ -79,6 +100,7 @@ router.post('/change-password', authenticate, async (req, res) => {
     if (!isMatch) return res.status(401).json({ success: false, error: 'Current password is incorrect.' });
 
     user.password = newPassword;
+    user.mustChangePassword = false;
     await user.save();
     res.json({ success: true, message: 'Password updated successfully.' });
   } catch (err) {

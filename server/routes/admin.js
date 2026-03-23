@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto  = require('crypto');
 const router = express.Router();
 const User = require('../models/User');
 const Vehicle = require('../models/Vehicle');
@@ -9,6 +10,30 @@ const AccessCode = require('../models/AccessCode');
 const { authenticate, requireRole } = require('../middleware/auth');
 const RiderSubscription = require('../models/RiderSubscription');
 const Rider = require('../models/Rider');
+
+// Generate a readable temporary password: 3 words pattern e.g. Ride-4821-Work
+function generateTempPassword() {
+  const words = ['Ride','Drive','Route','Trip','Safe','Move','Road','Fast'];
+  const w1 = words[Math.floor(Math.random() * words.length)];
+  const w2 = words[Math.floor(Math.random() * words.length)];
+  const num = String(Math.floor(1000 + Math.random() * 9000));
+  return `${w1}-${num}-${w2}`;
+}
+
+// Auto-generate email: firstnamelastinitial@domain, deduplicating with a suffix if needed
+async function generateEmail(firstName, lastName, domain) {
+  const base = `${firstName.toLowerCase().replace(/[^a-z]/g, '')}${lastName[0].toLowerCase()}`;
+  let candidate = `${base}@${domain}`;
+  const existing = await User.findOne({ email: candidate });
+  if (!existing) return candidate;
+  // Append number until unique
+  for (let i = 2; i <= 99; i++) {
+    candidate = `${base}${i}@${domain}`;
+    const exists = await User.findOne({ email: candidate });
+    if (!exists) return candidate;
+  }
+  return `${base}${Date.now()}@${domain}`;
+}
 
 
 function geocodeAddress(address) {
@@ -55,20 +80,26 @@ router.get('/users', requireRole('admin', 'dispatcher'), async (req, res) => {
   }
 });
 
-// POST /api/admin/users — create a new user
+// POST /api/admin/users — create a new user (auto-generates email and temp password)
 router.post('/users', requireRole('admin'), async (req, res) => {
   try {
-    const { firstName, lastName, email, phone, password, roles, vehicleId } = req.body;
-    if (!firstName || !lastName || !email || !password) {
-      return res.status(400).json({ success: false, error: 'First name, last name, email, and password are required.' });
+    const { firstName, lastName, phone, roles, vehicleId } = req.body;
+    if (!firstName || !lastName) {
+      return res.status(400).json({ success: false, error: 'First name and last name are required.' });
     }
 
-    const existing = await User.findOne({ email: email.toLowerCase() });
-    if (existing) return res.status(400).json({ success: false, error: 'Email already in use.' });
+    // Determine email domain from org config or default
+    const org = await Organization.findById(req.organizationId).lean();
+    const domain = org?.emailDomain || 'rydeworks.com';
+
+    // Auto-generate email and temp password
+    const email    = await generateEmail(firstName, lastName, domain);
+    const tempPass = generateTempPassword();
 
     const user = new User({
       firstName, lastName, email, phone,
-      password,
+      password: tempPass,
+      mustChangePassword: true,
       roles: roles || ['driver'],
       organization: req.organizationId,
       emailVerified: true,
@@ -80,7 +111,29 @@ router.post('/users', requireRole('admin'), async (req, res) => {
     }
 
     await user.save();
-    res.status(201).json({ success: true, user: user.toSafeObject() });
+    // Return generated credentials so admin can share them
+    res.status(201).json({
+      success: true,
+      user: user.toSafeObject(),
+      credentials: { email, tempPassword: tempPass }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/users/:id/reset-password — admin triggers a password reset for any user
+router.post('/users/:id/reset-password', requireRole('admin'), async (req, res) => {
+  try {
+    const user = await User.findOne({ _id: req.params.id, organization: req.organizationId });
+    if (!user) return res.status(404).json({ success: false, error: 'User not found.' });
+    const tempPass = generateTempPassword();
+    user.password = tempPass;
+    user.mustChangePassword = true;
+    user.resetPasswordToken   = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+    res.json({ success: true, tempPassword: tempPass, email: user.email });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

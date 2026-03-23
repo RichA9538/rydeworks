@@ -932,14 +932,17 @@
     </div>
     <div class="modal-body">
       <div class="form-row">
-        <div class="form-group"><label class="form-label">First Name *</label><input type="text" class="form-input" id="userFirstName"></div>
-        <div class="form-group"><label class="form-label">Last Name *</label><input type="text" class="form-input" id="userLastName"></div>
+        <div class="form-group"><label class="form-label">First Name *</label><input type="text" class="form-input" id="userFirstName" oninput="previewUserEmail()"></div>
+        <div class="form-group"><label class="form-label">Last Name *</label><input type="text" class="form-input" id="userLastName" oninput="previewUserEmail()"></div>
       </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Email *</label><input type="email" class="form-input" id="userEmail"></div>
-        <div class="form-group"><label class="form-label">Phone</label><input type="tel" class="form-input phone-format" id="userPhone" placeholder="(727) 555-0000" maxlength="14" inputmode="numeric"></div>
+      <div class="form-group">
+        <label class="form-label">Username / Login Email <span style="color:var(--gray-400);font-size:11px;">(auto-generated)</span></label>
+        <div style="background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-size:14px;color:#374151;font-family:monospace;" id="userEmailPreview">Enter first and last name above...</div>
       </div>
-      <div class="form-group"><label class="form-label">Password *</label><input type="password" class="form-input" id="userPassword" placeholder="Min 8 characters"></div>
+      <div class="form-group"><label class="form-label">Phone</label><input type="tel" class="form-input phone-format" id="userPhone" placeholder="(727) 555-0000" maxlength="14" inputmode="numeric"></div>
+      <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;font-size:13px;color:#92400e;margin-bottom:16px;">
+        <i class="fas fa-key"></i> A temporary password will be generated automatically. Share it with the new team member — they will be required to set a new password on first login.
+      </div>
       <div class="form-group">
         <label class="form-label">Roles (select all that apply)</label>
         <div class="checkbox-group">
@@ -987,7 +990,15 @@
         <div class="form-group"><label class="form-label">Email *</label><input type="email" class="form-input" id="editUserEmail"></div>
         <div class="form-group"><label class="form-label">Phone</label><input type="tel" class="form-input phone-format" id="editUserPhone" placeholder="(727) 555-0000" maxlength="14" inputmode="numeric"></div>
       </div>
-      <div class="form-group"><label class="form-label">New Password <span style="font-weight:400;color:#9E9E9E">(leave blank to keep current)</span></label><input type="password" class="form-input" id="editUserPassword" placeholder="Min 8 characters"></div>
+      <div class="form-group">
+        <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>New Password <span style="font-weight:400;color:#9E9E9E">(leave blank to keep current)</span></span>
+          <button type="button" onclick="adminResetPassword()" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;">
+            <i class="fas fa-key"></i> Reset Password
+          </button>
+        </label>
+        <input type="password" class="form-input" id="editUserPassword" placeholder="Min 8 characters">
+      </div>
       <div class="form-group">
         <label class="form-label">Roles (select all that apply)</label>
         <div class="checkbox-group">
@@ -1212,15 +1223,15 @@
       </div>
       <div class="form-group"><label class="form-label">Passenger Capacity</label><input type="number" class="form-input" id="vehCapacity" value="7"></div>
       <div class="form-group">
-        <label class="form-label">Vehicle Home Base — Street</label>
-        <input type="text" class="form-input" id="vehBaseStreet" placeholder="123 Main St">
+        <label class="form-label">Home Base</label>
+        <select class="form-input" id="vehBaseName" onchange="onVehicleBaseSelect('vehBaseName','vehBaseStreet','vehBaseCity','vehBaseState','vehBaseZip')">
+          <option value="">No base assigned</option>
+        </select>
       </div>
-      <div class="form-row">
-        <div class="form-group" style="flex:2"><label class="form-label">City</label><input type="text" class="form-input" id="vehBaseCity" placeholder="St. Petersburg"></div>
-        <div class="form-group" style="flex:0 0 70px"><label class="form-label">State</label><input type="text" class="form-input" id="vehBaseState" placeholder="FL" maxlength="2" style="text-transform:uppercase" value="FL"></div>
-        <div class="form-group" style="flex:0 0 90px"><label class="form-label">ZIP</label><input type="text" class="form-input" id="vehBaseZip" placeholder="33701" maxlength="5" inputmode="numeric"></div>
-      </div>
-      <div class="form-group"><label class="form-label">Base Label</label><input type="text" class="form-input" id="vehBaseName" placeholder="e.g. South Yard, Clearwater Hub"></div>
+      <input type="hidden" id="vehBaseStreet">
+      <input type="hidden" id="vehBaseCity">
+      <input type="hidden" id="vehBaseState">
+      <input type="hidden" id="vehBaseZip">
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('addVehicleModal')">Cancel</button>
@@ -1379,14 +1390,14 @@
       </div>
       <div class="form-group">
         <label class="form-label">Vehicle Home Base — Street</label>
-        <input type="text" class="form-input" id="editVehBaseStreet" placeholder="123 Main St">
+        <select class="form-input" id="editVehBaseName" onchange="onVehicleBaseSelect('editVehBaseName','editVehBaseStreet','editVehBaseCity','editVehBaseState','editVehBaseZip')">
+          <option value="">No base assigned</option>
+        </select>
       </div>
-      <div class="form-row">
-        <div class="form-group" style="flex:2"><label class="form-label">City</label><input type="text" class="form-input" id="editVehBaseCity" placeholder="St. Petersburg"></div>
-        <div class="form-group" style="flex:0 0 70px"><label class="form-label">State</label><input type="text" class="form-input" id="editVehBaseState" placeholder="FL" maxlength="2" style="text-transform:uppercase"></div>
-        <div class="form-group" style="flex:0 0 90px"><label class="form-label">ZIP</label><input type="text" class="form-input" id="editVehBaseZip" placeholder="33701" maxlength="5" inputmode="numeric"></div>
-      </div>
-      <div class="form-group"><label class="form-label">Base Label</label><input type="text" class="form-input" id="editVehBaseName" placeholder="e.g. South Yard, Clearwater Hub"></div>
+      <input type="hidden" id="editVehBaseStreet">
+      <input type="hidden" id="editVehBaseCity">
+      <input type="hidden" id="editVehBaseState">
+      <input type="hidden" id="editVehBaseZip">
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('editVehicleModal')">Cancel</button>
