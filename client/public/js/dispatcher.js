@@ -473,25 +473,97 @@ function tabToNext(event, nextId) {
   }
 }
 
-// ── TIME INPUT HELPERS ────────────────────────────────────
-// Auto-formats text time inputs as HH:MM (24h) while user types
+// ── TIME INPUT HELPERS (12-hour format) ───────────────────
+// Auto-formats text time inputs as H:MM (12h) while user types
 function onTimeInput(input) {
   let v = input.value.replace(/[^0-9]/g, '');
   if (v.length > 4) v = v.slice(0, 4);
-  if (v.length >= 3) v = v.slice(0, 2) + ':' + v.slice(2);
+  if (v.length >= 2) {
+    const firstTwo = parseInt(v.slice(0, 2), 10);
+    if (firstTwo > 12) {
+      // e.g. "23" → "2:3"  (first digit is hour)
+      v = v[0] + ':' + v.slice(1);
+    } else {
+      // e.g. "10", "1030" → "10:", "10:30"
+      v = v.slice(0, 2) + ':' + v.slice(2);
+    }
+  }
   input.value = v;
 }
 
-// Validates and zero-pads on blur; clears if invalid
+// Validates and normalizes on blur; clears if invalid
 function onTimeBlur(input) {
   const v = (input.value || '').trim();
   if (!v) return;
   const clean = v.replace(/[^0-9]/g, '');
-  if (clean.length < 3) { input.value = ''; return; }
-  const h = parseInt(clean.slice(0, 2), 10);
-  const m = parseInt(clean.slice(2, 4) || '0', 10);
-  if (isNaN(h) || isNaN(m) || h > 23 || m > 59) { input.value = ''; return; }
-  input.value = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  if (clean.length < 1) { input.value = ''; return; }
+  let h, m;
+  if (clean.length <= 2) {
+    h = parseInt(clean, 10); m = 0;
+  } else {
+    const firstTwo = parseInt(clean.slice(0, 2), 10);
+    if (firstTwo > 12) {
+      h = parseInt(clean[0], 10);
+      m = parseInt(clean.slice(1, 3) || '0', 10);
+    } else {
+      h = firstTwo;
+      m = parseInt(clean.slice(2, 4) || '0', 10);
+    }
+  }
+  if (isNaN(h) || isNaN(m) || h < 1 || h > 12 || m > 59) { input.value = ''; return; }
+  input.value = `${h}:${String(m).padStart(2, '0')}`;
+}
+
+// Toggles AM/PM button between AM and PM states
+function toggleAmPm(btn) {
+  const isAm = btn.textContent.trim() === 'AM';
+  btn.textContent = isAm ? 'PM' : 'AM';
+  btn.style.background   = isAm ? 'var(--green)' : '';
+  btn.style.color        = isAm ? '#fff' : 'var(--gray-700)';
+  btn.style.borderColor  = isAm ? 'var(--green)' : 'var(--gray-300)';
+}
+
+// Reads a 12h text input + AM/PM button and returns a 24h "HH:MM" string
+function getTime24h(inputId, amPmId) {
+  const val = (document.getElementById(inputId)?.value || '').trim();
+  if (!val) return '';
+  const ampm  = document.getElementById(amPmId)?.textContent?.trim() || 'AM';
+  const clean = val.replace(/[^0-9]/g, '');
+  if (clean.length < 2) return '';
+  let h, m;
+  const firstTwo = parseInt(clean.slice(0, 2), 10);
+  if (firstTwo > 12) {
+    h = parseInt(clean[0], 10);
+    m = parseInt(clean.slice(1, 3) || '0', 10);
+  } else {
+    h = firstTwo;
+    m = parseInt(clean.slice(2, 4) || '0', 10);
+  }
+  if (isNaN(h) || isNaN(m) || h < 1 || h > 12 || m > 59) return '';
+  if (ampm === 'AM' && h === 12) h = 0;
+  if (ampm === 'PM' && h !== 12) h += 12;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// Sets a 12h text input + AM/PM button from a 24h "HH:MM" string
+function setTime12h(inputId, amPmId, time24h) {
+  if (!time24h) return;
+  const parts = time24h.split(':');
+  const h24 = parseInt(parts[0], 10);
+  const m   = parseInt(parts[1] || '0', 10);
+  if (isNaN(h24) || isNaN(m)) return;
+  const ampm = h24 >= 12 ? 'PM' : 'AM';
+  let h12    = h24 % 12;
+  if (h12 === 0) h12 = 12;
+  const inputEl = document.getElementById(inputId);
+  const amPmEl  = document.getElementById(amPmId);
+  if (inputEl) inputEl.value = `${h12}:${String(m).padStart(2, '0')}`;
+  if (amPmEl) {
+    amPmEl.textContent    = ampm;
+    amPmEl.style.background  = ampm === 'PM' ? 'var(--green)' : '';
+    amPmEl.style.color        = ampm === 'PM' ? '#fff' : 'var(--gray-700)';
+    amPmEl.style.borderColor  = ampm === 'PM' ? 'var(--green)' : 'var(--gray-300)';
+  }
 }
 
 // ── DESTINATION COMMON-DESTINATION AUTOFILL ───────────────
@@ -617,19 +689,27 @@ function addRiderRow() {
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Appt/Work Time <span style="color:var(--gray-400);font-size:11px;">(sets pickup estimate)</span></label>
-        <input type="text" inputmode="numeric" maxlength="5" class="form-input" id="riderApptTime-${idx}"
-          placeholder="HH:MM"
-          oninput="onTimeInput(this)"
-          onblur="onTimeBlur(this);onApptTimeChange(${idx})"
-          onkeydown="tabToNext(event,'riderPickupTime-${idx}')">
+        <div style="display:flex;gap:4px;">
+          <input type="text" inputmode="numeric" maxlength="5" class="form-input" id="riderApptTime-${idx}"
+            placeholder="H:MM"
+            oninput="onTimeInput(this)"
+            onblur="onTimeBlur(this);onApptTimeChange(${idx})"
+            onkeydown="tabToNext(event,'riderPickupTime-${idx}')">
+          <button type="button" id="riderApptAmPm-${idx}" onclick="toggleAmPm(this)"
+            style="flex-shrink:0;width:50px;border:2px solid var(--gray-300);border-radius:8px;background:var(--white);font-weight:600;font-size:13px;cursor:pointer;color:var(--gray-700)">AM</button>
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Pickup Time</label>
-        <input type="text" inputmode="numeric" maxlength="5" class="form-input" id="riderPickupTime-${idx}"
-          placeholder="HH:MM"
-          oninput="onTimeInput(this)"
-          onblur="onTimeBlur(this)"
-          onkeydown="tabToNext(event,'riderReturnTime-${idx}')">
+        <div style="display:flex;gap:4px;">
+          <input type="text" inputmode="numeric" maxlength="5" class="form-input" id="riderPickupTime-${idx}"
+            placeholder="H:MM"
+            oninput="onTimeInput(this)"
+            onblur="onTimeBlur(this)"
+            onkeydown="tabToNext(event,'riderReturnTime-${idx}')">
+          <button type="button" id="riderPickupAmPm-${idx}" onclick="toggleAmPm(this)"
+            style="flex-shrink:0;width:50px;border:2px solid var(--gray-300);border-radius:8px;background:var(--white);font-weight:600;font-size:13px;cursor:pointer;color:var(--gray-700)">AM</button>
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Trip Type</label>
@@ -640,10 +720,14 @@ function addRiderRow() {
       </div>
       <div class="form-group" id="returnTimeGroup-${idx}">
         <label class="form-label">Return Pickup Time</label>
-        <input type="text" inputmode="numeric" maxlength="5" class="form-input" id="riderReturnTime-${idx}"
-          placeholder="HH:MM"
-          oninput="onTimeInput(this)"
-          onblur="onTimeBlur(this)">
+        <div style="display:flex;gap:4px;">
+          <input type="text" inputmode="numeric" maxlength="5" class="form-input" id="riderReturnTime-${idx}"
+            placeholder="H:MM"
+            oninput="onTimeInput(this)"
+            onblur="onTimeBlur(this)">
+          <button type="button" id="riderReturnAmPm-${idx}" onclick="toggleAmPm(this)"
+            style="flex-shrink:0;width:50px;border:2px solid var(--gray-300);border-radius:8px;background:var(--white);font-weight:600;font-size:13px;cursor:pointer;color:var(--gray-700)">AM</button>
+        </div>
         <small style="color:var(--gray-500);font-size:11px;margin-top:2px;display:block">Time driver picks up for return trip</small>
       </div>
     </div>
@@ -752,27 +836,24 @@ function removeRiderRow(idx) {
   document.getElementById(`riderRow-${idx}`)?.remove();
 }
 
-// When appointment time is entered, auto-calculate pickup time based on distance (or 45-min default)
+// When appointment time is entered, auto-calculate pickup time based on distance
 function onApptTimeChange(idx) {
-  const apptEl   = document.getElementById(`riderApptTime-${idx}`);
-  const pickupEl = document.getElementById(`riderPickupTime-${idx}`);
-  if (!apptEl?.value) return;
-  // Always recalculate pickup time when appt time changes
-
-  // Use distance-based buffer if the fare calculation has already run for this row
+  // Only calculate when a destination distance is known (fare has been calculated)
   const riderRow  = document.getElementById(`riderRow-${idx}`);
   const distMiles = parseFloat(riderRow?.dataset?.distMiles || '0');
-  let bufferMins  = 45; // default
-  if (distMiles > 0) {
-    // Estimate at 30 mph avg urban speed + 15 min boarding/arrival buffer
-    bufferMins = Math.max(30, Math.ceil((distMiles / 30) * 60) + 15);
-  }
+  if (distMiles === 0) return;
 
-  const [h, m] = apptEl.value.split(':').map(Number);
+  const apptTime24 = getTime24h(`riderApptTime-${idx}`, `riderApptAmPm-${idx}`);
+  if (!apptTime24) return;
+
+  // Estimate at 30 mph avg urban speed + 15 min boarding/arrival buffer
+  const bufferMins = Math.max(30, Math.ceil((distMiles / 30) * 60) + 15);
+  const [h, m]    = apptTime24.split(':').map(Number);
   const totalMins = h * 60 + m - bufferMins;
-  const pickupH = ((Math.floor(totalMins / 60)) % 24 + 24) % 24;
-  const pickupM = ((totalMins % 60) + 60) % 60;
-  pickupEl.value = `${String(pickupH).padStart(2, '0')}:${String(pickupM).padStart(2, '0')}`;
+  const pickupH   = ((Math.floor(totalMins / 60)) % 24 + 24) % 24;
+  const pickupM   = ((totalMins % 60) + 60) % 60;
+  setTime12h(`riderPickupTime-${idx}`, `riderPickupAmPm-${idx}`,
+    `${String(pickupH).padStart(2, '0')}:${String(pickupM).padStart(2, '0')}`);
 }
 function onTripTypeChange(idx) {
   const type = document.getElementById(`riderTripType-${idx}`)?.value;
@@ -922,10 +1003,10 @@ async function onDestinationBlur(idx) {
 
     // Travel time warning: estimate drive time at 20 mph average (urban + stops)
     if (distMiles > 0) {
-      const pickupTimeEl = document.getElementById(`riderPickupTime-${idx}`);
-      const tripDateEl   = document.getElementById('tripDate');
-      if (pickupTimeEl?.value && tripDateEl?.value) {
-        const pickupDt = new Date(`${tripDateEl.value}T${pickupTimeEl.value}`);
+      const tripDateEl  = document.getElementById('tripDate');
+      const pickupTime24 = getTime24h(`riderPickupTime-${idx}`, `riderPickupAmPm-${idx}`);
+      if (pickupTime24 && tripDateEl?.value) {
+        const pickupDt = new Date(`${tripDateEl.value}T${pickupTime24}`);
         const estimatedMinutes = Math.ceil((distMiles / 20) * 60); // 20 mph avg
         const nowMs = Date.now();
         const minutesUntilPickup = (pickupDt - nowMs) / 60000;
@@ -1029,9 +1110,9 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
       const riderId   = document.getElementById(`riderSelect-${id}`)?.value;
       const pickup    = getFullPickupAddress(id);
       const dest      = getFullDestAddress(id);
-      const pickupTime= document.getElementById(`riderPickupTime-${id}`)?.value;
-      const apptTime  = document.getElementById(`riderApptTime-${id}`)?.value;
-      const riderNote = document.getElementById(`riderNoteInline-${id}`)?.value;
+      const pickupTime = getTime24h(`riderPickupTime-${id}`, `riderPickupAmPm-${id}`);
+      const apptTime   = getTime24h(`riderApptTime-${id}`, `riderApptAmPm-${id}`);
+      const riderNote  = document.getElementById(`riderNoteInline-${id}`)?.value;
 
       if (!pickup || !dest) continue;
 
@@ -1088,8 +1169,8 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
       for (const row of riderRowEls2) {
         const id = row.id.replace('riderRow-', '');
         if (document.getElementById(`riderTripType-${id}`)?.value !== 'round_trip') continue;
-        const rt = document.getElementById(`riderReturnTime-${id}`)?.value;
-        const pt = document.getElementById(`riderPickupTime-${id}`)?.value;
+        const rt = getTime24h(`riderReturnTime-${id}`, `riderReturnAmPm-${id}`);
+        const pt = getTime24h(`riderPickupTime-${id}`, `riderPickupAmPm-${id}`);
         if (rt && pt && rt < pt) { returnDate = advanceDay(tripDate); break; }
       }
 
@@ -1099,7 +1180,7 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
       for (const row of riderRowEls2) {
         const id = row.id.replace('riderRow-', '');
         const tripType   = document.getElementById(`riderTripType-${id}`)?.value;
-        const returnTime = document.getElementById(`riderReturnTime-${id}`)?.value;
+        const returnTime = getTime24h(`riderReturnTime-${id}`, `riderReturnAmPm-${id}`);
         const pickup     = getFullPickupAddress(id);
         const dest       = getFullDestAddress(id);
         const riderId    = document.getElementById(`riderSelect-${id}`)?.value;
@@ -1179,8 +1260,8 @@ async function optimizeAndValidate() {
     const id = row.id.replace('riderRow-', '');
     const pickup   = getFullPickupAddress(id);
     const dest     = getFullDestAddress(id);
-    const pickupTime = document.getElementById(`riderPickupTime-${id}`)?.value;
-    const apptTime   = document.getElementById(`riderApptTime-${id}`)?.value;
+    const pickupTime = getTime24h(`riderPickupTime-${id}`, `riderPickupAmPm-${id}`);
+    const apptTime   = getTime24h(`riderApptTime-${id}`, `riderApptAmPm-${id}`);
     const riderName  = document.getElementById(`riderSelect-${id}`)?.selectedOptions[0]?.text || `Rider ${id}`;
     if (!pickup || !dest) continue;
     stops.push({ stopOrder: stopOrder++, type: 'pickup', address: pickup, scheduledTime: pickupTime ? `${tripDate}T${pickupTime}` : null, riderName });
