@@ -7,7 +7,6 @@ const AccessCode = require('../models/AccessCode');
 const Organization = require('../models/Organization');
 const Trip = require('../models/Trip');
 
-// ── Helpers ────────────────────────────────────────────────
 function generateCode(prefix = 'FREE') {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = prefix + '-';
@@ -31,30 +30,69 @@ function getStripe() {
   return Stripe(key);
 }
 
-// ── GET /api/book/check-availability ──────────────────────
-// Public endpoint — checks trip load on a given date/time so riders can
-// avoid scheduling conflicts when self-booking recurring trips.
-// ?date=YYYY-MM-DD&time=HH:MM
+async function getOrgFromRequest(req) {
+  // Try subdomain first (perc.rydeworks.com → slug = 'perc')
+  const host = req.hostname || '';
+  const subdomain = host.split('.')[0];
+  if (subdomain && subdomain !== 'rydeworks' && subdomain !== 'www') {
+    const org = await Organization.findOne({ $or: [{ slug: subdomain }, { bookingSubdomain: subdomain }] });
+    if (org) return org;
+  }
+  // Try ?org= query param
+  if (req.query.org) {
+    const org = await Organization.findOne({ $or: [{ slug: req.query.org }, { bookingSubdomain: req.query.org }] });
+    if (org) return org;
+  }
+  // Default: first org
+  return Organization.findOne({}).sort({ createdAt: 1 });
+}
+
+// GET /api/book/org-config — public, returns org branding for booking page
+router.get('/org-config', async (req, res) => {
+  try {
+    const org = await getOrgFromRequest(req);
+    if (!org) return res.json({ success: false, error: 'Organization not found.' });
+    res.json({
+      success: true,
+      org: {
+        name: org.name,
+        appName: org.appName,
+        slug: org.slug,
+        primaryColor: org.primaryColor,
+        venmoHandle: org.selfPayConfig?.venmoHandle || '',
+        cashAppHandle: org.selfPayConfig?.cashAppHandle || '',
+        venmoQrUrl: org.selfPayConfig?.venmoQrUrl || '',
+        cashAppQrUrl: org.selfPayConfig?.cashAppQrUrl || '',
+        dispatchPhone: org.phone || '(727) 313-1241'
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/book/stripe-key
+router.get('/stripe-key', (req, res) => {
+  const key = (process.env.STRIPE_PUBLISHABLE_KEY || '').trim();
+  if (!key) return res.status(503).json({ error: 'Payment processing is not configured.' });
+  res.json({ publishableKey: key });
+});
+
+// GET /api/book/check-availability
 router.get('/check-availability', async (req, res) => {
   try {
     const { date, time } = req.query;
     if (!date || !time) return res.json({ available: true, tripsAtTime: 0 });
-
-    const org = await Organization.findOne({}).sort({ createdAt: 1 });
+    const org = await getOrgFromRequest(req);
     if (!org) return res.json({ available: true, tripsAtTime: 0 });
-
-    // Build a 90-minute window centred on requested time
     const base = new Date(`${date}T${time}:00-05:00`);
     const windowStart = new Date(base.getTime() - 45 * 60 * 1000);
     const windowEnd   = new Date(base.getTime() + 45 * 60 * 1000);
-
     const trips = await Trip.find({
       organization: org._id,
       status: { $nin: ['canceled', 'completed'] },
       tripDate: { $gte: new Date(`${date}T00:00:00-05:00`), $lte: new Date(`${date}T23:59:59-05:00`) }
     }).select('stops');
-
-    // Count trips that have a pickup stop within the window
     let tripsAtTime = 0;
     for (const trip of trips) {
       const hasOverlap = (trip.stops || []).some(s => {
@@ -64,8 +102,6 @@ router.get('/check-availability', async (req, res) => {
       });
       if (hasOverlap) tripsAtTime++;
     }
-
-    // Suggest up to 3 alternative 30-min slots with fewer trips
     const suggestions = [];
     for (const offsetMins of [-60, -30, 30, 60, 90]) {
       if (suggestions.length >= 3) break;
@@ -87,113 +123,110 @@ router.get('/check-availability', async (req, res) => {
         suggestions.push(`${h}:${m}`);
       }
     }
-
-    const available = tripsAtTime < 3; // warn if 3+ concurrent trips (adjust as needed)
-    res.json({ available, tripsAtTime, suggestions });
+    res.json({ available: tripsAtTime < 3, tripsAtTime, suggestions });
   } catch (err) {
-    res.json({ available: true, tripsAtTime: 0 }); // fail open
+    res.json({ available: true, tripsAtTime: 0 });
   }
 });
 
-// ── GET /api/book/stripe-key ───────────────────────────────
-// Returns the Stripe publishable key for the frontend
-router.get('/stripe-key', (req, res) => {
-  const key = (process.env.STRIPE_PUBLISHABLE_KEY || '').trim();
-  if (!key) return res.status(503).json({ error: 'Payment processing is not configured.' });
-  res.json({ publishableKey: key });
+// POST /api/book/setup-intent — create Stripe SetupIntent to save card without charging
+router.post('/setup-intent', async (req, res) => {
+  try {
+    const { firstName, lastName, phone, email } = req.body;
+    if (!firstName || !lastName || !phone) {
+      return res.status(400).json({ success: false, error: 'Name and phone are required.' });
+    }
+    const stripe = getStripe();
+    // Find or create Stripe customer
+    let customer;
+    const existing = await RiderSubscription.findOne({ phone: phone.replace(/\D/g, ''), stripeCustomerId: { $exists: true, $ne: '' } });
+    if (existing?.stripeCustomerId) {
+      customer = await stripe.customers.retrieve(existing.stripeCustomerId).catch(() => null);
+    }
+    if (!customer || customer.deleted) {
+      customer = await stripe.customers.create({
+        name: `${firstName} ${lastName}`,
+        email: email || undefined,
+        phone,
+        metadata: { firstName, lastName, phone }
+      });
+    }
+    const setupIntent = await stripe.setupIntents.create({
+      customer: customer.id,
+      payment_method_types: ['card'],
+      usage: 'off_session'
+    });
+    res.json({ success: true, clientSecret: setupIntent.client_secret, customerId: customer.id });
+  } catch (err) {
+    console.error('SetupIntent error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
-// ── POST /api/book/enroll ──────────────────────────────────
-// Creates a Stripe customer, charges $100, creates subscription record + free ride code
+// POST /api/book/enroll — main enrollment, no upfront charge
 router.post('/enroll', async (req, res) => {
   try {
-    const { firstName, lastName, phone, email, homeAddress, paymentMethodId } = req.body;
-    if (!firstName || !lastName || !phone || !paymentMethodId) {
+    const {
+      firstName, lastName, phone, email, homeAddress,
+      paymentMethodType = 'card',
+      paymentMethodId,    // Stripe PM id (for card/ach)
+      stripeCustomerId,   // from setup-intent step
+      venmoHandle,        // rider's venmo
+      cashAppHandle,      // rider's cashapp
+      employerName, employerContact, employerEmail, deductionSchedule,
+      recurringData,
+      weeklyEstimatedFare = 0
+    } = req.body;
+
+    if (!firstName || !lastName || !phone) {
       return res.status(400).json({ success: false, error: 'Missing required fields.' });
     }
 
-    const stripe = getStripe();
-
     // Check if already enrolled
-    const existing = await RiderSubscription.findOne({ phone: phone.replace(/\D/g, '') });
-    if (existing && existing.status === 'active') {
+    const existing = await RiderSubscription.findOne({ phone: phone.replace(/\D/g, ''), status: 'active' });
+    if (existing) {
       return res.status(400).json({ success: false, error: 'A subscription already exists for this phone number. Please contact us if you need help.' });
     }
 
-    // Create Stripe customer
-    const customer = await stripe.customers.create({
-      name: `${firstName} ${lastName}`,
-      email: email || undefined,
-      phone: phone,
-      payment_method: paymentMethodId,
-      invoice_settings: { default_payment_method: paymentMethodId }
-    });
+    const org = await getOrgFromRequest(req);
 
-    // Attach payment method to customer
-    await stripe.paymentMethods.attach(paymentMethodId, { customer: customer.id });
-
-    // Create PaymentIntent for $100
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: 10000, // $100.00 in cents
-      currency: 'usd',
-      customer: customer.id,
-      payment_method: paymentMethodId,
-      confirm: true,
-      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
-      description: 'Rydeworks initial ride credit — $100',
-      metadata: { firstName, lastName, phone }
-    });
-
-    if (paymentIntent.status === 'requires_action') {
-      // 3D Secure needed
-      const sub = await RiderSubscription.create({
-        firstName, lastName,
-        phone: phone.replace(/\D/g, ''),
-        email, homeAddress,
-        stripeCustomerId: customer.id,
-        stripePaymentMethodId: paymentMethodId,
-        creditBalance: 0,
-        status: 'suspended', // pending payment confirmation
-        payments: [{ amount: 100, stripePaymentIntentId: paymentIntent.id, type: 'initial' }]
-      });
-      return res.json({
-        success: true,
-        requiresAction: true,
-        clientSecret: paymentIntent.client_secret,
-        enrollmentId: sub._id
-      });
+    // For Stripe payment methods: attach PM to customer
+    let stripeCustomerIdFinal = stripeCustomerId || null;
+    if ((paymentMethodType === 'card' || paymentMethodType === 'ach') && paymentMethodId && stripeCustomerIdFinal) {
+      try {
+        const stripe = getStripe();
+        await stripe.paymentMethods.attach(paymentMethodId, { customer: stripeCustomerIdFinal });
+        await stripe.customers.update(stripeCustomerIdFinal, {
+          invoice_settings: { default_payment_method: paymentMethodId }
+        });
+      } catch (stripeErr) {
+        console.error('Stripe attach error (non-fatal):', stripeErr.message);
+      }
     }
 
-    if (paymentIntent.status !== 'succeeded') {
-      return res.status(400).json({ success: false, error: 'Payment failed. Please check your card details and try again.' });
-    }
-
-    // Generate free ride code
+    // Generate free ride code (30 days)
     const code = generateCode('FREE');
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    // Find or create rider record in the default org
+    // Calculate minimum commitment (1 week of estimated fares)
+    const minimumCommitmentAmount = Math.max(0, parseFloat(weeklyEstimatedFare) || 0);
+
+    // Find or create rider record
     let rider = null;
     try {
-      const org = await Organization.findOne({}).sort({ createdAt: 1 });
       if (org) {
         rider = await Rider.findOne({ phone: phone.replace(/\D/g, ''), organization: org._id });
         if (!rider) {
-          // Atomically increment riderSequence so concurrent enrollments never produce the same ID
           const updatedOrg = await Organization.findByIdAndUpdate(
-            org._id,
-            { $inc: { riderSequence: 1 } },
-            { new: true }
+            org._id, { $inc: { riderSequence: 1 } }, { new: true }
           );
           const prefix = (updatedOrg.reportingPrefix || updatedOrg.slug || 'RWK').substring(0, 3).toUpperCase();
           const riderId = `${prefix}-${String(updatedOrg.riderSequence).padStart(4, '0')}`;
           rider = await Rider.create({
-            organization: org._id,
-            riderId,
+            organization: org._id, riderId,
             firstName, lastName,
             phone: phone.replace(/\D/g, ''),
-            email, homeAddress,
-            isActive: true
+            email, homeAddress, isActive: true
           });
         }
       }
@@ -201,90 +234,74 @@ router.post('/enroll', async (req, res) => {
       console.error('Rider creation error (non-fatal):', riderErr.message);
     }
 
-    // Create subscription record
-    const sub = await RiderSubscription.create({
+    // Create subscription
+    const subData = {
       rider: rider?._id,
+      organization: org?._id,
       firstName, lastName,
       phone: phone.replace(/\D/g, ''),
       email, homeAddress,
-      stripeCustomerId: customer.id,
-      stripePaymentMethodId: paymentMethodId,
-      creditBalance: 100.00,
+      paymentMethodType,
+      stripeCustomerId: stripeCustomerIdFinal,
+      stripePaymentMethodId: paymentMethodId || null,
+      venmoHandle: venmoHandle || null,
+      cashAppHandle: cashAppHandle || null,
+      creditBalance: 0,
       freeRideCode: code,
       codeExpiresAt: expiresAt,
-      status: 'active',
-      payments: [{ amount: 100, stripePaymentIntentId: paymentIntent.id, type: 'initial' }]
-    });
+      weeklyEstimatedFare: minimumCommitmentAmount,
+      minimumCommitmentAmount,
+      status: 'active'
+    };
 
-    // Also create AccessCode record so dispatcher can look it up
+    if (paymentMethodType === 'payroll_deduction') {
+      subData.employer = {
+        name: employerName,
+        contactName: employerContact,
+        contactEmail: employerEmail,
+        deductionSchedule: deductionSchedule || 'weekly'
+      };
+    }
+
+    const sub = await RiderSubscription.create(subData);
+
+    // Create AccessCode record
     try {
       await AccessCode.create({
         organization: rider?.organization,
         rider: rider?._id,
-        code,
-        type: 'free_ride',
-        expiresAt,
-        isActive: true,
+        code, type: 'free_ride', expiresAt, isActive: true,
         notes: 'Self-enrolled via booking portal'
       });
     } catch (codeErr) {
-      console.error('AccessCode creation error (non-fatal):', codeErr.message);
+      console.error('AccessCode error (non-fatal):', codeErr.message);
     }
 
-    // Send confirmation SMS
+    // Send welcome SMS
     const expStr = expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    await sendSms(phone, `Welcome to Rydeworks, ${firstName}! Your Free Ride Code is: ${code} (valid until ${expStr}). Your $100 credit balance is ready. Reply HELP for assistance.`);
+    const payLabel = paymentMethodType === 'venmo' ? 'Venmo' :
+                     paymentMethodType === 'cashapp' ? 'Cash App' :
+                     paymentMethodType === 'payroll_deduction' ? 'payroll deduction' :
+                     'card on file';
+    await sendSms(phone, `Welcome to Rydeworks, ${firstName}! Your Free Ride Code is: ${code} (valid until ${expStr}). Payment method: ${payLabel}. Call (727) 313-1241 to schedule your first ride. Reply STOP to opt out.`);
 
     res.json({
       success: true,
       freeRideCode: code,
       codeExpiresAt: expiresAt,
-      creditBalance: 100.00,
-      enrollmentId: sub._id
+      creditBalance: 0,
+      enrollmentId: sub._id,
+      paymentMethodType
     });
 
   } catch (err) {
     console.error('Enrollment error:', err);
-    const msg = err.type === 'StripeCardError' ? err.message : 'Enrollment failed. Please try again or contact support.';
-    res.status(500).json({ success: false, error: msg });
+    res.status(500).json({ success: false, error: 'Enrollment failed. Please try again or contact support.' });
   }
 });
 
-// ── POST /api/book/confirm-payment ────────────────────────
-// Confirms a 3D Secure payment and activates the subscription
-router.post('/confirm-payment', async (req, res) => {
-  try {
-    const { enrollmentId } = req.body;
-    const sub = await RiderSubscription.findById(enrollmentId);
-    if (!sub) return res.status(404).json({ success: false, error: 'Enrollment not found.' });
-
-    const stripe = getStripe();
-    const pi = sub.payments[0]?.stripePaymentIntentId;
-    if (!pi) return res.status(400).json({ success: false, error: 'No payment intent found.' });
-
-    const paymentIntent = await stripe.paymentIntents.retrieve(pi);
-    if (paymentIntent.status !== 'succeeded') {
-      return res.status(400).json({ success: false, error: 'Payment not confirmed yet.' });
-    }
-
-    // Generate code and activate
-    const code = generateCode('FREE');
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-    sub.freeRideCode = code;
-    sub.codeExpiresAt = expiresAt;
-    sub.creditBalance = 100.00;
-    sub.status = 'active';
-    await sub.save();
-
-    const expStr = expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    await sendSms(sub.phone, `Welcome to Rydeworks, ${sub.firstName}! Your Free Ride Code is: ${code} (valid until ${expStr}). Your $100 credit balance is ready.`);
-
-    res.json({ success: true, freeRideCode: code, codeExpiresAt: expiresAt, creditBalance: 100.00 });
-  } catch (err) {
-    console.error('Confirm payment error:', err);
-    res.status(500).json({ success: false, error: 'Confirmation failed.' });
-  }
-});
+// POST /api/book/cancel-subscription — dispatcher cancels a rider's subscription
+// Requires auth - this goes through admin routes, but keeping here for reference
+// See admin.js for the actual endpoint
 
 module.exports = router;

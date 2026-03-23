@@ -44,17 +44,12 @@ app.use(helmet({
   contentSecurityPolicy: false
 }));
 
-const allowedOrigins = [
-  'https://rydeworks.com',
-  'https://www.rydeworks.com',
-  'https://app.rydeworks.com',
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://127.0.0.1:3000'
-];
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    if (!origin) return callback(null, true);
+    // Allow rydeworks.com and all subdomains (perc.rydeworks.com, etc.)
+    if (/^https?:\/\/(.*\.)?rydeworks\.com$/.test(origin)) return callback(null, true);
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return callback(null, true);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true
@@ -156,9 +151,14 @@ app.get('/enroll', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/public/landing.html'));
 });
 
-// /book serves the rider self-booking page
+// /book serves the rider self-booking page (works on any subdomain)
 app.get('/book', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/public/book.html'));
+});
+
+// /privacy serves the privacy policy
+app.get('/privacy', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/public/privacy.html'));
 });
 
 // /reset-password serves the password reset page
@@ -358,6 +358,23 @@ const seedInitialData = async () => {
     }
   }
 };
+
+// ── Weekly Friday billing ─────────────────────────────────
+const { runWeeklyBilling } = require('./billing');
+// Schedule: run every Friday at 6 AM Eastern
+function scheduleWeeklyBilling() {
+  const checkInterval = setInterval(async () => {
+    const now = new Date();
+    const estHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
+    const estDay = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short' }).format(now);
+    const estMin = now.getMinutes();
+    if (estDay === 'Fri' && estHour === 6 && estMin < 5) {
+      console.log('Running weekly Friday billing...');
+      await runWeeklyBilling().catch(err => console.error('Billing error:', err));
+    }
+  }, 5 * 60 * 1000); // check every 5 minutes
+}
+scheduleWeeklyBilling();
 
 startServer();
 module.exports = app;

@@ -52,10 +52,18 @@ const organizationSchema = new mongoose.Schema({
   selfPayConfig: {
     squareApplicationId: { type: String },
     squareLocationId:    { type: String },
-    paymentLink:         { type: String },  // URL for QR code
-    venmoHandle:         { type: String },
-    cashAppHandle:       { type: String }
+    paymentLink:         { type: String },
+    venmoHandle:         { type: String },   // org's Venmo handle e.g. @perc-transport
+    cashAppHandle:       { type: String },   // org's Cash App handle e.g. $perctransport
+    venmoQrUrl:          { type: String },   // URL to Venmo QR image
+    cashAppQrUrl:        { type: String }    // URL to Cash App QR image
   },
+
+  // Weekly billing day (0=Sun, 1=Mon ... 5=Fri, 6=Sat)
+  weeklyBillingDay: { type: Number, default: 5 }, // Friday
+
+  // Subdomain slug for booking page (e.g. "perc" → perc.rydeworks.com)
+  bookingSubdomain: { type: String, lowercase: true, trim: true },
 
   // SaaS subscription tier
   plan: {

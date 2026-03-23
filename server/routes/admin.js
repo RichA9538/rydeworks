@@ -7,6 +7,8 @@ const Grant = require('../models/Grant');
 const Partner = require('../models/Partner');
 const AccessCode = require('../models/AccessCode');
 const { authenticate, requireRole } = require('../middleware/auth');
+const RiderSubscription = require('../models/RiderSubscription');
+const Rider = require('../models/Rider');
 
 
 function geocodeAddress(address) {
@@ -325,6 +327,150 @@ router.post('/access-codes/generate', requireRole('admin', 'dispatcher'), async 
       codes.push(c);
     }
     res.status(201).json({ success: true, codes });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ============================================================
+// RIDER SUBSCRIPTIONS
+// ============================================================
+
+// POST /api/admin/riders/:id/cancel-subscription — dispatcher cancels rider subscription
+router.post('/riders/:id/cancel-subscription', requireRole('admin', 'dispatcher'), async (req, res) => {
+  try {
+    const { reason, chargeMinimum = false } = req.body;
+    const rider = await Rider.findOne({ _id: req.params.id, organization: req.organizationId });
+    if (!rider) return res.status(404).json({ success: false, error: 'Rider not found.' });
+
+    const sub = await RiderSubscription.findOne({ rider: rider._id, status: 'active' });
+    if (!sub) return res.status(404).json({ success: false, error: 'No active subscription found.' });
+
+    const now = new Date();
+    const enrolledAt = sub.createdAt;
+    const daysSinceEnrollment = (now - enrolledAt) / (1000 * 60 * 60 * 24);
+    const withinFreeRidePeriod = daysSinceEnrollment <= 30;
+
+    sub.status = 'cancelled';
+    sub.canceledAt = now;
+    sub.canceledBy = req.user._id;
+    sub.cancellationNote = reason || 'Canceled by dispatcher';
+
+    let chargeAmount = 0;
+    let chargeNote = '';
+
+    // Charge minimum commitment if within 30 days and they haven't met it
+    if (withinFreeRidePeriod && chargeMinimum && sub.minimumCommitmentAmount > 0 && !sub.minimumCommitmentPaid) {
+      chargeAmount = sub.minimumCommitmentAmount;
+      chargeNote = `1-week minimum commitment charge: $${chargeAmount.toFixed(2)}`;
+
+      if (sub.stripeCustomerId && sub.stripePaymentMethodId && process.env.STRIPE_SECRET_KEY) {
+        try {
+          const Stripe = require('stripe');
+          const stripe = Stripe(process.env.STRIPE_SECRET_KEY.trim());
+          const pi = await stripe.paymentIntents.create({
+            amount: Math.round(chargeAmount * 100),
+            currency: 'usd',
+            customer: sub.stripeCustomerId,
+            payment_method: sub.stripePaymentMethodId,
+            confirm: true,
+            automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+            description: `Rydeworks cancellation fee — 1-week minimum commitment`,
+            metadata: { riderId: rider._id.toString(), subscriptionId: sub._id.toString() }
+          });
+          sub.minimumCommitmentPaid = true;
+          sub.cancelChargeApplied = true;
+          sub.payments.push({
+            amount: chargeAmount,
+            method: 'card',
+            stripePaymentIntentId: pi.id,
+            type: 'cancellation_fee',
+            note: chargeNote,
+            recordedBy: req.user._id
+          });
+        } catch (stripeErr) {
+          console.error('Cancellation charge failed:', stripeErr.message);
+          chargeNote += ' (charge failed — collect manually)';
+        }
+      } else if (['venmo', 'cashapp'].includes(sub.paymentMethodType)) {
+        chargeNote += ` — collect via ${sub.paymentMethodType}`;
+        sub.cancelChargeApplied = false;
+      }
+    }
+
+    await sub.save();
+
+    // Deactivate rider
+    rider.isActive = false;
+    await rider.save();
+
+    res.json({
+      success: true,
+      message: `Subscription canceled.${chargeAmount > 0 ? ` ${chargeNote}` : ''}`,
+      chargeAmount,
+      chargeNote,
+      withinFreeRidePeriod
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/riders/:id/log-payment — dispatcher logs manual Venmo/Cash App payment
+router.post('/riders/:id/log-payment', requireRole('admin', 'dispatcher'), async (req, res) => {
+  try {
+    const { amount, method, note } = req.body;
+    if (!amount || amount <= 0) return res.status(400).json({ success: false, error: 'Valid amount required.' });
+
+    const rider = await Rider.findOne({ _id: req.params.id, organization: req.organizationId });
+    if (!rider) return res.status(404).json({ success: false, error: 'Rider not found.' });
+
+    const sub = await RiderSubscription.findOne({ rider: rider._id });
+    if (!sub) return res.status(404).json({ success: false, error: 'Subscription not found.' });
+
+    sub.creditBalance += parseFloat(amount);
+    sub.payments.push({
+      amount: parseFloat(amount),
+      method: method || sub.paymentMethodType,
+      type: 'manual',
+      note: note || `Manual payment recorded by dispatcher`,
+      recordedBy: req.user._id
+    });
+    await sub.save();
+
+    res.json({ success: true, newBalance: sub.creditBalance, message: `$${parseFloat(amount).toFixed(2)} credited to rider account.` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/riders/:id/issue-free-ride — admin issues additional free ride code
+router.post('/riders/:id/issue-free-ride', requireRole('admin'), async (req, res) => {
+  try {
+    const { days = 30, reason } = req.body;
+    const rider = await Rider.findOne({ _id: req.params.id, organization: req.organizationId });
+    if (!rider) return res.status(404).json({ success: false, error: 'Rider not found.' });
+
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = 'FREE-';
+    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+    await AccessCode.create({
+      organization: req.organizationId,
+      rider: rider._id,
+      code, type: 'free_ride', expiresAt, isActive: true,
+      notes: `Manually issued by admin — ${reason || 'admin discretion'}`
+    });
+
+    const sub = await RiderSubscription.findOne({ rider: rider._id });
+    if (sub) {
+      sub.freeRideCode = code;
+      sub.codeExpiresAt = expiresAt;
+      await sub.save();
+    }
+
+    res.json({ success: true, code, expiresAt });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
