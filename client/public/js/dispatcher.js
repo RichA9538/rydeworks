@@ -338,30 +338,49 @@ async function loadDashboard() {
   document.getElementById('stat-riders').textContent = riderCount;
   document.getElementById('stat-revenue').textContent = `$${totalFare.toFixed(0)}`;
 
-  // Today's trips list
+  // Today's trips list — separate active/scheduled from done
   const listEl = document.getElementById('todayTripsList');
+  const activeTrips    = trips.filter(t => !['completed','canceled'].includes(t.status));
+  const doneTrips      = trips.filter(t => ['completed','canceled'].includes(t.status));
+
+  function tripRowHtml(t) {
+    const firstPickup = t.stops?.find(s => s.type === 'pickup');
+    const timeStr = firstPickup?.scheduledTime ? formatTime(firstPickup.scheduledTime) : '';
+    const summary = summarizeTripPath(t);
+    const liveStatus = getDerivedTripStatus(t);
+    return `
+    <div class="trip-row" onclick="viewTrip('${t._id}')">
+      <div class="trip-row-info" style="display:grid;gap:4px;">
+        <span class="trip-driver"><i class="fas fa-user"></i> ${t.driver?.firstName || 'Unassigned'} ${t.driver?.lastName || ''}</span>
+        <span class="trip-vehicle"><i class="fas fa-shuttle-van"></i> ${t.vehicle?.name || 'No vehicle'}</span>
+        <span class="trip-stops"><i class="fas fa-users"></i> ${summary.riderCount} rider${summary.riderCount !== 1 ? 's' : ''}</span>
+        <span class="trip-stops"><i class="fas fa-arrow-up"></i> ${formatShortAddress(summary.pickupLabel)}</span>
+        <span class="trip-stops"><i class="fas fa-arrow-down"></i> ${formatShortAddress(summary.dropoffLabel)}</span>
+        ${timeStr ? `<span style="color:var(--green);font-size:13px;"><i class="fas fa-clock"></i> ${timeStr}</span>` : ''}
+      </div>
+      <div>${statusBadge(liveStatus)}</div>
+    </div>`;
+  }
+
   if (trips.length === 0) {
     listEl.innerHTML = '<div class="empty-state"><i class="fas fa-calendar-times"></i><p>No trips scheduled for today</p></div>';
   } else {
-    listEl.innerHTML = trips.map(t => {
-      const firstPickup = t.stops?.find(s => s.type === 'pickup');
-      const timeStr = firstPickup?.scheduledTime ? formatTime(firstPickup.scheduledTime) : '';
-      const summary = summarizeTripPath(t);
-      const liveStatus = getDerivedTripStatus(t);
-      return `
-      <div class="trip-row" onclick="viewTrip('${t._id}')">
-        <div class="trip-row-info" style="display:grid;gap:4px;">
-          <span class="trip-driver"><i class="fas fa-user"></i> ${t.driver?.firstName || 'Unassigned'} ${t.driver?.lastName || ''}</span>
-          <span class="trip-vehicle"><i class="fas fa-shuttle-van"></i> ${t.vehicle?.name || 'No vehicle'}</span>
-          <span class="trip-stops"><i class="fas fa-users"></i> ${summary.riderCount} rider${summary.riderCount !== 1 ? 's' : ''}</span>
-          <span class="trip-stops"><i class="fas fa-arrow-up"></i> ${formatShortAddress(summary.pickupLabel)}</span>
-          <span class="trip-stops"><i class="fas fa-arrow-down"></i> ${formatShortAddress(summary.dropoffLabel)}</span>
-          ${timeStr ? `<span style="color:var(--green);font-size:13px;"><i class="fas fa-clock"></i> ${timeStr}</span>` : ''}
+    let html = '';
+    if (activeTrips.length > 0) {
+      html += activeTrips.map(tripRowHtml).join('');
+    } else {
+      html += '<div class="empty-state" style="padding:12px;"><i class="fas fa-check-circle" style="color:var(--green);"></i><p>No active trips right now</p></div>';
+    }
+    if (doneTrips.length > 0) {
+      html += `<div style="margin-top:16px;border-top:1px solid var(--gray-200);padding-top:12px;">
+        <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">
+          <i class="fas fa-archive"></i> Completed &amp; Canceled (${doneTrips.length})
+          <button onclick="toggleDoneTrips()" id="doneTripsToggle" style="background:none;border:none;color:var(--gray-500);cursor:pointer;font-size:11px;margin-left:8px;">show</button>
         </div>
-        <div>${statusBadge(liveStatus)}</div>
-      </div>
-    `;
-    }).join('');
+        <div id="doneTripsSection" style="display:none;">${doneTrips.map(tripRowHtml).join('')}</div>
+      </div>`;
+    }
+    listEl.innerHTML = html;
   }
 
   // Driver status
@@ -405,9 +424,19 @@ async function refreshActiveTrips() {
   if (activeView?.id === 'view-dashboard') loadDashboard();
 }
 
+function toggleDoneTrips() {
+  const section = document.getElementById('doneTripsSection');
+  const btn = document.getElementById('doneTripsToggle');
+  if (!section) return;
+  const hidden = section.style.display === 'none';
+  section.style.display = hidden ? 'block' : 'none';
+  if (btn) btn.textContent = hidden ? 'hide' : 'show';
+}
+
 // ── HELPERS ──────────────────────────────────────────────
 function tabToNext(event, nextId) {
-  if (event.key === 'Tab' || event.key === 'Enter') {
+  // Only intercept Enter — let Tab work naturally through time input sub-components
+  if (event.key === 'Enter') {
     const next = document.getElementById(nextId);
     if (next) {
       event.preventDefault();
@@ -594,6 +623,26 @@ async function onRiderSelect(idx) {
     saveAddressToMemory(r.homeAddress);
   }
 
+  // Populate destination suggestions from rider's common destinations
+  const destListId = `riderDestList-${idx}`;
+  let destList = document.getElementById(destListId);
+  if (!destList) {
+    destList = document.createElement('datalist');
+    destList.id = destListId;
+    document.body.appendChild(destList);
+  }
+  destList.innerHTML = '';
+  const destField = document.getElementById(`riderDest-${idx}`);
+  if (destField) destField.setAttribute('list', destListId);
+  if (r.commonDestinations?.length) {
+    r.commonDestinations.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.address;
+      opt.label = d.label || '';
+      destList.appendChild(opt);
+    });
+  }
+
   const notesEl = document.getElementById(`riderNoteInline-${idx}`);
   if (notesEl && !notesEl.value && r.notes) {
     notesEl.value = r.notes;
@@ -612,7 +661,7 @@ function onApptTimeChange(idx) {
   const apptEl   = document.getElementById(`riderApptTime-${idx}`);
   const pickupEl = document.getElementById(`riderPickupTime-${idx}`);
   if (!apptEl?.value) return;
-  if (pickupEl?.value) return; // don't overwrite if dispatcher already set a pickup time
+  // Always recalculate pickup time when appt time changes
 
   // Use distance-based buffer if the fare calculation has already run for this row
   const riderRow  = document.getElementById(`riderRow-${idx}`);
@@ -650,7 +699,18 @@ function onPaymentTypeChange() {
     document.getElementById('fareZone').textContent   = 'Free Ride';
     document.getElementById('fareDisplay').style.borderColor = '#28a745';
     document.getElementById('fareDisplay').style.color       = '#155724';
+  } else if (type === 'grant') {
+    document.getElementById('fareAmount').textContent = '$0.00';
+    document.getElementById('fareZone').textContent   = 'Grant Funded';
+    document.getElementById('fareDisplay').style.borderColor = '#2563eb';
+    document.getElementById('fareDisplay').style.color       = '#1e3a8a';
+  } else if (type === 'partner') {
+    document.getElementById('fareAmount').textContent = 'Custom';
+    document.getElementById('fareZone').textContent   = 'Pre-negotiated rate';
+    document.getElementById('fareDisplay').style.borderColor = '#7c3aed';
+    document.getElementById('fareDisplay').style.color       = '#4c1d95';
   } else {
+    // self_pay — calculate actual fare
     document.getElementById('fareDisplay').style.borderColor = '';
     document.getElementById('fareDisplay').style.color       = '';
     refreshFareAfterPaymentChange();
@@ -668,11 +728,21 @@ function onRecPaymentTypeChange() {
 // Called when dispatcher leaves the Destination field.
 // Geocodes via Nominatim (free, no API key) then calls /api/trips/calculate-fare.
 async function onDestinationBlur(idx) {
-  // If payment type is free ride, always show $0.00 — skip fare calculation entirely
+  // Only calculate fare for self-pay — other types have fixed/zero display
   const payType = document.getElementById('paymentType')?.value;
   if (payType === 'free_ride') {
     document.getElementById('fareAmount').textContent = '$0.00';
     document.getElementById('fareZone').textContent   = 'Free Ride';
+    return;
+  }
+  if (payType === 'grant') {
+    document.getElementById('fareAmount').textContent = '$0.00';
+    document.getElementById('fareZone').textContent   = 'Grant Funded';
+    return;
+  }
+  if (payType === 'partner') {
+    document.getElementById('fareAmount').textContent = 'Custom';
+    document.getElementById('fareZone').textContent   = 'Pre-negotiated rate';
     return;
   }
   const dest = getFullDestAddress(idx);

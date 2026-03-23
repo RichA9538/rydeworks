@@ -431,7 +431,7 @@ function renderRoute(trip) {
 
           ${isDone ? `
             <div class="stop-status-label ${stop.status}">
-              ${stop.status === 'completed' ? '✅ Completed' : stop.status === 'no_show' ? '⚠️ No Show' : '❌ Canceled'}
+              ${stop.status === 'completed' ? '✅ Completed' : stop.status === 'aboard' ? '🧑 Rider On Board' : stop.status === 'no_show' ? '⚠️ No Show' : '❌ Canceled'}
             </div>
           ` : `
             <div class="stop-actions">

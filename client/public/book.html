@@ -329,8 +329,11 @@
     <!-- STEP 3: Recurring Schedule -->
     <div class="step" id="step3">
       <div class="card">
-        <h2><i class="fas fa-sync-alt" style="color:var(--primary)"></i> Set Up Recurring Trips</h2>
-        <p class="subtitle">Optionally schedule your regular trips now. You can always add or change these later by contacting dispatch.</p>
+        <h2><i class="fas fa-sync-alt" style="color:var(--primary)"></i> Optional: Schedule Recurring Trips</h2>
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#166534;">
+          <strong><i class="fas fa-info-circle"></i> This step is optional.</strong> You can skip it and call dispatch at <strong>(727) 313-1241</strong> to schedule your rides.
+        </div>
+        <p class="subtitle">If you have a regular schedule, enter it below — otherwise click <strong>Skip for Now</strong>.</p>
         <div class="form-group">
           <label class="form-label">Pickup Street Address <span style="font-weight:400;color:var(--gray-500)">(auto-filled from Step 1)</span></label>
           <input type="text" class="form-input" id="recurPickup" placeholder="123 Main St">
@@ -416,7 +419,7 @@
         </div>
         <div style="display:flex;gap:12px;">
           <button class="btn btn-secondary" onclick="goToStep(2)"><i class="fas fa-arrow-left"></i> Back</button>
-          <button class="btn btn-secondary" style="flex:1;justify-content:center;" onclick="skipRecurring()">Skip for Now</button>
+          <button class="btn btn-primary" style="flex:1;justify-content:center;background:#10b981;border-color:#10b981;" onclick="skipRecurring()"><i class="fas fa-forward"></i> Skip for Now</button>
           <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="goToStep4FromRecurring()">
             Continue <i class="fas fa-arrow-right"></i>
           </button>
@@ -507,8 +510,12 @@
           <div class="info-row"><span class="label">Credit Balance</span><span class="value" style="color:var(--green)">$100.00</span></div>
           <div class="info-row"><span class="label">Code Expires</span><span class="value" id="successExpiry">—</span></div>
         </div>
+        <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:14px 16px;margin-bottom:12px;text-align:left;">
+          <strong><i class="fas fa-phone"></i> Next step: Call dispatch to schedule your rides</strong>
+          <p style="margin:8px 0 0;font-size:13px;color:#78350f;">Call or text <strong>(727) 313-1241</strong> to schedule your trips. Have your Free Ride Code ready — dispatchers will apply it to your bookings automatically.</p>
+        </div>
         <div class="alert alert-info" style="text-align:left;">
-          <strong>How to use your code:</strong> When a dispatcher books your trip, give them your Free Ride Code and it will be applied automatically. Your balance will decrease by the trip fare.
+          <strong>How it works:</strong> Your rider account is active. Dispatch will schedule each trip and apply your credit balance automatically. Your balance decreases by the trip fare each ride.
         </div>
         <a href="/" class="btn btn-secondary btn-full" style="margin-top:12px;text-decoration:none;">
           <i class="fas fa-home"></i> Back to Rydeworks

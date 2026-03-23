@@ -533,6 +533,22 @@ router.post('/driver/availability', async (req, res) => {
       { 'driverInfo.isAvailable': isAvailable, updatedAt: Date.now() },
       { new: true }
     ).populate('driverInfo.vehicleAssigned', 'name');
+
+    // Notify dispatch via SMS when driver goes unavailable (taking a break)
+    if (!isAvailable) {
+      try {
+        const org = await Organization.findById(req.organizationId);
+        const dispatchPhone = process.env.DISPATCH_PHONE || org?.phone;
+        if (dispatchPhone) {
+          const driverName = `${user.firstName} ${user.lastName}`;
+          const vehicleName = user.driverInfo?.vehicleAssigned?.name || 'their vehicle';
+          await sendSms(dispatchPhone, `RYDEWORKS: ${driverName} (${vehicleName}) is now UNAVAILABLE / on break. Do not assign new trips until they mark available.`);
+        }
+      } catch (smsErr) {
+        console.error('[SMS] Dispatch availability notification failed:', smsErr.message);
+      }
+    }
+
     res.json({ success: true, user: user?.toSafeObject ? user.toSafeObject() : user });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
