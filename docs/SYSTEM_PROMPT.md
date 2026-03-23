@@ -342,3 +342,41 @@ Sent via Twilio. Triggered on trip stop status changes (e.g., driver arrived at 
 8. All date filtering uses Eastern time (America/New_York), with DST offset detection.
 9. CORS is restricted to `*.rydeworks.com` and localhost.
 10. Super admin (`super_admin` role) bypasses all org-scoping and role checks.
+
+---
+
+## UI / Frontend Notes
+
+### Time Inputs (Schedule Trip form)
+- All time fields (appointment time, pickup time, return pickup time) use `type="text"` inputs in **12-hour format** (H:MM) with an adjacent AM/PM toggle button.
+- Helper functions: `getTime24h(inputId, amPmId)` converts display → 24h HH:MM for server submission; `setTime12h(inputId, amPmId, time24h)` sets display from a 24h string.
+- `onApptTimeChange(idx)` only auto-calculates pickup time when `distMiles > 0` (i.e., after a destination has been geocoded and fare calculated). It does **not** fire when no destination is entered.
+- Edit-trip modal stop times and recurring-trip form still use native `<input type="time">`.
+
+### User Management
+- Staff accounts are created by admins with auto-generated email (`firstnamelastinitial[@rydeworks.com]` or org subdomain) and a temp password in the format `Ride-NNNN-Work`.
+- `mustChangePassword: true` is set on creation and after admin-triggered reset; forces redirect to `/reset-password.html?firstLogin=1` on next login.
+- `POST /api/auth/set-first-password` handles first-login password change (no current password required, uses JWT auth).
+- `POST /api/admin/users/:id/reset-password` generates a new temp password and sets `mustChangePassword: true`.
+
+### Reports
+- **Operational report**: includes on-time pickup and drop-off percentages (internal use).
+- **Grant report**: does NOT include on-time percentages (kept internal); shows total trips, unique riders, miles, potential revenue, grant-funded vs free-ride trip breakdown, zip breakdown, and weekly chart.
+
+### Landing Page (`landing.html`)
+- Logo in nav and footer uses `/img/rydeworks-mark.svg` (the same double-chevron SVG used in the dispatch app sidebar).
+- "RydeWorks" brand name displays with a ™ superscript wherever the logo appears.
+- "Rider Portal" footer link opens `/book` in a new browser tab (`target="_blank"`).
+
+---
+
+## Change Log (recent)
+
+| Date | Change |
+|---|---|
+| 2026-03-23 | Added AM/PM toggle to all schedule-trip time inputs; blocked pickup-time auto-calc when no destination set |
+| 2026-03-23 | Removed on-time % from grant report (kept on ops report only) |
+| 2026-03-23 | Landing page: switched logo to rydeworks-mark.svg, added ™ mark, rider portal opens new tab |
+| 2026-03-23 | User management: auto-generated emails + temp passwords, mustChangePassword flow |
+| 2026-03-23 | Dispatcher app: vehicle home-base dropdown, destination autofill, free-ride auto-detect |
+| 2026-03-23 | Reports: fixed populate path (stops.riderId), grant report includes free-ride trips + breakdowns |
