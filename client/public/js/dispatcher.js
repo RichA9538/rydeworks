@@ -1982,7 +1982,7 @@ async function loadRiders(query = '') {
       <td>${r.totalTrips || 0}</td>
       <td style="white-space:nowrap;">
         <button class="btn btn-sm btn-secondary" onclick="editRider('${r._id}')" title="Edit rider"><i class="fas fa-edit"></i></button>
-        <button class="btn btn-sm" style="background:#28a745;color:#fff;margin-left:4px;" onclick="openEnrollModal('${r._id}','${r.firstName}','${r.lastName}','${r.phone || ''}','${r.email || ''}','${(r.homeAddress || '').replace(/'/g, '&apos;')}')" title="Enroll Rider"><i class="fas fa-credit-card"></i> Enroll</button>
+        <button class="btn btn-sm" style="background:#28a745;color:#fff;margin-left:4px;" onclick="openEnrollModal('${r._id}','${r.firstName}','${r.lastName}','${r.phone || ''}','${r.email || ''}','${(r.homeAddress || '').replace(/'/g, '&apos;')}')" title="Enroll Rider"><i class="fas fa-user-check"></i> Enroll</button>
         <button class="btn btn-sm" style="background:#5a67d8;color:#fff;margin-left:4px;" onclick="openManageRiderModal('${r._id}','${r.firstName} ${r.lastName}')" title="Manage subscription &amp; payments"><i class="fas fa-user-cog"></i> Manage</button>
         <button class="btn btn-sm" style="background:var(--red,#e53e3e);color:#fff;margin-left:4px;" onclick="deleteRider('${r._id}','${r.firstName} ${r.lastName}')" title="Delete rider"><i class="fas fa-trash"></i></button>
       </td>
@@ -2095,36 +2095,54 @@ async function submitCancelSubscription() {
   }
 }
 
-// ── CHARGE & ENROLL ──────────────────────────────────────
+// ── ENROLL RIDER ──────────────────────────────────────────
 let _enrollStripe = null;
 let _enrollCardElement = null;
 let _enrollRiderData = {};
+let _enrollTab = 'card';
+
+function switchEnrollTab(tab) {
+  _enrollTab = tab;
+  ['card','venmo','cashapp','payroll'].forEach(t => {
+    const btn = document.getElementById(`enrollTab-${t}`);
+    const panel = document.getElementById(`enrollPanel-${t}`);
+    if (btn) {
+      btn.style.borderColor = t === tab ? 'var(--primary-color)' : 'var(--gray-300)';
+      btn.style.background  = t === tab ? 'rgba(0,212,200,0.08)' : 'var(--white)';
+    }
+    if (panel) panel.style.display = t === tab ? 'block' : 'none';
+  });
+}
 
 async function openEnrollModal(riderId, firstName, lastName, phone, email, homeAddress) {
   _enrollRiderData = { riderId, firstName, lastName, phone, email, homeAddress };
+  _enrollTab = 'card';
 
-  // Reset modal state
   document.getElementById('enrollCardError').style.display = 'none';
   document.getElementById('enrollSuccessBox').style.display = 'none';
   document.getElementById('enrollModalFooter').style.display = 'flex';
+  document.getElementById('enrollVenmoHandle').value   = '';
+  document.getElementById('enrollCashAppHandle').value = '';
+  document.getElementById('enrollEmployerName').value  = '';
+  document.getElementById('enrollEmployerContact').value = '';
+  document.getElementById('enrollEmployerEmail').value   = '';
   const submitBtn = document.getElementById('enrollSubmitBtn');
   submitBtn.disabled = false;
-  submitBtn.innerHTML = '<i class="fas fa-lock"></i> Charge $100 &amp; Enroll';
+  submitBtn.innerHTML = '<i class="fas fa-user-check"></i> Enroll Rider';
 
-  // Show rider info
   document.getElementById('enrollRiderInfo').innerHTML =
     `<strong>${firstName} ${lastName}</strong>${phone ? ` &nbsp;·&nbsp; ${phone}` : ''}${email ? ` &nbsp;·&nbsp; ${email}` : ''}`;
 
+  switchEnrollTab('card');
   openModal('enrollModal');
 
-  // Load Stripe key and mount card element
+  // Mount Stripe card element
   try {
     const keyRes = await ZakAuth.apiFetch('/api/book/stripe-key');
     const pubKey = keyRes?.publishableKey;
     if (!pubKey) {
       document.getElementById('enrollStripeElement').innerHTML =
         '<p style="color:#e53e3e;font-size:13px;">Stripe is not configured. Please add your Stripe keys in Admin Settings.</p>';
-      submitBtn.disabled = true;
       return;
     }
     _enrollStripe = Stripe(pubKey);
@@ -2148,88 +2166,81 @@ async function openEnrollModal(riderId, firstName, lastName, phone, email, homeA
 async function submitEnrollment() {
   const btn = document.getElementById('enrollSubmitBtn');
   btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enrolling...';
   const errEl = document.getElementById('enrollCardError');
   errEl.style.display = 'none';
 
   try {
-    // Create payment method from card element
-    const { paymentMethod, error } = await _enrollStripe.createPaymentMethod({
-      type: 'card',
-      card: _enrollCardElement,
-      billing_details: {
-        name: `${_enrollRiderData.firstName} ${_enrollRiderData.lastName}`,
-        phone: _enrollRiderData.phone || undefined,
-        email: _enrollRiderData.email || undefined
-      }
-    });
+    const payload = {
+      firstName:   _enrollRiderData.firstName,
+      lastName:    _enrollRiderData.lastName,
+      phone:       _enrollRiderData.phone,
+      email:       _enrollRiderData.email || '',
+      homeAddress: _enrollRiderData.homeAddress || '',
+      paymentMethodType: _enrollTab === 'payroll' ? 'payroll_deduction' : _enrollTab
+    };
 
-    if (error) {
-      errEl.textContent = error.message;
-      errEl.style.display = 'block';
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-lock"></i> Charge $100 &amp; Enroll';
-      return;
+    if (_enrollTab === 'card') {
+      if (!_enrollStripe || !_enrollCardElement) throw new Error('Payment form not loaded. Please refresh and try again.');
+      // Use setup-intent flow so no charge is made today
+      const siRes = await fetch('/api/book/setup-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firstName: payload.firstName, lastName: payload.lastName, phone: payload.phone })
+      });
+      const siData = await siRes.json();
+      if (!siData.success) throw new Error(siData.error || 'Could not initialize payment.');
+
+      const { setupIntent, error } = await _enrollStripe.confirmCardSetup(siData.clientSecret, {
+        payment_method: {
+          card: _enrollCardElement,
+          billing_details: { name: `${payload.firstName} ${payload.lastName}` }
+        }
+      });
+      if (error) throw new Error(error.message);
+      payload.paymentMethodId  = setupIntent.payment_method;
+      payload.stripeCustomerId = siData.customerId;
+
+    } else if (_enrollTab === 'venmo') {
+      const handle = document.getElementById('enrollVenmoHandle').value.trim();
+      if (!handle) throw new Error('Please enter the rider\'s Venmo handle.');
+      payload.venmoHandle = handle;
+
+    } else if (_enrollTab === 'cashapp') {
+      const handle = document.getElementById('enrollCashAppHandle').value.trim();
+      if (!handle) throw new Error('Please enter the rider\'s Cash App $Cashtag.');
+      payload.cashAppHandle = handle;
+
+    } else if (_enrollTab === 'payroll') {
+      payload.employerName    = document.getElementById('enrollEmployerName').value.trim();
+      payload.employerContact = document.getElementById('enrollEmployerContact').value.trim();
+      payload.employerEmail   = document.getElementById('enrollEmployerEmail').value.trim();
+      if (!payload.employerName) throw new Error('Please enter the employer name.');
     }
 
-    // Call the existing enroll endpoint
     const res = await ZakAuth.apiFetch('/api/book/enroll', {
       method: 'POST',
-      body: JSON.stringify({
-        firstName: _enrollRiderData.firstName,
-        lastName:  _enrollRiderData.lastName,
-        phone:     _enrollRiderData.phone,
-        email:     _enrollRiderData.email || '',
-        homeAddress: _enrollRiderData.homeAddress || '',
-        paymentMethodId: paymentMethod.id
-      })
+      body: JSON.stringify(payload)
     });
 
     if (!res?.success) {
       errEl.textContent = res?.error || 'Enrollment failed. Please try again.';
       errEl.style.display = 'block';
       btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-lock"></i> Charge $100 &amp; Enroll';
+      btn.innerHTML = '<i class="fas fa-user-check"></i> Enroll Rider';
       return;
     }
 
-    // Handle 3D Secure if required
-    if (res.requiresAction && res.clientSecret) {
-      const { error: actionError } = await _enrollStripe.handleCardAction(res.clientSecret);
-      if (actionError) {
-        errEl.textContent = actionError.message;
-        errEl.style.display = 'block';
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-lock"></i> Charge $100 &amp; Enroll';
-        return;
-      }
-      // Confirm via server
-      const confirmRes = await ZakAuth.apiFetch('/api/book/confirm-payment', {
-        method: 'POST',
-        body: JSON.stringify({ enrollmentId: res.enrollmentId })
-      });
-      if (!confirmRes?.success) {
-        errEl.textContent = confirmRes?.error || 'Payment confirmation failed.';
-        errEl.style.display = 'block';
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-lock"></i> Charge $100 &amp; Enroll';
-        return;
-      }
-      document.getElementById('enrollGeneratedCode').textContent = confirmRes.freeRideCode || '—';
-    } else {
-      document.getElementById('enrollGeneratedCode').textContent = res.freeRideCode || '—';
-    }
-
-    // Show success
+    document.getElementById('enrollGeneratedCode').textContent = res.freeRideCode || '—';
     document.getElementById('enrollSuccessBox').style.display = 'block';
     document.getElementById('enrollModalFooter').innerHTML =
       '<button class="btn btn-primary" onclick="closeModal(\'enrollModal\'); loadRiders();"><i class="fas fa-check"></i> Done</button>';
 
   } catch(e) {
-    errEl.textContent = 'An unexpected error occurred. Please try again.';
+    errEl.textContent = e.message || 'An unexpected error occurred. Please try again.';
     errEl.style.display = 'block';
     btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-lock"></i> Charge $100 &amp; Enroll';
+    btn.innerHTML = '<i class="fas fa-user-check"></i> Enroll Rider';
   }
 }
 
