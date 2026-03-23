@@ -1634,7 +1634,8 @@ async function loadRiders(query = '') {
       <td>${r.totalTrips || 0}</td>
       <td style="white-space:nowrap;">
         <button class="btn btn-sm btn-secondary" onclick="editRider('${r._id}')" title="Edit rider"><i class="fas fa-edit"></i></button>
-        <button class="btn btn-sm" style="background:#28a745;color:#fff;margin-left:4px;" onclick="openEnrollModal('${r._id}','${r.firstName}','${r.lastName}','${r.phone || ''}','${r.email || ''}','${(r.homeAddress || '').replace(/'/g, '&apos;')}')" title="Charge &amp; Enroll ($100)"><i class="fas fa-credit-card"></i> Enroll</button>
+        <button class="btn btn-sm" style="background:#28a745;color:#fff;margin-left:4px;" onclick="openEnrollModal('${r._id}','${r.firstName}','${r.lastName}','${r.phone || ''}','${r.email || ''}','${(r.homeAddress || '').replace(/'/g, '&apos;')}')" title="Enroll Rider"><i class="fas fa-credit-card"></i> Enroll</button>
+        <button class="btn btn-sm" style="background:#5a67d8;color:#fff;margin-left:4px;" onclick="openManageRiderModal('${r._id}','${r.firstName} ${r.lastName}')" title="Manage subscription &amp; payments"><i class="fas fa-user-cog"></i> Manage</button>
         <button class="btn btn-sm" style="background:var(--red,#e53e3e);color:#fff;margin-left:4px;" onclick="deleteRider('${r._id}','${r.firstName} ${r.lastName}')" title="Delete rider"><i class="fas fa-trash"></i></button>
       </td>
     </tr>
@@ -1644,6 +1645,106 @@ async function loadRiders(query = '') {
 function searchRiders(q) {
   clearTimeout(window._riderSearchTimer);
   window._riderSearchTimer = setTimeout(() => loadRiders(q), 300);
+}
+
+// ── MANAGE RIDER (cancel sub, log payment) ────────────────
+let _manageRiderId = null;
+
+async function openManageRiderModal(riderId, riderName) {
+  _manageRiderId = riderId;
+  document.getElementById('manageRiderInfo').innerHTML = `<strong>${riderName}</strong> &nbsp;<span style="color:var(--gray-500);font-size:12px;">Loading subscription...</span>`;
+  document.getElementById('manageSubStatus').innerHTML = '';
+  document.getElementById('logPayAmount').value = '';
+  document.getElementById('logPayNote').value = '';
+  document.getElementById('cancelSubReason').value = '';
+  document.getElementById('cancelChargeMinimum').checked = false;
+  document.getElementById('logPayError').style.display = 'none';
+  document.getElementById('cancelSubError').style.display = 'none';
+  openModal('manageRiderModal');
+
+  const res = await ZakAuth.apiFetch(`/api/admin/riders/${riderId}`);
+  if (!res?.success) {
+    document.getElementById('manageRiderInfo').innerHTML = `<strong>${riderName}</strong>`;
+    document.getElementById('manageSubStatus').innerHTML = '<div style="color:#e53e3e;font-size:13px;">Could not load subscription data.</div>';
+    return;
+  }
+
+  const { rider, subscription: sub } = res;
+  document.getElementById('manageRiderInfo').innerHTML =
+    `<strong>${rider.firstName} ${rider.lastName}</strong>`
+    + (rider.phone ? ` &nbsp;·&nbsp; ${rider.phone}` : '')
+    + (rider.email ? ` &nbsp;·&nbsp; ${rider.email}` : '');
+
+  // Set default payment method in log-payment select
+  if (sub?.paymentMethodType) {
+    const sel = document.getElementById('logPayMethod');
+    for (const opt of sel.options) { if (opt.value === sub.paymentMethodType) { opt.selected = true; break; } }
+  }
+
+  if (!sub) {
+    document.getElementById('manageSubStatus').innerHTML =
+      '<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;font-size:13px;color:#78350f;"><i class="fas fa-info-circle"></i> No subscription on file for this rider.</div>';
+    return;
+  }
+
+  const methodLabels = { card:'Card', ach:'Bank (ACH)', venmo:'Venmo', cashapp:'Cash App', payroll_deduction:'Payroll Deduction' };
+  const statusColors = { active:'#28a745', cancelled:'#e53e3e', suspended:'#d97706' };
+  const color = statusColors[sub.status] || '#6c757d';
+  const enrolledDate = sub.createdAt ? new Date(sub.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '—';
+
+  document.getElementById('manageSubStatus').innerHTML = `
+    <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;padding:12px 16px;font-size:13px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div><span style="color:var(--gray-500);">Status</span><br><strong style="color:${color};">${sub.status?.toUpperCase() || '—'}</strong></div>
+        <div><span style="color:var(--gray-500);">Payment Method</span><br><strong>${methodLabels[sub.paymentMethodType] || sub.paymentMethodType || '—'}</strong></div>
+        <div><span style="color:var(--gray-500);">Credit Balance</span><br><strong>$${(sub.creditBalance || 0).toFixed(2)}</strong></div>
+        <div><span style="color:var(--gray-500);">Enrolled</span><br><strong>${enrolledDate}</strong></div>
+      </div>
+    </div>`;
+}
+
+async function submitLogPayment() {
+  const amount = parseFloat(document.getElementById('logPayAmount').value);
+  const method = document.getElementById('logPayMethod').value;
+  const note   = document.getElementById('logPayNote').value.trim();
+  const errEl  = document.getElementById('logPayError');
+  errEl.style.display = 'none';
+  if (!amount || amount <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = 'block'; return; }
+
+  const res = await ZakAuth.apiFetch(`/api/admin/riders/${_manageRiderId}/log-payment`, {
+    method: 'POST', body: JSON.stringify({ amount, method, note })
+  });
+  if (res?.success) {
+    showToast(`Payment of $${amount.toFixed(2)} recorded. New balance: $${res.newBalance.toFixed(2)}`, 'success');
+    document.getElementById('logPayAmount').value = '';
+    document.getElementById('logPayNote').value = '';
+    openManageRiderModal(_manageRiderId, document.getElementById('manageRiderInfo').querySelector('strong')?.textContent || '');
+  } else {
+    errEl.textContent = res?.error || 'Failed to log payment.';
+    errEl.style.display = 'block';
+  }
+}
+
+async function submitCancelSubscription() {
+  const reason        = document.getElementById('cancelSubReason').value.trim();
+  const chargeMinimum = document.getElementById('cancelChargeMinimum').checked;
+  const errEl         = document.getElementById('cancelSubError');
+  errEl.style.display = 'none';
+
+  if (!reason) { errEl.textContent = 'Please enter a cancellation reason.'; errEl.style.display = 'block'; return; }
+  if (!confirm('Are you sure you want to cancel this rider\'s subscription? This will deactivate their account.')) return;
+
+  const res = await ZakAuth.apiFetch(`/api/admin/riders/${_manageRiderId}/cancel-subscription`, {
+    method: 'POST', body: JSON.stringify({ reason, chargeMinimum })
+  });
+  if (res?.success) {
+    showToast(res.message, 'success');
+    closeModal('manageRiderModal');
+    loadRiders();
+  } else {
+    errEl.textContent = res?.error || 'Failed to cancel subscription.';
+    errEl.style.display = 'block';
+  }
 }
 
 // ── CHARGE & ENROLL ──────────────────────────────────────

@@ -974,6 +974,68 @@
     </div>
   </div>
 
+  <!-- Manage Rider Modal -->
+  <div class="modal" id="manageRiderModal" style="max-width:500px;">
+    <div class="modal-header">
+      <h3><i class="fas fa-user-cog"></i> Manage Rider</h3>
+      <button class="modal-close" onclick="closeModal('manageRiderModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" style="max-height:75vh;overflow-y:auto;">
+      <!-- Rider summary -->
+      <div id="manageRiderInfo" style="background:var(--gray-50);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;"></div>
+
+      <!-- Subscription status -->
+      <div id="manageSubStatus" style="margin-bottom:20px;"></div>
+
+      <!-- Log Manual Payment -->
+      <div style="border:1px solid var(--gray-200);border-radius:8px;padding:16px;margin-bottom:16px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px;"><i class="fas fa-hand-holding-usd" style="color:var(--primary-color);"></i> Log Manual Payment</div>
+        <div class="form-group">
+          <label class="form-label">Amount ($) *</label>
+          <input type="number" class="form-input" id="logPayAmount" min="0.01" step="0.01" placeholder="20.00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Payment Method</label>
+          <select class="form-input" id="logPayMethod">
+            <option value="venmo">Venmo</option>
+            <option value="cashapp">Cash App</option>
+            <option value="cash">Cash</option>
+            <option value="check">Check</option>
+            <option value="card">Card (manual)</option>
+            <option value="payroll_deduction">Payroll Deduction</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Note (optional)</label>
+          <input type="text" class="form-input" id="logPayNote" placeholder="e.g. Venmo ref #12345">
+        </div>
+        <div id="logPayError" style="display:none;color:#e53e3e;font-size:13px;margin-bottom:8px;"></div>
+        <button class="btn btn-primary btn-sm" onclick="submitLogPayment()"><i class="fas fa-check"></i> Record Payment</button>
+      </div>
+
+      <!-- Cancel Subscription -->
+      <div style="border:1px solid #fed7d7;border-radius:8px;padding:16px;background:#fff5f5;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:#c53030;"><i class="fas fa-times-circle"></i> Cancel Subscription</div>
+        <div style="font-size:12px;color:#742a2a;background:#fed7d7;border-radius:6px;padding:8px 12px;margin-bottom:12px;">
+          <strong>1-week minimum commitment applies.</strong> If the rider is within 30 days of enrollment and hasn't met the minimum, they can be charged for one week's rides.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reason for cancellation</label>
+          <input type="text" class="form-input" id="cancelSubReason" placeholder="e.g. Rider no longer needs service">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;">
+          <input type="checkbox" id="cancelChargeMinimum" style="width:16px;height:16px;accent-color:#c53030;">
+          <label for="cancelChargeMinimum">Charge 1-week minimum commitment fee (if applicable)</label>
+        </div>
+        <div id="cancelSubError" style="display:none;color:#e53e3e;font-size:13px;margin-bottom:8px;"></div>
+        <button class="btn btn-sm" style="background:#e53e3e;color:#fff;" onclick="submitCancelSubscription()"><i class="fas fa-ban"></i> Cancel Subscription</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('manageRiderModal')">Close</button>
+    </div>
+  </div>
+
   <!-- Add Grant Modal -->
   <div class="modal" id="addGrantModal">
     <div class="modal-header">

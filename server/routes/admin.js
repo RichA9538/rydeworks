@@ -336,6 +336,18 @@ router.post('/access-codes/generate', requireRole('admin', 'dispatcher'), async 
 // RIDER SUBSCRIPTIONS
 // ============================================================
 
+// GET /api/admin/riders/:id — get rider + active subscription info
+router.get('/riders/:id', requireRole('admin', 'dispatcher'), async (req, res) => {
+  try {
+    const rider = await Rider.findOne({ _id: req.params.id, organization: req.organizationId });
+    if (!rider) return res.status(404).json({ success: false, error: 'Rider not found.' });
+    const sub = await RiderSubscription.findOne({ rider: rider._id }).sort({ createdAt: -1 });
+    res.json({ success: true, rider, subscription: sub || null });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /api/admin/riders/:id/cancel-subscription — dispatcher cancels rider subscription
 router.post('/riders/:id/cancel-subscription', requireRole('admin', 'dispatcher'), async (req, res) => {
   try {
