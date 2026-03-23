@@ -196,6 +196,7 @@ function showView(viewName) {
   if (viewName === 'team')      loadTeam();
   if (viewName === 'payments')  loadPayments();
   if (viewName === 'codes')     loadCodes();
+  if (viewName === 'reports')   initReportsView();
   if (viewName === 'canceled')  loadCanceledTrips();
   if (viewName === 'admin')     loadAdminSettings();
   if (viewName === 'recurring') initRecurringView();
@@ -1957,6 +1958,316 @@ async function loadPayments() {
       </table>
     </div>
   `;
+}
+
+// ── REPORTS ───────────────────────────────────────────────
+let _reportSummary = null;
+let _reportsInitialized = false;
+
+function initReportsView() {
+  if (!_reportsInitialized) {
+    // Default to this month
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth(), 1);
+    const to   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    document.getElementById('reportFrom').value = from.toISOString().slice(0,10);
+    document.getElementById('reportTo').value   = to.toISOString().slice(0,10);
+    _reportsInitialized = true;
+  }
+  loadReports();
+}
+let _chartWeek = null;
+let _chartMix  = null;
+
+function switchReportTab(tab) {
+  ['ops','grant','export'].forEach(t => {
+    document.getElementById(`rpanel-${t}`).style.display = t === tab ? 'block' : 'none';
+    document.getElementById(`rtab-${t}`).classList.toggle('active', t === tab);
+  });
+  if (tab === 'grant' && !document.getElementById('grantContent').innerHTML) loadGrantReport();
+}
+
+function setReportPreset(preset) {
+  const now = new Date();
+  let from, to;
+  if (preset === 'thisMonth') {
+    from = new Date(now.getFullYear(), now.getMonth(), 1);
+    to   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  } else if (preset === 'lastMonth') {
+    from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    to   = new Date(now.getFullYear(), now.getMonth(), 0);
+  } else if (preset === 'last30') {
+    from = new Date(now); from.setDate(from.getDate() - 30);
+    to   = new Date(now);
+  } else if (preset === 'ytd') {
+    from = new Date(now.getFullYear(), 0, 1);
+    to   = new Date(now);
+  }
+  document.getElementById('reportFrom').value = from.toISOString().slice(0,10);
+  document.getElementById('reportTo').value   = to.toISOString().slice(0,10);
+  loadReports();
+}
+
+function getReportParams() {
+  return {
+    from: document.getElementById('reportFrom').value,
+    to:   document.getElementById('reportTo').value
+  };
+}
+
+async function loadReports() {
+  const { from, to } = getReportParams();
+  document.getElementById('opsLoading').style.display = 'block';
+  document.getElementById('opsContent').style.display = 'none';
+  const qs = from && to ? `?from=${from}&to=${to}` : '';
+  const res = await ZakAuth.apiFetch(`/api/reports/summary${qs}`);
+  document.getElementById('opsLoading').style.display = 'none';
+  if (!res?.success) { showToast('Failed to load report data.', 'error'); return; }
+  _reportSummary = res;
+  renderOpsDashboard(res);
+  populateGrantSelect(res.grants?.available || []);
+}
+
+function renderOpsDashboard(d) {
+  document.getElementById('opsContent').style.display = 'block';
+
+  // Stat cards
+  const pct = d.trips.total > 0 ? Math.round(d.trips.completed / d.trips.total * 100) : 0;
+  document.getElementById('opsStatCards').innerHTML = [
+    { label: 'Completed Trips', value: d.trips.completed, sub: `${pct}% completion rate`, color: '#00D4C8' },
+    { label: 'Unique Riders', value: d.riders.activeInPeriod, sub: `of ${d.riders.total} total enrolled`, color: '#5a67d8' },
+    { label: 'Miles Provided', value: d.service.totalMiles.toLocaleString(), sub: `avg ${d.service.avgMilesPerTrip} mi/trip`, color: '#38a169' },
+    { label: 'Revenue Collected', value: `$${d.financial.revenue.toLocaleString()}`, sub: `$${d.financial.avgFarePerTrip} avg fare`, color: '#d69e2e' },
+    { label: 'Service Value', value: `$${d.financial.totalFareValue.toLocaleString()}`, sub: 'incl. grant-funded trips', color: '#e53e3e' },
+    { label: 'Active Subscribers', value: d.riders.activeSubs, sub: `${d.riders.cancelledSubs} cancelled`, color: '#00B4AA' }
+  ].map(s => `
+    <div class="r-stat-card">
+      <div class="r-stat-label">${s.label}</div>
+      <div class="r-stat-value" style="color:${s.color}">${s.value}</div>
+      <div class="r-stat-sub">${s.sub}</div>
+    </div>`).join('');
+
+  // Trips per week chart
+  const weekLabels = d.trips.tripsByWeek.map(w => {
+    const dt = new Date(w.week + 'T00:00:00');
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  });
+  const weekData = d.trips.tripsByWeek.map(w => w.count);
+  if (_chartWeek) _chartWeek.destroy();
+  const ctxW = document.getElementById('chartTripsWeek').getContext('2d');
+  _chartWeek = new Chart(ctxW, {
+    type: 'bar',
+    data: {
+      labels: weekLabels,
+      datasets: [{ label: 'Trips', data: weekData, backgroundColor: 'rgba(0,212,200,0.7)', borderColor: '#00B4AA', borderWidth: 1, borderRadius: 4 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+    }
+  });
+
+  // Payment mix donut
+  const typeLabels = { self_pay: 'Self Pay', grant: 'Grant Funded', partner: 'Partner', free_ride: 'Free Ride', none: 'Not Set' };
+  const mixKeys  = Object.keys(d.trips.byPaymentType);
+  const mixVals  = mixKeys.map(k => d.trips.byPaymentType[k]);
+  const mixColors = ['#00D4C8','#5a67d8','#38a169','#d69e2e','#9ca3af'];
+  if (_chartMix) _chartMix.destroy();
+  const ctxM = document.getElementById('chartPaymentMix').getContext('2d');
+  _chartMix = new Chart(ctxM, {
+    type: 'doughnut',
+    data: {
+      labels: mixKeys.map(k => typeLabels[k] || k),
+      datasets: [{ data: mixVals, backgroundColor: mixColors.slice(0, mixKeys.length), borderWidth: 2 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }
+    }
+  });
+
+  // Zip code bars
+  const maxZip = d.service.byZip[0]?.count || 1;
+  document.getElementById('opsZipTable').innerHTML = d.service.byZip.length
+    ? d.service.byZip.map(z => `
+        <div class="zip-bar-row">
+          <span style="width:54px;font-weight:600;">${z.zip}</span>
+          <div class="zip-bar-track"><div class="zip-bar-fill" style="width:${Math.round(z.count/maxZip*100)}%"></div></div>
+          <span style="width:36px;text-align:right;color:var(--gray-500);">${z.count}</span>
+        </div>`).join('')
+    : '<div style="color:var(--gray-500);font-size:13px;">No zip data available</div>';
+
+  // Free ride codes
+  const c = d.codes;
+  document.getElementById('opsCodesPanel').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div style="text-align:center;"><div style="font-size:24px;font-weight:800;color:#5a67d8;">${c.issued}</div><div style="font-size:11px;color:var(--gray-500);text-transform:uppercase;font-weight:600;">Issued</div></div>
+      <div style="text-align:center;"><div style="font-size:24px;font-weight:800;color:#38a169;">${c.used}</div><div style="font-size:11px;color:var(--gray-500);text-transform:uppercase;font-weight:600;">Used</div></div>
+      <div style="text-align:center;"><div style="font-size:24px;font-weight:800;color:#00D4C8;">${c.active}</div><div style="font-size:11px;color:var(--gray-500);text-transform:uppercase;font-weight:600;">Active</div></div>
+      <div style="text-align:center;"><div style="font-size:24px;font-weight:800;color:#9ca3af;">${c.expired}</div><div style="font-size:11px;color:var(--gray-500);text-transform:uppercase;font-weight:600;">Expired</div></div>
+    </div>`;
+}
+
+function populateGrantSelect(grants) {
+  const sel = document.getElementById('grantReportSelect');
+  const existing = sel.value;
+  sel.innerHTML = '<option value="">All Grant-Funded Trips</option>';
+  grants.forEach(g => {
+    const opt = document.createElement('option');
+    opt.value = g._id;
+    opt.textContent = g.name + (g.grantor ? ` — ${g.grantor}` : '');
+    sel.appendChild(opt);
+  });
+  if (existing) sel.value = existing;
+}
+
+async function loadGrantReport() {
+  const { from, to } = getReportParams();
+  const grantId = document.getElementById('grantReportSelect').value;
+  const qs = new URLSearchParams({ ...(from && { from }), ...(to && { to }), ...(grantId && { grantId }) });
+  document.getElementById('grantLoading').style.display = 'block';
+  document.getElementById('grantContent').innerHTML = '';
+  const res = await ZakAuth.apiFetch(`/api/reports/grant?${qs}`);
+  document.getElementById('grantLoading').style.display = 'none';
+  if (!res?.success) { showToast('Failed to load grant report.', 'error'); return; }
+  renderGrantReport(res);
+}
+
+function renderGrantReport(d) {
+  const fromStr = new Date(d.period.from).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const toStr   = new Date(d.period.to).toLocaleDateString('en-US',   { month: 'long', day: 'numeric', year: 'numeric' });
+  const orgName = ZakAuth.getUser()?.organizationName || 'Rydeworks Organization';
+
+  const zipRows = d.byZip.map(z => {
+    const pct = d.summary.totalTrips > 0 ? Math.round(z.count / d.summary.totalTrips * 100) : 0;
+    return `<tr><td>${z.zip}</td><td>${z.count}</td><td>${pct}%</td></tr>`;
+  }).join('');
+
+  const riderRows = d.riderRows.map(r => `
+    <tr>
+      <td><code>${r.riderId}</code></td>
+      <td>${r.zip}</td>
+      <td>${r.trips}</td>
+      <td>${r.miles.toFixed(1)}</td>
+      <td>$${r.fareValue.toFixed(2)}</td>
+    </tr>`).join('');
+
+  document.getElementById('grantContent').innerHTML = `
+    <div class="grant-report-doc" id="grantReportDoc">
+      <div class="gr-header">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div class="gr-title">${d.grant.name}</div>
+            ${d.grant.grantor ? `<div class="gr-sub">Funder: ${d.grant.grantor}</div>` : ''}
+            <div class="gr-sub">Provided by: ${orgName}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:12px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:0.5px;">Reporting Period</div>
+            <div style="font-size:13px;font-weight:600;color:#0A1628;">${fromStr} – ${toStr}</div>
+            <div style="font-size:11px;color:#9ca3af;margin-top:4px;">Generated ${new Date().toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' })}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grant-kpi-row">
+        <div class="grant-kpi"><div class="kv">${d.summary.totalTrips}</div><div class="kl">Total Trips Provided</div></div>
+        <div class="grant-kpi"><div class="kv">${d.summary.uniqueRiders}</div><div class="kl">Unduplicated Riders Served</div></div>
+        <div class="grant-kpi"><div class="kv">${d.summary.totalMiles.toLocaleString()}</div><div class="kl">Total Miles of Transportation</div></div>
+        <div class="grant-kpi"><div class="kv">$${d.summary.totalFareValue.toLocaleString()}</div><div class="kl">Value of Services Delivered</div></div>
+        <div class="grant-kpi"><div class="kv">${d.summary.avgMilesPerTrip}</div><div class="kl">Avg Miles Per Trip</div></div>
+        <div class="grant-kpi"><div class="kv">$${d.summary.costPerRider.toFixed(2)}</div><div class="kl">Cost Per Rider Served</div></div>
+      </div>
+
+      ${d.byZip.length ? `
+      <div class="gr-section-title">Geographic Breakdown — Rider Pickup Zip Codes</div>
+      <table class="gr-table">
+        <thead><tr><th>Zip Code</th><th>Trips</th><th>% of Total</th></tr></thead>
+        <tbody>${zipRows}</tbody>
+      </table>` : ''}
+
+      ${d.tripsByWeek.length ? `
+      <div class="gr-section-title">Trip Volume by Week</div>
+      <div style="height:180px;margin-bottom:8px;"><canvas id="grantChartWeek"></canvas></div>` : ''}
+
+      ${d.riderRows.length ? `
+      <div class="gr-section-title">Rider Activity Summary (Anonymous)</div>
+      <p style="font-size:12px;color:#9ca3af;margin-bottom:10px;">Rider IDs are anonymized system identifiers. No personally identifiable information is included in this report.</p>
+      <table class="gr-table">
+        <thead><tr><th>Rider ID</th><th>Zip Code</th><th>Trips</th><th>Miles</th><th>Fare Value</th></tr></thead>
+        <tbody>${riderRows}</tbody>
+      </table>` : '<div style="color:#9ca3af;font-size:13px;padding:20px 0;">No grant-funded trips found for this period.</div>'}
+
+      <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:11px;color:#9ca3af;">
+        This report was generated by the Rydeworks transportation management platform. All rider data is anonymized in accordance with privacy policy. Contact (727) 313-1241 with questions.
+      </div>
+    </div>`;
+
+  // Grant weekly chart
+  if (d.tripsByWeek.length) {
+    setTimeout(() => {
+      const ctx = document.getElementById('grantChartWeek')?.getContext('2d');
+      if (!ctx) return;
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: d.tripsByWeek.map(w => new Date(w.week + 'T00:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' })),
+          datasets: [{ label: 'Trips', data: d.tripsByWeek.map(w => w.count), backgroundColor: 'rgba(90,103,216,0.7)', borderColor: '#5a67d8', borderWidth: 1, borderRadius: 4 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+      });
+    }, 100);
+  }
+}
+
+function printGrantReport() {
+  window.print();
+}
+
+// ── EXPORT ────────────────────────────────────────────────
+async function exportTripsCSV() {
+  const { from, to } = getReportParams();
+  const qs = from && to ? `?from=${from}&to=${to}` : '';
+  const res = await ZakAuth.apiFetch(`/api/reports/trips-export${qs}`);
+  if (!res?.success || !res.rows.length) { showToast('No trips to export for this period.', 'error'); return; }
+  const headers = ['Trip #','Date','Rider ID','Vehicle','Payment Type','Grant','Est. Fare','Actual Fare','Miles'];
+  const csvRows = [headers, ...res.rows.map(r => [r.tripNumber, r.date, r.riderId, r.vehicle, r.paymentType, r.grantName, r.estimatedFare, r.actualFare, r.miles])];
+  downloadCSV(csvRows, `rydeworks-trips-${from}-${to}.csv`);
+}
+
+async function exportSummaryCSV() {
+  if (!_reportSummary) { showToast('Run a report first.', 'error'); return; }
+  const d = _reportSummary;
+  const rows = [
+    ['Metric','Value'],
+    ['Period From', new Date(d.period.from).toLocaleDateString()],
+    ['Period To',   new Date(d.period.to).toLocaleDateString()],
+    ['Completed Trips', d.trips.completed],
+    ['Canceled Trips',  d.trips.canceled],
+    ['Unique Riders in Period', d.riders.activeInPeriod],
+    ['Total Enrolled Riders', d.riders.total],
+    ['Active Subscriptions', d.riders.activeSubs],
+    ['Total Miles Provided', d.service.totalMiles],
+    ['Avg Miles Per Trip', d.service.avgMilesPerTrip],
+    ['Revenue Collected', d.financial.revenue],
+    ['Total Service Value (incl. grants)', d.financial.totalFareValue],
+    ['Avg Fare Per Trip', d.financial.avgFarePerTrip],
+    ['Free Ride Codes Issued', d.codes.issued],
+    ['Free Ride Codes Used', d.codes.used],
+    ['Free Ride Codes Expired', d.codes.expired],
+  ];
+  const { from, to } = getReportParams();
+  downloadCSV(rows, `rydeworks-summary-${from}-${to}.csv`);
+}
+
+function downloadCSV(rows, filename) {
+  const csv = rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 // ── FREE RIDE CODES ───────────────────────────────────────

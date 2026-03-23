@@ -30,6 +30,7 @@ require('./models/RiderSubscription');
 // Routes
 const authRoutes       = require('./routes/auth');
 const adminRoutes      = require('./routes/admin');
+const reportRoutes     = require('./routes/reports');
 const tripRoutes       = require('./routes/trips');
 const superAdminRoutes = require('./routes/superAdmin');
 const bookRoutes       = require('./routes/book');
@@ -71,6 +72,7 @@ app.use(express.static(path.join(__dirname, '../client/public')));
 // ── API Routes ────────────────────────────────────────────
 app.use('/api/auth',        authRoutes);
 app.use('/api/admin',       adminRoutes);
+app.use('/api/reports',     reportRoutes);
 app.use('/api/trips',       tripRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/book',        bookRoutes);
@@ -360,14 +362,16 @@ const seedInitialData = async () => {
 };
 
 // ── Weekly Friday billing ─────────────────────────────────
-const { runWeeklyBilling } = require('./billing');
+const { runWeeklyBilling, expireFreeRideCodes } = require('./billing');
 // Schedule: run every Friday at 6 AM Eastern
 function scheduleWeeklyBilling() {
-  const checkInterval = setInterval(async () => {
+  setInterval(async () => {
     const now = new Date();
     const estHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
     const estDay = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short' }).format(now);
     const estMin = now.getMinutes();
+    // Expire free ride codes every check (idempotent — only affects codes past their date)
+    await expireFreeRideCodes().catch(err => console.error('Expire codes error:', err));
     if (estDay === 'Fri' && estHour === 6 && estMin < 5) {
       console.log('Running weekly Friday billing...');
       await runWeeklyBilling().catch(err => console.error('Billing error:', err));

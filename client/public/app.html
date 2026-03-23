@@ -9,6 +9,52 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/app.css">
   <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    /* ── Report styles ── */
+    .report-tab {
+      padding: 10px 18px; border: none; background: none; cursor: pointer;
+      font-size: 13px; font-weight: 600; color: var(--gray-500);
+      border-bottom: 3px solid transparent; margin-bottom: -2px;
+      font-family: 'Inter', sans-serif; transition: color 0.15s;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .report-tab.active { color: var(--primary-color, #00D4C8); border-bottom-color: var(--primary-color, #00D4C8); }
+    .report-tab:hover { color: var(--gray-900); }
+    .r-stat-card {
+      background: #fff; border-radius: 12px; padding: 18px 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .r-stat-label { font-size: 11px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; }
+    .r-stat-value { font-size: 26px; font-weight: 800; margin-top: 4px; }
+    .r-stat-sub   { font-size: 11px; color: var(--gray-500); margin-top: 2px; }
+    .grant-report-doc {
+      background: #fff; border-radius: 12px; padding: 32px 36px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06); max-width: 800px;
+    }
+    .grant-report-doc .gr-header { border-bottom: 3px solid #0A1628; padding-bottom: 16px; margin-bottom: 24px; }
+    .grant-report-doc .gr-title  { font-size: 20px; font-weight: 800; color: #0A1628; }
+    .grant-report-doc .gr-sub    { font-size: 13px; color: #6c757d; margin-top: 4px; }
+    .grant-kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+    .grant-kpi { text-align: center; background: #f8fafc; border-radius: 10px; padding: 16px; }
+    .grant-kpi .kv { font-size: 28px; font-weight: 800; color: #0A1628; }
+    .grant-kpi .kl { font-size: 11px; font-weight: 600; color: #6c757d; text-transform: uppercase; margin-top: 4px; }
+    .gr-section-title { font-size: 13px; font-weight: 700; color: #0A1628; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin: 24px 0 12px; }
+    .gr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .gr-table th { background: #f8fafc; font-weight: 700; color: #64748b; font-size: 11px; text-transform: uppercase; padding: 8px 12px; text-align: left; }
+    .gr-table td { padding: 10px 12px; border-bottom: 1px solid #f0f4f8; }
+    .gr-table tr:last-child td { border-bottom: none; }
+    .zip-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; }
+    .zip-bar-track { flex: 1; background: #e2e8f0; border-radius: 4px; height: 8px; overflow: hidden; }
+    .zip-bar-fill  { height: 8px; background: #00D4C8; border-radius: 4px; transition: width 0.4s; }
+    @media print {
+      .sidebar, header, .card:not(.grant-report-doc), .report-tab, #view-reports > *:not(:last-child) { display: none !important; }
+      .grant-report-doc { box-shadow: none; padding: 0; }
+    }
+    @media (max-width: 700px) {
+      .report-charts-row { grid-template-columns: 1fr !important; }
+      .grant-kpi-row { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
 </head>
 <body>
   <!-- SIDEBAR -->
@@ -426,35 +472,105 @@
 
     <!-- ── REPORTS VIEW ── -->
     <section class="view" id="view-reports">
-      <div class="card">
-        <div class="card-header">
-          <h3><i class="fas fa-chart-bar"></i> Grant &amp; Operations Reports</h3>
+
+      <!-- Controls bar -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:4px 0;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="font-size:13px;font-weight:600;white-space:nowrap;">From</label>
+            <input type="date" id="reportFrom" class="form-input" style="width:150px;padding:7px 10px;font-size:13px;">
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="font-size:13px;font-weight:600;white-space:nowrap;">To</label>
+            <input type="date" id="reportTo" class="form-input" style="width:150px;padding:7px 10px;font-size:13px;">
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-sm btn-secondary" onclick="setReportPreset('thisMonth')">This Month</button>
+            <button class="btn btn-sm btn-secondary" onclick="setReportPreset('lastMonth')">Last Month</button>
+            <button class="btn btn-sm btn-secondary" onclick="setReportPreset('last30')">Last 30 Days</button>
+            <button class="btn btn-sm btn-secondary" onclick="setReportPreset('ytd')">Year to Date</button>
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="loadReports()" style="margin-left:auto;">
+            <i class="fas fa-sync-alt"></i> Run Report
+          </button>
         </div>
-        <div class="card-body" id="reportsBody">
-          <div class="reports-grid">
-            <div class="report-card" onclick="generateReport('grant')">
-              <i class="fas fa-file-invoice-dollar"></i>
-              <h4>Grant Report</h4>
-              <p>Anonymous rider data for grant funders</p>
+      </div>
+
+      <!-- Tab switcher -->
+      <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid var(--gray-200);padding-bottom:0;">
+        <button class="report-tab active" id="rtab-ops" onclick="switchReportTab('ops')"><i class="fas fa-chart-bar"></i> Operations</button>
+        <button class="report-tab" id="rtab-grant" onclick="switchReportTab('grant')"><i class="fas fa-file-invoice-dollar"></i> Grant Report</button>
+        <button class="report-tab" id="rtab-export" onclick="switchReportTab('export')"><i class="fas fa-download"></i> Export</button>
+      </div>
+
+      <!-- OPS PANEL -->
+      <div id="rpanel-ops">
+        <div id="opsLoading" style="text-align:center;padding:40px;color:var(--gray-500);"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+        <div id="opsContent" style="display:none;">
+
+          <!-- Stat cards -->
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px;" id="opsStatCards"></div>
+
+          <!-- Charts row -->
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px;" class="report-charts-row">
+            <div class="card">
+              <div class="card-header"><h3 style="font-size:14px;"><i class="fas fa-chart-line" style="color:var(--primary-color);margin-right:6px;"></i>Trips Per Week</h3></div>
+              <div class="card-body" style="padding:16px;"><canvas id="chartTripsWeek" height="200"></canvas></div>
             </div>
-            <div class="report-card" onclick="generateReport('trips')">
-              <i class="fas fa-route"></i>
-              <h4>Trip Summary</h4>
-              <p>All trips by date range</p>
+            <div class="card">
+              <div class="card-header"><h3 style="font-size:14px;"><i class="fas fa-chart-pie" style="color:var(--primary-color);margin-right:6px;"></i>Payment Mix</h3></div>
+              <div class="card-body" style="padding:16px;"><canvas id="chartPaymentMix" height="200"></canvas></div>
             </div>
-            <div class="report-card" onclick="generateReport('revenue')">
-              <i class="fas fa-chart-line"></i>
-              <h4>Revenue Report</h4>
-              <p>Income by payment type</p>
+          </div>
+
+          <!-- Bottom row -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;" class="report-charts-row">
+            <div class="card">
+              <div class="card-header"><h3 style="font-size:14px;"><i class="fas fa-map-marker-alt" style="color:var(--primary-color);margin-right:6px;"></i>Top Pickup Zip Codes</h3></div>
+              <div class="card-body" style="padding:16px;" id="opsZipTable"></div>
             </div>
-            <div class="report-card" onclick="generateReport('driver')">
-              <i class="fas fa-id-badge"></i>
-              <h4>Driver Report</h4>
-              <p>Mileage and trips per driver</p>
+            <div class="card">
+              <div class="card-header"><h3 style="font-size:14px;"><i class="fas fa-ticket-alt" style="color:var(--primary-color);margin-right:6px;"></i>Free Ride Codes</h3></div>
+              <div class="card-body" style="padding:16px;" id="opsCodesPanel"></div>
             </div>
           </div>
         </div>
       </div>
+
+      <!-- GRANT PANEL -->
+      <div id="rpanel-grant" style="display:none;">
+        <div class="card" style="margin-bottom:14px;">
+          <div style="padding:4px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <label style="font-size:13px;font-weight:600;">Grant</label>
+              <select id="grantReportSelect" class="form-input" style="width:240px;padding:7px 10px;font-size:13px;" onchange="loadGrantReport()">
+                <option value="">All Grant-Funded Trips</option>
+              </select>
+            </div>
+            <button class="btn btn-sm" style="background:#1a202c;color:#fff;margin-left:auto;" onclick="printGrantReport()">
+              <i class="fas fa-print"></i> Print / Save PDF
+            </button>
+          </div>
+        </div>
+
+        <div id="grantLoading" style="text-align:center;padding:40px;color:var(--gray-500);display:none;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+        <div id="grantContent"></div>
+      </div>
+
+      <!-- EXPORT PANEL -->
+      <div id="rpanel-export" style="display:none;">
+        <div class="card">
+          <div class="card-header"><h3 style="font-size:14px;"><i class="fas fa-download"></i> Export Data</h3></div>
+          <div class="card-body" style="padding:20px;">
+            <p style="font-size:13px;color:var(--gray-500);margin-bottom:20px;">Export completed trips for the selected date range as a CSV file. Rider names are not included — only anonymous IDs.</p>
+            <div style="display:flex;flex-direction:column;gap:12px;max-width:320px;">
+              <button class="btn btn-primary" onclick="exportTripsCSV()"><i class="fas fa-file-csv"></i> Export Trips (CSV)</button>
+              <button class="btn btn-secondary" onclick="exportSummaryCSV()"><i class="fas fa-file-csv"></i> Export Summary Stats (CSV)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </section>
 
     <!-- ── FREE RIDE CODES VIEW ── -->
@@ -1383,6 +1499,7 @@
   <div class="toast" id="toast"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/dispatcher.js"></script>
 </body>
