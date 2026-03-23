@@ -62,10 +62,13 @@ function showRiderPaymentState(state) {
   txt.textContent = bits.join(' • ');
 }
 
+// Tracks the last fare calculated by the fare engine (used as estimatedFare even for free_ride/grant)
+let _lastCalculatedFare = 0;
+
 function parseDisplayedFare() {
-  const raw = document.getElementById('fareAmount')?.textContent || '';
-  const n = Number(String(raw).replace(/[^0-9.]/g, ''));
-  return Number.isFinite(n) ? n : 0;
+  // Always return the calculated fare for reporting purposes.
+  // For free_ride/grant trips the display shows $0 but we want the potential revenue value.
+  return _lastCalculatedFare;
 }
 
 function refreshFareAfterPaymentChange() {
@@ -527,17 +530,20 @@ function toggleAmPm(btn) {
 function getTime24h(inputId, amPmId) {
   const val = (document.getElementById(inputId)?.value || '').trim();
   if (!val) return '';
-  const ampm  = document.getElementById(amPmId)?.textContent?.trim() || 'AM';
-  const clean = val.replace(/[^0-9]/g, '');
-  if (clean.length < 2) return '';
+  const ampm = document.getElementById(amPmId)?.textContent?.trim() || 'AM';
   let h, m;
-  const firstTwo = parseInt(clean.slice(0, 2), 10);
-  if (firstTwo > 12) {
-    h = parseInt(clean[0], 10);
-    m = parseInt(clean.slice(1, 3) || '0', 10);
+  if (val.includes(':')) {
+    // Preferred path: "H:MM" or "HH:MM" — split on colon for exact parse
+    const parts = val.split(':');
+    h = parseInt(parts[0], 10);
+    m = parseInt(parts[1] || '0', 10);
   } else {
-    h = firstTwo;
-    m = parseInt(clean.slice(2, 4) || '0', 10);
+    // Raw digits fallback (user didn't blur yet)
+    const clean = val.replace(/[^0-9]/g, '');
+    if (clean.length < 2) return '';
+    const firstTwo = parseInt(clean.slice(0, 2), 10);
+    if (firstTwo > 12) { h = parseInt(clean[0], 10); m = parseInt(clean.slice(1, 3) || '0', 10); }
+    else               { h = firstTwo;                m = parseInt(clean.slice(2, 4) || '0', 10); }
   }
   if (isNaN(h) || isNaN(m) || h < 1 || h > 12 || m > 59) return '';
   if (ampm === 'AM' && h === 12) h = 0;
@@ -985,6 +991,7 @@ async function onDestinationBlur(idx) {
       return;
     }
     const fare = tripType === 'one_way' ? fareRes.oneWayFare : fareRes.fare;
+    _lastCalculatedFare = fare || 0; // store for grant/free_ride potential revenue reporting
     document.getElementById('fareAmount').textContent = fare ? `$${fare.toFixed(2)}` : '$0.00';
     document.getElementById('fareZone').textContent   = fareRes.zone
       ? `${fareRes.zone.name} • ${fareRes.distanceMiles} mi`
@@ -998,7 +1005,7 @@ async function onDestinationBlur(idx) {
       // Recalculate pickup time if appointment is set but pickup isn't yet
       const apptEl   = document.getElementById(`riderApptTime-${idx}`);
       const pickupEl = document.getElementById(`riderPickupTime-${idx}`);
-      if (apptEl?.value && !pickupEl?.value) onApptTimeChange(idx);
+      if (apptEl?.value) onApptTimeChange(idx);
     }
 
     // Travel time warning: estimate drive time at 20 mph average (urban + stops)
@@ -1229,6 +1236,7 @@ document.getElementById('scheduleForm')?.addEventListener('submit', async (e) =>
       document.getElementById('scheduleForm').reset();
       document.getElementById('ridersList').innerHTML = '';
       riderCount = 0;
+      _lastCalculatedFare = 0;
       showView('dashboard');
     } else {
       showToast(res?.error || 'Failed to schedule trip.', 'error');
@@ -3280,7 +3288,20 @@ function editVehicle(vehicleId) {
   document.getElementById('editVehYear').value     = v.year || '';
   document.getElementById('editVehCapacity').value = v.capacity || 7;
   document.getElementById('editVehStatus').value   = v.status || 'available';
-  document.getElementById('editVehBaseName').value = v.baseLocation?.name || '';
+  const editBaseSel = document.getElementById('editVehBaseName');
+  if (editBaseSel) {
+    const storedName = v.baseLocation?.name || '';
+    editBaseSel.value = storedName;
+    // If exact match didn't work, try fuzzy match against org home bases
+    if (editBaseSel.value !== storedName && storedName) {
+      const homeBases = appData.org?.homeBases || [];
+      const fuzzy = homeBases.find(b =>
+        b.name.toLowerCase().includes(storedName.toLowerCase()) ||
+        storedName.toLowerCase().includes(b.name.toLowerCase())
+      );
+      if (fuzzy) editBaseSel.value = fuzzy.name;
+    }
+  }
   openModal('editVehicleModal');
 }
 
@@ -3295,9 +3316,10 @@ async function saveEditVehicle() {
   const status   = document.getElementById('editVehStatus').value;
   const baseName    = document.getElementById('editVehBaseName').value.trim();
   const orgBase     = (appData.org?.homeBases || []).find(b => b.name === baseName);
+  const existingVeh = appData.vehicles.find(v => v._id === id);
   const baseLocation = orgBase
     ? { name: orgBase.name, address: orgBase.address, lat: orgBase.lat, lng: orgBase.lng }
-    : null;
+    : (existingVeh?.baseLocation || null); // preserve existing if no new selection made
   if (!name) { showToast('Vehicle name is required.', 'error'); return; }
   const res = await ZakAuth.apiFetch(`/api/admin/vehicles/${id}`, {
     method: 'PUT',
