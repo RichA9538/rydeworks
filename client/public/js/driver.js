@@ -370,7 +370,7 @@ function renderRoute(trip) {
           <i class="fas fa-user-clock"></i> ${ZakAuth.getUser()?.driverInfo?.isAvailable === false ? 'Mark Available' : 'Mark Unavailable'}
         </button>
         <button onclick="showScreen('map');initDriverMap()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.25);border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;width:100%;">
-          <i class="fas fa-map"></i> Open In-App Map
+          <i class="fas fa-map"></i> Trip Overview Map
         </button>
         <button onclick="showQRCode()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.25);border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;width:100%;">
           <i class="fas fa-qrcode"></i> Show Rider Booking QR Code
@@ -516,6 +516,9 @@ async function updateStopStatus(tripId, stopId, status) {
     };
     showToast(messages[status] || 'Status updated', status === 'no_show' ? 'error' : 'success');
 
+    // Hide nav banner when stop is completed or rider is aboard
+    if (['completed', 'aboard', 'no_show'].includes(status)) hideNavBanner();
+
     if (status === 'completed') {
       // Dropoff completed — reload trips to show next trip or no-trips screen
       setTimeout(() => loadTodayTrip(), 800);
@@ -556,24 +559,40 @@ async function driverCancelTrip(tripId) {
 }
 
 // ── NAVIGATION ────────────────────────────────────────────
+let lastGoogleMapsUrl = '';
+
 function navigateTo(address, legType = 'pickup', riderName = 'Rider') {
   const normalized = normalizeAddress(address);
   if (!normalized) { showToast('No address available', 'error'); return; }
-  selectedMapTarget = { address: normalized, legType, riderName };
-  showScreen('map');
-  initDriverMap();
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(pos => {
-      const { latitude: lat, longitude: lng } = pos.coords;
-      lastKnownDriverLocation = [lat, lng];
-      try { localStorage.setItem('rydeworks_last_driver_loc', JSON.stringify(lastKnownDriverLocation)); } catch (e) {}
-      if (driverLocationMarker) driverLocationMarker.setLatLng([lat, lng]);
-      refreshDriverMap();
-    }, () => refreshDriverMap(), { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 });
-  } else {
-    refreshDriverMap();
-  }
-  showToast(`Opened in-app map for ${legType === 'dropoff' ? 'drop-off' : 'pickup'}`, 'success');
+
+  // Open Google Maps for turn-by-turn navigation
+  const encoded = encodeURIComponent(normalized);
+  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encoded}&travelmode=driving`;
+  lastGoogleMapsUrl = mapsUrl;
+  window.open(mapsUrl, '_blank');
+
+  // Show floating banner so driver can easily return or reopen Maps
+  showNavBanner(normalized, riderName);
+  showToast(`Opening Google Maps for ${legType === 'dropoff' ? 'drop-off' : 'pickup'}`, 'success');
+}
+
+function showNavBanner(address, riderName) {
+  const banner = document.getElementById('navBanner');
+  const dest   = document.getElementById('navBannerDest');
+  if (!banner) return;
+  if (dest) dest.textContent = riderName ? `${riderName} — ${address}` : address;
+  banner.style.display = 'flex';
+  try { localStorage.setItem('rydeworks_nav_active', '1'); } catch(e) {}
+}
+
+function hideNavBanner() {
+  const banner = document.getElementById('navBanner');
+  if (banner) banner.style.display = 'none';
+  try { localStorage.removeItem('rydeworks_nav_active'); } catch(e) {}
+}
+
+function reopenGoogleMaps() {
+  if (lastGoogleMapsUrl) window.open(lastGoogleMapsUrl, '_blank');
 }
 
 function clearSelectedMapTarget() {
