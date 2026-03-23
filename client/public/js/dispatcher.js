@@ -313,7 +313,16 @@ document.addEventListener('change', (e) => {
   if (e.target?.id === 'tripVehicle') {
     const v = (appData.vehicles || []).find(x => x._id === e.target.value);
     const baseSel = document.getElementById('tripHomeBase');
-    if (baseSel) baseSel.value = v?.baseLocation?.name || '';
+    if (baseSel && v?.baseLocation) {
+      const vName = (v.baseLocation.name || '').toLowerCase().trim();
+      const vAddr = (v.baseLocation.address || '').toLowerCase().trim();
+      // Try exact match first, then case-insensitive, then partial address match
+      const options = Array.from(baseSel.options);
+      const match = options.find(o => o.value.toLowerCase().trim() === vName)
+                 || options.find(o => vName.includes(o.value.toLowerCase().trim()) || o.value.toLowerCase().trim().includes(vName))
+                 || options.find(o => vAddr.includes(o.value.toLowerCase().trim()));
+      if (match) baseSel.value = match.value;
+    }
     refreshFareAfterPaymentChange();
   }
   if (e.target?.id === 'tripHomeBase') {
