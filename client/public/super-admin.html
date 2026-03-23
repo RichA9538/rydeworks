@@ -292,6 +292,87 @@
     </div>
   </div>
 
+  <!-- ── EDIT ORG MODAL ── -->
+  <div class="modal-overlay" id="editOrgModal">
+    <div class="modal-box" style="max-width:560px;max-height:90vh;overflow-y:auto;">
+      <div class="modal-header">
+        <h3><i class="fas fa-cog" style="color:var(--green);margin-right:8px"></i>Edit Organization Settings</h3>
+        <button class="modal-close" onclick="closeModal('editOrgModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editOrgId">
+
+        <!-- Basic Info -->
+        <div style="font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Basic Info</div>
+        <div class="form-group"><label class="form-label">Organization Name *</label><input type="text" class="form-input" id="editOrgName" placeholder="PERC Tampa"></div>
+        <div class="form-group"><label class="form-label">Contact Email</label><input type="email" class="form-input" id="editOrgEmail" placeholder="admin@org.com"></div>
+        <div class="form-group"><label class="form-label">Contact Phone</label><input type="tel" class="form-input" id="editOrgPhone" placeholder="(727) 555-0000"></div>
+        <div class="form-group"><label class="form-label">Address</label><input type="text" class="form-input" id="editOrgAddress" placeholder="123 Main St, City, FL"></div>
+
+        <!-- Booking -->
+        <div style="font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:1px;margin:20px 0 10px;">Booking Portal</div>
+        <div class="form-group">
+          <label class="form-label">Booking Subdomain</label>
+          <div style="display:flex;align-items:center;gap:0;">
+            <input type="text" class="form-input" id="editBookingSubdomain" placeholder="perc" style="border-radius:8px 0 0 8px;border-right:none;">
+            <span style="padding:10px 12px;background:var(--gray-100);border:1.5px solid var(--gray-300);border-left:none;border-radius:0 8px 8px 0;font-size:13px;color:var(--gray-500);white-space:nowrap;">.rydeworks.com/book</span>
+          </div>
+          <div style="font-size:11px;color:var(--gray-500);margin-top:4px;">Lowercase letters and hyphens only. E.g. "perc" → perc.rydeworks.com/book</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Weekly Billing Day</label>
+          <select class="form-input" id="editWeeklyBillingDay">
+            <option value="1">Monday</option>
+            <option value="2">Tuesday</option>
+            <option value="3">Wednesday</option>
+            <option value="4">Thursday</option>
+            <option value="5" selected>Friday (default)</option>
+            <option value="6">Saturday</option>
+            <option value="0">Sunday</option>
+          </select>
+        </div>
+
+        <!-- Venmo -->
+        <div style="font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:1px;margin:20px 0 10px;">Venmo</div>
+        <div class="form-group">
+          <label class="form-label">Org Venmo Handle</label>
+          <input type="text" class="form-input" id="editVenmoHandle" placeholder="@perc-transport">
+          <div style="font-size:11px;color:var(--gray-500);margin-top:4px;">Shown to riders on the booking page payment step</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Venmo QR Code Image URL</label>
+          <input type="url" class="form-input" id="editVenmoQrUrl" placeholder="https://..." oninput="previewQr('venmo', this.value)">
+          <div style="font-size:11px;color:var(--gray-500);margin-top:4px;">Upload your QR image to Google Drive, Dropbox, or Imgur and paste the direct link here</div>
+          <div id="venmoQrPreview" style="margin-top:8px;display:none;text-align:center;">
+            <img id="venmoQrPreviewImg" src="" alt="Venmo QR" style="max-width:120px;border-radius:8px;border:1px solid var(--gray-200);">
+          </div>
+        </div>
+
+        <!-- Cash App -->
+        <div style="font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:1px;margin:20px 0 10px;">Cash App</div>
+        <div class="form-group">
+          <label class="form-label">Org Cash App $Cashtag</label>
+          <input type="text" class="form-input" id="editCashAppHandle" placeholder="$perctransport">
+          <div style="font-size:11px;color:var(--gray-500);margin-top:4px;">Shown to riders on the booking page payment step</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cash App QR Code Image URL</label>
+          <input type="url" class="form-input" id="editCashAppQrUrl" placeholder="https://..." oninput="previewQr('cashapp', this.value)">
+          <div style="font-size:11px;color:var(--gray-500);margin-top:4px;">Upload your QR image to Google Drive, Dropbox, or Imgur and paste the direct link here</div>
+          <div id="cashappQrPreview" style="margin-top:8px;display:none;text-align:center;">
+            <img id="cashappQrPreviewImg" src="" alt="Cash App QR" style="max-width:120px;border-radius:8px;border:1px solid var(--gray-200);">
+          </div>
+        </div>
+
+        <div id="editOrgError" style="display:none;background:#ffebee;border:1px solid #ffcdd2;border-radius:8px;padding:10px 14px;font-size:13px;color:var(--red);margin-top:8px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('editOrgModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveEditOrg()"><i class="fas fa-save"></i> Save Changes</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <script src="js/auth.js"></script>
@@ -355,17 +436,17 @@
         const badgeClass = status === 'active' ? 'badge-active' : status === 'suspended' ? 'badge-suspended' : 'badge-terminated';
         const badgeIcon  = status === 'active' ? 'fa-check-circle' : status === 'suspended' ? 'fa-pause-circle' : 'fa-ban';
 
-        let actions = '';
+        let actions = `<button class="btn btn-sm btn-ghost" onclick="openEditOrgModal('${org._id}')"><i class="fas fa-cog"></i> Edit</button> `;
         if (status === 'active') {
-          actions = `
+          actions += `
             <button class="btn btn-sm btn-warning" onclick="openSuspendModal('${org._id}','${escHtml(org.name)}')"><i class="fas fa-pause-circle"></i> Suspend</button>
             <button class="btn btn-sm btn-danger" onclick="openTerminateModal('${org._id}','${escHtml(org.name)}')"><i class="fas fa-ban"></i> Terminate</button>`;
         } else if (status === 'suspended') {
-          actions = `
+          actions += `
             <button class="btn btn-sm btn-success" onclick="openReactivateModal('${org._id}','${escHtml(org.name)}')"><i class="fas fa-play-circle"></i> Reactivate</button>
             <button class="btn btn-sm btn-danger" onclick="openTerminateModal('${org._id}','${escHtml(org.name)}')"><i class="fas fa-ban"></i> Terminate</button>`;
         } else {
-          actions = '<span style="font-size:12px;color:var(--gray-500)">Terminated</span>';
+          actions += '<span style="font-size:12px;color:var(--gray-500)">Terminated</span>';
         }
 
         return `<tr>
@@ -470,6 +551,79 @@
       });
       if (res?.success) { showToast(`${name} created!`, 'success'); closeModal('addOrgModal'); loadOrgs(); }
       else showToast(res?.error || 'Failed to create organization.', 'error');
+    }
+
+    // ── EDIT ORG ──────────────────────────────────────────
+    function openEditOrgModal(id) {
+      const org = allOrgs.find(o => o._id === id);
+      if (!org) { showToast('Org not found.', 'error'); return; }
+
+      document.getElementById('editOrgId').value = id;
+      document.getElementById('editOrgName').value    = org.name  || '';
+      document.getElementById('editOrgEmail').value   = org.email || '';
+      document.getElementById('editOrgPhone').value   = org.phone || '';
+      document.getElementById('editOrgAddress').value = org.address || '';
+      document.getElementById('editBookingSubdomain').value = org.bookingSubdomain || '';
+      document.getElementById('editWeeklyBillingDay').value = String(org.weeklyBillingDay ?? 5);
+
+      const sp = org.selfPayConfig || {};
+      document.getElementById('editVenmoHandle').value  = sp.venmoHandle  || '';
+      document.getElementById('editVenmoQrUrl').value   = sp.venmoQrUrl   || '';
+      document.getElementById('editCashAppHandle').value = sp.cashAppHandle || '';
+      document.getElementById('editCashAppQrUrl').value  = sp.cashAppQrUrl  || '';
+
+      // show previews if URLs exist
+      previewQr('venmo',   sp.venmoQrUrl   || '');
+      previewQr('cashapp', sp.cashAppQrUrl || '');
+
+      document.getElementById('editOrgError').style.display = 'none';
+      openModal('editOrgModal');
+    }
+
+    function previewQr(type, url) {
+      const wrap = document.getElementById(`${type}QrPreview`);
+      const img  = document.getElementById(`${type}QrPreviewImg`);
+      if (url && url.startsWith('http')) {
+        img.src = url;
+        wrap.style.display = 'block';
+      } else {
+        wrap.style.display = 'none';
+      }
+    }
+
+    async function saveEditOrg() {
+      const id   = document.getElementById('editOrgId').value;
+      const name = document.getElementById('editOrgName').value.trim();
+      const errEl = document.getElementById('editOrgError');
+      errEl.style.display = 'none';
+      if (!name) { errEl.textContent = 'Organization name is required.'; errEl.style.display = 'block'; return; }
+
+      const subdomain = document.getElementById('editBookingSubdomain').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+
+      const body = {
+        name,
+        email:    document.getElementById('editOrgEmail').value.trim(),
+        phone:    document.getElementById('editOrgPhone').value.trim(),
+        address:  document.getElementById('editOrgAddress').value.trim(),
+        bookingSubdomain:  subdomain,
+        weeklyBillingDay:  parseInt(document.getElementById('editWeeklyBillingDay').value),
+        'selfPayConfig.venmoHandle':   document.getElementById('editVenmoHandle').value.trim(),
+        'selfPayConfig.venmoQrUrl':    document.getElementById('editVenmoQrUrl').value.trim(),
+        'selfPayConfig.cashAppHandle': document.getElementById('editCashAppHandle').value.trim(),
+        'selfPayConfig.cashAppQrUrl':  document.getElementById('editCashAppQrUrl').value.trim()
+      };
+
+      const res = await ZakAuth.apiFetch(`/api/super-admin/orgs/${id}`, {
+        method: 'PUT', body: JSON.stringify(body)
+      });
+      if (res?.success) {
+        showToast(`${name} updated!`, 'success');
+        closeModal('editOrgModal');
+        loadOrgs();
+      } else {
+        errEl.textContent = res?.error || 'Failed to save. Please try again.';
+        errEl.style.display = 'block';
+      }
     }
 
     // ── UTILS ─────────────────────────────────────────────────

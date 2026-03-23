@@ -30,7 +30,11 @@ router.post('/orgs', async (req, res) => {
 // PUT /api/super-admin/orgs/:id
 router.put('/orgs/:id', async (req, res) => {
   try {
-    const org = await Organization.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const org = await Organization.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body },
+      { new: true, runValidators: true }
+    );
     if (!org) return res.status(404).json({ success: false, error: 'Organization not found.' });
     res.json({ success: true, org });
   } catch (err) {
