@@ -1,6 +1,15 @@
 const express = require('express');
 const crypto  = require('crypto');
+const nodemailer = require('nodemailer');
 const router = express.Router();
+
+const emailTransporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.NOTIFY_EMAIL_USER,
+    pass: process.env.NOTIFY_EMAIL_PASS
+  }
+});
 const User = require('../models/User');
 const Vehicle = require('../models/Vehicle');
 const Organization = require('../models/Organization');
@@ -111,6 +120,28 @@ router.post('/users', requireRole('admin'), async (req, res) => {
     }
 
     await user.save();
+
+    // Email credentials to the new user
+    if (process.env.NOTIFY_EMAIL_USER && user.email) {
+      try {
+        const appUrl = process.env.APP_URL || 'https://app.rydeworks.com';
+        await emailTransporter.sendMail({
+          from: `"Rydeworks\u2122" <${process.env.NOTIFY_EMAIL_USER}>`,
+          to: user.email,
+          subject: 'Welcome to Rydeworks\u2122 \u2014 Your Login Credentials',
+          html: `<p>Hi ${firstName},</p>
+<p>Your Rydeworks account has been created. Here are your login credentials:</p>
+<p><strong>Email:</strong> ${email}<br>
+<strong>Temporary Password:</strong> ${tempPass}</p>
+<p>You will be prompted to create a new password on your first login.</p>
+<p><a href="${appUrl}/login.html">Log in to Rydeworks</a></p>
+<p style="color:#888;font-size:12px">If you were not expecting this email, please contact your administrator.</p>`
+        });
+      } catch (e) {
+        console.warn('Failed to send welcome email:', e.message);
+      }
+    }
+
     // Return generated credentials so admin can share them
     res.status(201).json({
       success: true,
@@ -133,6 +164,28 @@ router.post('/users/:id/reset-password', requireRole('admin'), async (req, res) 
     user.resetPasswordToken   = undefined;
     user.resetPasswordExpires = undefined;
     await user.save();
+
+    // Email the reset credentials
+    if (process.env.NOTIFY_EMAIL_USER && user.email) {
+      try {
+        const appUrl = process.env.APP_URL || 'https://app.rydeworks.com';
+        await emailTransporter.sendMail({
+          from: `"Rydeworks\u2122" <${process.env.NOTIFY_EMAIL_USER}>`,
+          to: user.email,
+          subject: 'Rydeworks\u2122 \u2014 Your Password Has Been Reset',
+          html: `<p>Hi ${user.firstName},</p>
+<p>Your Rydeworks password has been reset by an administrator. Here are your new temporary credentials:</p>
+<p><strong>Email:</strong> ${user.email}<br>
+<strong>Temporary Password:</strong> ${tempPass}</p>
+<p>You will be prompted to create a new password on your next login.</p>
+<p><a href="${appUrl}/login.html">Log in to Rydeworks</a></p>
+<p style="color:#888;font-size:12px">If you did not request this reset, please contact your administrator immediately.</p>`
+        });
+      } catch (e) {
+        console.warn('Failed to send password reset email:', e.message);
+      }
+    }
+
     res.json({ success: true, tempPassword: tempPass, email: user.email });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
