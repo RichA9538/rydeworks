@@ -2357,18 +2357,6 @@ function renderGrantReport(d) {
         ${d.summary.grantTrips || d.summary.freeRideTrips ? `
         <div class="grant-kpi"><div class="kv">${d.summary.grantTrips || 0}</div><div class="kl">Grant-Funded Trips</div></div>
         <div class="grant-kpi"><div class="kv">${d.summary.freeRideTrips || 0}</div><div class="kl">Free Ride Trips</div></div>` : ''}
-        ${(() => {
-          const ot = d.summary.onTime;
-          if (!ot) return '';
-          const puTotal  = (ot.pickups.onTime  + ot.pickups.late);
-          const doTotal  = (ot.dropoffs.onTime + ot.dropoffs.late);
-          const puPct    = puTotal  ? Math.round(ot.pickups.onTime  / puTotal  * 100) : null;
-          const doPct    = doTotal  ? Math.round(ot.dropoffs.onTime / doTotal  * 100) : null;
-          if (puPct === null && doPct === null) return '';
-          return `
-          ${puPct !== null ? `<div class="grant-kpi"><div class="kv">${puPct}%</div><div class="kl">On-Time Pickup Rate</div></div>` : ''}
-          ${doPct !== null ? `<div class="grant-kpi"><div class="kv">${doPct}%</div><div class="kl">On-Time Drop-Off Rate</div></div>` : ''}`;
-        })()}
       </div>
 
       ${d.byZip.length ? `
