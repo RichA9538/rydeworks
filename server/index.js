@@ -5,16 +5,8 @@ const cors       = require('cors');
 const helmet     = require('helmet');
 const rateLimit  = require('express-rate-limit');
 const path       = require('path');
-const nodemailer = require('nodemailer');
-
-// ── Email transporter (Gmail SMTP via App Password) ────────────
-const emailTransporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.NOTIFY_EMAIL_USER,
-    pass: process.env.NOTIFY_EMAIL_PASS
-  }
-});
+const { Resend } = require('resend');
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Models (register with mongoose)
 require('./models/Organization');
@@ -95,16 +87,16 @@ app.post('/api/demo-request', async (req, res) => {
     const { name, organization, email, phone, volume } = req.body;
     console.log(`📋 DEMO REQUEST: ${name} | ${organization} | ${email} | ${phone} | ${volume}`);
 
-    // Send email notification to Rich if credentials are configured
-    if (process.env.NOTIFY_EMAIL_USER && process.env.NOTIFY_EMAIL_PASS) {
-      const mailOptions = {
-        from: `"Rydeworks" <${process.env.NOTIFY_EMAIL_USER}>`,
+    // Send email notification to Rich if Resend is configured
+    if (process.env.RESEND_API_KEY) {
+      resend.emails.send({
+        from: 'Rydeworks <noreply@rydeworks.com>',
         to: 'rich@alvarezassociatesfl.com',
-        subject: `🚗 New Demo Request — ${organization}`,
+        subject: `New Demo Request — ${organization}`,
         html: `
           <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
             <div style="background:#0A1628;padding:24px;border-radius:8px 8px 0 0">
-              <h2 style="color:#00D4C8;margin:0;font-size:1.4rem">🚗 New Demo Request</h2>
+              <h2 style="color:#00D4C8;margin:0;font-size:1.4rem">New Demo Request</h2>
               <p style="color:rgba(255,255,255,0.6);margin:4px 0 0;font-size:0.9rem">via Rydeworks.com</p>
             </div>
             <div style="background:#f8f9fa;padding:24px;border-radius:0 0 8px 8px;border:1px solid #e2e8f0">
@@ -116,17 +108,16 @@ app.post('/api/demo-request', async (req, res) => {
                 <tr><td style="padding:8px 0;color:#718096;font-size:0.85rem">Rides/Week</td><td style="padding:8px 0;color:#1a202c">${volume || 'Not specified'}</td></tr>
               </table>
               <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-                <a href="mailto:${email}?subject=Re: Rydeworks Demo Request" style="background:#00D4C8;color:#0A1628;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:700;font-size:0.9rem">Reply to ${name} →</a>
+                <a href="mailto:${email}?subject=Re: Rydeworks Demo Request" style="background:#00D4C8;color:#0A1628;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:700;font-size:0.9rem">Reply to ${name}</a>
               </div>
             </div>
           </div>
         `
-      };
-      emailTransporter.sendMail(mailOptions).catch(err => {
+      }).catch(err => {
         console.error('❌ Demo request email failed:', err.message);
       });
     } else {
-      console.log('⚠️  Email not configured (NOTIFY_EMAIL_USER/PASS not set) — demo request logged only');
+      console.log('⚠️  RESEND_API_KEY not set — demo request logged only');
     }
 
     res.json({ success: true });

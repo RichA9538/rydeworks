@@ -2,17 +2,11 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const User = require('../models/User');
 const { authenticate } = require('../middleware/auth');
 
-const emailTransporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.NOTIFY_EMAIL_USER,
-    pass: process.env.NOTIFY_EMAIL_PASS
-  }
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Generate JWT
 const signToken = (userId) => jwt.sign(
@@ -130,9 +124,9 @@ router.post('/forgot-password', async (req, res) => {
     const origin = req.headers.origin || `https://app.rydeworks.com`;
     const resetUrl = `${origin}/reset-password.html?token=${token}`;
 
-    if (process.env.NOTIFY_EMAIL_USER && process.env.NOTIFY_EMAIL_PASS) {
-      await emailTransporter.sendMail({
-        from: `"Rydeworks" <${process.env.NOTIFY_EMAIL_USER}>`,
+    if (process.env.RESEND_API_KEY) {
+      await resend.emails.send({
+        from: 'Rydeworks <noreply@rydeworks.com>',
         to: user.email,
         subject: 'Rydeworks — Password Reset',
         html: `<p>Hello ${user.firstName || ''},</p><p>Click the link below to reset your password. This link expires in 1 hour.</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>If you did not request this, ignore this email.</p>`
