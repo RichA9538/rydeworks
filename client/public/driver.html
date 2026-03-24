@@ -593,16 +593,18 @@
   <div class="toast" id="toast"></div>
 
   <!-- Floating nav banner — shown while Google Maps navigation is active -->
-  <div id="navBanner" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9990;background:#0A1628;border:2px solid #00D4C8;border-radius:14px;padding:12px 18px;box-shadow:0 4px 20px rgba(0,0,0,0.5);display:none;align-items:center;gap:12px;max-width:340px;width:calc(100% - 32px);">
-    <div style="flex:1;min-width:0;">
-      <div style="font-size:12px;color:#00D4C8;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">Navigating</div>
-      <div id="navBannerDest" style="font-size:13px;color:#fff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;"></div>
+  <div id="navBanner" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9990;background:#0A1628;border:2px solid #00D4C8;border-radius:16px;padding:14px 16px;box-shadow:0 6px 28px rgba(0,0,0,0.6);width:calc(100% - 24px);max-width:420px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:11px;color:#00D4C8;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">Navigating</div>
+        <div id="navBannerDest" style="font-size:13px;color:#fff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;"></div>
+      </div>
+      <button onclick="hideNavBanner()" style="background:rgba(255,255,255,0.1);color:#fff;border:none;border-radius:8px;padding:8px 10px;font-size:14px;cursor:pointer;flex-shrink:0;">
+        <i class="fas fa-times"></i>
+      </button>
     </div>
-    <button onclick="reopenGoogleMaps()" style="background:#00D4C8;color:#0A1628;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;font-family:'Inter',sans-serif;">
-      <i class="fas fa-map-marked-alt"></i> Maps
-    </button>
-    <button onclick="hideNavBanner()" style="background:rgba(255,255,255,0.1);color:#fff;border:none;border-radius:8px;padding:8px 10px;font-size:12px;cursor:pointer;flex-shrink:0;">
-      <i class="fas fa-times"></i>
+    <button onclick="reopenGoogleMaps()" style="background:#00D4C8;color:#0A1628;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:800;cursor:pointer;width:100%;font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <i class="fas fa-map-marked-alt"></i> Back to Google Maps
     </button>
   </div>
 

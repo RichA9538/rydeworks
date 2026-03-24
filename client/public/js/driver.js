@@ -98,7 +98,10 @@ function getStopActionConfig(stop) {
     if (status === 'pending') {
       return [{ status: 'en_route', label: 'En Route', icon: 'fas fa-car', style: 'background:var(--gold);color:var(--gray-900);' }];
     }
-    // en_route or arrived: next action is Rider On Board
+    if (status === 'en_route') {
+      return [{ status: 'arrived', label: 'Arrived at Pickup', icon: 'fas fa-map-marker-alt', style: 'background:#3b82f6;color:#fff;' }];
+    }
+    // arrived: next action is Rider On Board (SMS already sent to rider on arrival)
     return [{ status: 'aboard', label: 'Rider On Board', icon: 'fas fa-user-check', style: 'background:#f59e0b;color:#fff;' }];
   }
 
@@ -382,9 +385,23 @@ function renderRoute(trip) {
   if (stops.length === 0) {
     html += `<div class="no-trips"><i class="fas fa-map-signs"></i><h3>No Stops</h3><p>This trip has no stops assigned yet.</p></div>`;
   } else {
-    stops.forEach((stop, i) => {
+    const activeStops = stops.filter(s => !isStopDone(s));
+    const doneStops = stops.filter(s => isStopDone(s));
+
+    // Render completed stops as collapsed summary at top
+    if (doneStops.length > 0) {
+      doneStops.forEach(stop => {
+        const label = stop.status === 'aboard' ? 'On Board' : stop.status === 'completed' ? 'Dropped Off' : stop.status === 'no_show' ? 'No Show' : 'Done';
+        const icon = stop.status === 'aboard' ? '🧑' : stop.status === 'completed' ? '✅' : '⚠️';
+        html += `<div style="padding:8px 14px;margin-bottom:6px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:rgba(255,255,255,0.5);display:flex;align-items:center;gap:8px;">
+          ${icon} <span>${getRiderDisplayName(stop)} — ${getStopTypeLabel(stop)} <strong style="color:rgba(255,255,255,0.7)">${label}</strong></span>
+        </div>`;
+      });
+    }
+
+    activeStops.forEach((stop, i) => {
       const isCurrent = activeStop && stop._id === activeStop._id && trip.status === 'in_progress';
-      const isDone = isStopDone(stop);
+      const isDone = false;
       const riderName = getRiderDisplayName(stop);
       const currentAddress = getStopAddress(stop);
       const pairedAddress = normalizeAddress(stop.pairedAddress || '');

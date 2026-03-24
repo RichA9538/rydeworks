@@ -412,8 +412,8 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Pickup Time *</label>
-            <input type="time" class="form-input" id="recurPickupTime" onchange="checkBookingAvailability()">
+            <label class="form-label">Appointment / Work Time *</label>
+            <input type="time" class="form-input" id="recurApptTime" placeholder="Time you need to arrive">
           </div>
           <div class="form-group">
             <label class="form-label">Trip Type</label>
@@ -423,12 +423,16 @@
             </select>
           </div>
         </div>
+        <div class="form-group">
+          <label class="form-label">Pickup Time <span style="font-weight:400;color:var(--gray-500)">(dispatcher will calculate if left blank)</span></label>
+          <input type="time" class="form-input" id="recurPickupTime" onchange="checkBookingAvailability()">
+        </div>
         <div class="form-group" id="recurReturnGroup" style="display:none">
           <label class="form-label">Return Pickup Time</label>
           <input type="time" class="form-input" id="recurReturnTime">
         </div>
         <div class="form-group">
-          <label class="form-label">Repeat Days</label>
+          <label class="form-label">Repeat Days <span style="font-weight:400;color:var(--gray-500)">(leave blank for a one-time trip)</span></label>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
             <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;"><input type="checkbox" class="recur-day" value="1"> Mon</label>
             <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;"><input type="checkbox" class="recur-day" value="2"> Tue</label>
@@ -801,8 +805,9 @@
       const anyFilled = dest || time || days.length > 0;
       if (anyFilled) {
         if (!dest) { errEl.textContent = 'Please enter a destination address.'; errEl.style.display = 'block'; return; }
-        if (!time) { errEl.textContent = 'Please enter a pickup time.'; errEl.style.display = 'block'; return; }
-        if (days.length === 0) { errEl.textContent = 'Please select at least one repeat day.'; errEl.style.display = 'block'; return; }
+        const apptTime = document.getElementById('recurApptTime').value;
+        if (!apptTime && !time) { errEl.textContent = 'Please enter your appointment time or pickup time.'; errEl.style.display = 'block'; return; }
+        if (days.length === 0 && !document.getElementById('recurStartDate').value) { errEl.textContent = 'Please select repeat days or a specific date for a one-time trip.'; errEl.style.display = 'block'; return; }
         const rPickupApt   = document.getElementById('recurPickupApt').value.trim();
         const rPickupCity  = document.getElementById('recurPickupCity').value.trim();
         const rPickupState = document.getElementById('recurPickupState').value.trim();
@@ -816,11 +821,13 @@
         recurringData = {
           pickupAddress: fullPickup,
           destination: fullDest,
-          pickupTime: time,
+          appointmentTime: document.getElementById('recurApptTime').value || null,
+          pickupTime: time || null,
           returnTime: document.getElementById('recurReturnTime').value || null,
           tripType: document.getElementById('recurTripType').value,
           repeatDays: days,
-          startDate: document.getElementById('recurStartDate').value || null
+          startDate: document.getElementById('recurStartDate').value || null,
+          isOneTime: days.length === 0
         };
       } else {
         recurringData = null;
@@ -921,7 +928,7 @@
           const siRes = await fetch('/api/book/setup-intent', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: `${firstName} ${lastName}`, email, phone })
+            body: JSON.stringify({ firstName, lastName, name: `${firstName} ${lastName}`, email, phone })
           });
           const siData = await siRes.json();
           if (!siData.clientSecret) throw new Error(siData.error || 'Could not initialize payment setup. Please try again.');
