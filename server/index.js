@@ -347,7 +347,11 @@ const seedInitialData = async () => {
   ];
 
   for (const member of teamMembers) {
-    const exists = await User.findOne({ email: member.email });
+    const exists = await User.findOne({
+      organization: org._id,
+      firstName: member.firstName,
+      lastName: member.lastName
+    });
     if (!exists) {
       await User.create({
         ...member,
