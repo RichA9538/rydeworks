@@ -2308,10 +2308,17 @@ async function submitEnrollment() {
 }
 
 // ── TEAM ──────────────────────────────────────────────────
+let _showInactiveTeam = false;
 async function loadTeam() {
-  const res = await ZakAuth.apiFetch('/api/admin/users?all=true');
+  const res = await ZakAuth.apiFetch(`/api/admin/users${_showInactiveTeam ? '?all=true' : ''}`);
   const tbody = document.getElementById('teamTableBody');
   if (!res?.success) return;
+
+  // Update toggle button label if it exists
+  const toggleBtn = document.getElementById('toggleInactiveBtn');
+  if (toggleBtn) toggleBtn.innerHTML = _showInactiveTeam
+    ? '<i class="fas fa-eye-slash"></i> Hide Inactive'
+    : '<i class="fas fa-eye"></i> Show Inactive';
 
   tbody.innerHTML = res.users.map(u => `
     <tr>
@@ -2327,6 +2334,10 @@ async function loadTeam() {
       </td>
     </tr>
   `).join('');
+}
+function toggleInactiveTeam() {
+  _showInactiveTeam = !_showInactiveTeam;
+  loadTeam();
 }
 
 // ── PAYMENTS ──────────────────────────────────────────────
