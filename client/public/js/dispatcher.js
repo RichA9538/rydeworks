@@ -547,24 +547,22 @@ async function loadDashboard() {
     </div>`;
   }
 
-  let html = '';
+  // Today's Trips — active/scheduled only
   if (activeTrips.length > 0) {
-    html += activeTrips.map(tripRowHtml).join('');
+    listEl.innerHTML = activeTrips.map(tripRowHtml).join('');
   } else {
-    html += '<div class="empty-state" style="padding:12px;"><i class="fas fa-calendar-times"></i><p>No trips scheduled for today</p></div>';
+    listEl.innerHTML = '<div class="empty-state"><i class="fas fa-calendar-times"></i><p>No trips scheduled for today</p></div>';
   }
 
-  // Completed & Canceled section — always visible
-  html += `<div style="margin-top:16px;border-top:1px solid var(--gray-200);padding-top:12px;">
-    <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;display:flex;align-items:center;gap:8px;">
-      <span><i class="fas fa-archive"></i> Completed &amp; Canceled Today (${doneTrips.length})</span>
-      ${doneTrips.length > 0 ? `<button onclick="toggleDoneTrips()" id="doneTripsToggle" style="background:none;border:none;color:var(--gray-500);cursor:pointer;font-size:11px;">show</button>` : ''}
-      <button onclick="showPastRidesModal()" style="background:none;border:1px solid var(--gray-300);border-radius:4px;color:var(--gray-500);cursor:pointer;font-size:11px;padding:2px 6px;margin-left:auto;"><i class="fas fa-history"></i> Past Rides</button>
-    </div>
-    ${doneTrips.length > 0 ? `<div id="doneTripsSection" style="display:none;">${doneTrips.map(tripRowHtml).join('')}</div>` : ''}
-  </div>`;
-
-  listEl.innerHTML = html;
+  // Completed & Canceled Today — lower right card
+  const completedEl = document.getElementById('completedTodayList');
+  if (completedEl) {
+    if (doneTrips.length > 0) {
+      completedEl.innerHTML = doneTrips.map(tripRowHtml).join('');
+    } else {
+      completedEl.innerHTML = '<div class="empty-state"><i class="fas fa-archive"></i><p>No completed or canceled rides yet today</p></div>';
+    }
+  }
 
   // Driver status
   const driverEl = document.getElementById('driverStatusList');
