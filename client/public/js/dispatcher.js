@@ -4212,7 +4212,7 @@ async function submitRecurringTrips(e) {
     const recPayment = { type: paymentType };
     if (paymentType === 'grant' && recGrantId) recPayment.grantId = recGrantId;
     const body = {
-      tripDate: new Date(dateStr).toISOString(),
+      tripDate: getEasternNoonISOString(dateStr),
       driver, vehicle, homeBase,
       stops,
       payment: recPayment
