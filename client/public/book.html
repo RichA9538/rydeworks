@@ -407,13 +407,16 @@
           </div>
           <div class="form-group" style="flex:1">
             <label class="form-label">ZIP *</label>
-            <input type="text" class="form-input" id="recurDestZip" placeholder="33701" maxlength="5">
+            <input type="text" class="form-input" id="recurDestZip" placeholder="33701" maxlength="5" onblur="estimatePickupTime()">
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Appointment / Work Time *</label>
-            <input type="time" class="form-input" id="recurApptTime" placeholder="Time you need to arrive">
+            <div style="display:flex;">
+              <input type="text" class="form-input" id="recurApptTime" placeholder="9:30" style="border-radius:8px 0 0 8px;border-right:none;" onblur="onBookTimeBlur(this);estimatePickupTime()">
+              <button type="button" id="recurApptAmPm" onclick="toggleAmPm(this)" style="padding:10px 12px;border:1.5px solid var(--gray-300);border-radius:0 8px 8px 0;background:var(--gray-100);color:var(--gray-700);font-weight:700;font-size:0.85rem;cursor:pointer;font-family:inherit;white-space:nowrap;">AM</button>
+            </div>
           </div>
           <div class="form-group">
             <label class="form-label">Trip Type</label>
@@ -424,12 +427,19 @@
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Pickup Time <span style="font-weight:400;color:var(--gray-500)">(dispatcher will calculate if left blank)</span></label>
-          <input type="time" class="form-input" id="recurPickupTime" onchange="checkBookingAvailability()">
+          <label class="form-label">Pickup Time <span style="font-weight:400;color:var(--gray-500)">(auto-estimated from appointment time)</span></label>
+          <div style="display:flex;">
+            <input type="text" class="form-input" id="recurPickupTime" placeholder="auto" style="border-radius:8px 0 0 8px;border-right:none;" onblur="onBookTimeBlur(this);checkBookingAvailability()">
+            <button type="button" id="recurPickupAmPm" onclick="toggleAmPm(this)" style="padding:10px 12px;border:1.5px solid var(--gray-300);border-radius:0 8px 8px 0;background:var(--gray-100);color:var(--gray-700);font-weight:700;font-size:0.85rem;cursor:pointer;font-family:inherit;white-space:nowrap;">AM</button>
+          </div>
+          <div id="pickupTimeNote" style="display:none;font-size:0.78rem;color:#0369a1;margin-top:4px;"><i class="fas fa-info-circle"></i> Estimated — dispatcher will confirm your exact pickup time.</div>
         </div>
         <div class="form-group" id="recurReturnGroup" style="display:none">
           <label class="form-label">Return Pickup Time</label>
-          <input type="time" class="form-input" id="recurReturnTime">
+          <div style="display:flex;">
+            <input type="text" class="form-input" id="recurReturnTime" placeholder="e.g. 5:00" style="border-radius:8px 0 0 8px;border-right:none;" onblur="onBookTimeBlur(this)">
+            <button type="button" id="recurReturnAmPm" onclick="toggleAmPm(this)" style="padding:10px 12px;border:1.5px solid var(--gray-300);border-radius:0 8px 8px 0;background:var(--gray-100);color:var(--gray-700);font-weight:700;font-size:0.85rem;cursor:pointer;font-family:inherit;white-space:nowrap;">PM</button>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">Repeat Days <span style="font-weight:400;color:var(--gray-500)">(leave blank for a one-time trip)</span></label>
@@ -640,6 +650,91 @@
     let orgConfig = {};
     let recurringData = null;
 
+    // ── Time input helpers ─────────────────────────────────
+    function toggleAmPm(btn) {
+      btn.textContent = btn.textContent.trim() === 'AM' ? 'PM' : 'AM';
+      estimatePickupTime();
+    }
+
+    function onBookTimeBlur(input) {
+      const val = input.value.trim();
+      if (!val) return;
+      const match = val.match(/^(\d{1,2}):?(\d{2})?$/);
+      if (match) {
+        const h = parseInt(match[1]);
+        const m = parseInt(match[2] || '0');
+        if (h >= 1 && h <= 12 && m >= 0 && m < 60) {
+          input.value = `${h}:${String(m).padStart(2, '0')}`;
+        }
+      }
+    }
+
+    function getBookTime24h(inputId, ampmBtnId) {
+      const val = document.getElementById(inputId)?.value?.trim();
+      const ampm = document.getElementById(ampmBtnId)?.textContent?.trim() || 'AM';
+      if (!val) return null;
+      const match = val.match(/^(\d{1,2}):(\d{2})$/);
+      if (!match) return null;
+      let h = parseInt(match[1]);
+      const m = parseInt(match[2]);
+      if (ampm === 'PM' && h !== 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+
+    function setBookTime12h(inputId, ampmBtnId, time24) {
+      const [hStr, mStr] = time24.split(':');
+      let h = parseInt(hStr);
+      const m = parseInt(mStr);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      if (h > 12) h -= 12;
+      if (h === 0) h = 12;
+      const input = document.getElementById(inputId);
+      const btn = document.getElementById(ampmBtnId);
+      if (input) input.value = `${h}:${String(m).padStart(2, '0')}`;
+      if (btn) btn.textContent = ampm;
+    }
+
+    async function geocodeBookAddress(address) {
+      try {
+        const r = await fetch(`https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${encodeURIComponent(address)}&benchmark=2020&format=json`);
+        const d = await r.json();
+        const match = d?.result?.addressMatches?.[0];
+        if (match) return { lat: parseFloat(match.coordinates.y), lng: parseFloat(match.coordinates.x) };
+      } catch(e) {}
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`, { headers: { 'Accept-Language': 'en' } });
+        const d = await r.json();
+        if (d?.[0]) return { lat: parseFloat(d[0].lat), lng: parseFloat(d[0].lon) };
+      } catch(e) {}
+      return null;
+    }
+
+    async function estimatePickupTime() {
+      const apptTime24 = getBookTime24h('recurApptTime', 'recurApptAmPm');
+      if (!apptTime24) return;
+      const pickup = [document.getElementById('recurPickup').value.trim(), document.getElementById('recurPickupCity').value.trim(), document.getElementById('recurPickupState').value.trim(), document.getElementById('recurPickupZip').value.trim()].filter(Boolean).join(', ');
+      const dest   = [document.getElementById('recurDestination').value.trim(), document.getElementById('recurDestCity').value.trim(), document.getElementById('recurDestState').value.trim(), document.getElementById('recurDestZip').value.trim()].filter(Boolean).join(', ');
+      if (!pickup || pickup.length < 5 || !dest || dest.length < 5) return;
+      try {
+        const [pickupCoords, destCoords] = await Promise.all([geocodeBookAddress(pickup), geocodeBookAddress(dest)]);
+        if (!pickupCoords || !destCoords) return;
+        const R = 3958.8;
+        const dLat = (destCoords.lat - pickupCoords.lat) * Math.PI / 180;
+        const dLng = (destCoords.lng - pickupCoords.lng) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(pickupCoords.lat * Math.PI/180) * Math.cos(destCoords.lat * Math.PI/180) * Math.sin(dLng/2)**2;
+        const distMiles = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const bufferMins = Math.max(30, Math.ceil((distMiles / 30) * 60) + 15);
+        const [h, m] = apptTime24.split(':').map(Number);
+        const totalMins = h * 60 + m - bufferMins;
+        const pickupH = ((Math.floor(totalMins / 60)) % 24 + 24) % 24;
+        const pickupM = ((totalMins % 60) + 60) % 60;
+        setBookTime12h('recurPickupTime', 'recurPickupAmPm', `${String(pickupH).padStart(2, '0')}:${String(pickupM).padStart(2, '0')}`);
+        const noteEl = document.getElementById('pickupTimeNote');
+        if (noteEl) noteEl.style.display = 'block';
+      } catch(e) {}
+    }
+
     // ── Init ───────────────────────────────────────────────
     async function init() {
       await Promise.all([loadOrgConfig(), loadStripe()]);
@@ -751,7 +846,7 @@
 
     async function checkBookingAvailability() {
       const date = document.getElementById('recurStartDate').value;
-      const time = document.getElementById('recurPickupTime').value;
+      const time = getBookTime24h('recurPickupTime', 'recurPickupAmPm') || '';
       const notice = document.getElementById('availabilityNotice');
       if (!date || !time) { notice.style.display = 'none'; return; }
       notice.style.display = 'block';
@@ -799,13 +894,14 @@
 
     function goToStep4FromRecurring() {
       const dest = document.getElementById('recurDestination').value.trim();
-      const time = document.getElementById('recurPickupTime').value;
+      const time = getBookTime24h('recurPickupTime', 'recurPickupAmPm');
       const days = [...document.querySelectorAll('.recur-day:checked')].map(c => parseInt(c.value));
       const errEl = document.getElementById('step3-error');
-      const anyFilled = dest || time || days.length > 0;
+      const apptRaw = document.getElementById('recurApptTime').value.trim();
+      const anyFilled = dest || apptRaw || time || days.length > 0;
       if (anyFilled) {
         if (!dest) { errEl.textContent = 'Please enter a destination address.'; errEl.style.display = 'block'; return; }
-        const apptTime = document.getElementById('recurApptTime').value;
+        const apptTime = getBookTime24h('recurApptTime', 'recurApptAmPm');
         if (!apptTime && !time) { errEl.textContent = 'Please enter your appointment time or pickup time.'; errEl.style.display = 'block'; return; }
         if (days.length === 0 && !document.getElementById('recurStartDate').value) { errEl.textContent = 'Please select repeat days or a specific date for a one-time trip.'; errEl.style.display = 'block'; return; }
         const rPickupApt   = document.getElementById('recurPickupApt').value.trim();
@@ -821,9 +917,9 @@
         recurringData = {
           pickupAddress: fullPickup,
           destination: fullDest,
-          appointmentTime: document.getElementById('recurApptTime').value || null,
+          appointmentTime: getBookTime24h('recurApptTime', 'recurApptAmPm') || null,
           pickupTime: time || null,
-          returnTime: document.getElementById('recurReturnTime').value || null,
+          returnTime: getBookTime24h('recurReturnTime', 'recurReturnAmPm') || null,
           tripType: document.getElementById('recurTripType').value,
           repeatDays: days,
           startDate: document.getElementById('recurStartDate').value || null,
