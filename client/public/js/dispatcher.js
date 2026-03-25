@@ -1074,21 +1074,18 @@ function onRecPaymentTypeChange() {
 async function onDestinationBlur(idx) {
   // Only calculate fare for self-pay — other types have fixed/zero display
   const payType = document.getElementById('paymentType')?.value;
+  const skipFareDisplay = ['free_ride', 'grant', 'partner'].includes(payType);
   if (payType === 'free_ride') {
     document.getElementById('fareAmount').textContent = '$0.00';
     document.getElementById('fareZone').textContent   = 'Free Ride';
-    return;
-  }
-  if (payType === 'grant') {
+  } else if (payType === 'grant') {
     document.getElementById('fareAmount').textContent = '$0.00';
     document.getElementById('fareZone').textContent   = 'Grant Funded';
-    return;
-  }
-  if (payType === 'partner') {
+  } else if (payType === 'partner') {
     document.getElementById('fareAmount').textContent = 'Custom';
     document.getElementById('fareZone').textContent   = 'Pre-negotiated rate';
-    return;
   }
+  // Always continue to geocode so distMiles gets stored for pickup time calculation
   const dest = getFullDestAddress(idx);
   if (!dest || dest.length < 5) return;
   let homeBaseName = document.getElementById('tripHomeBase')?.value;
@@ -1153,10 +1150,12 @@ async function onDestinationBlur(idx) {
     }
     const fare = tripType === 'one_way' ? fareRes.oneWayFare : fareRes.fare;
     _lastCalculatedFare = fare || 0; // store for grant/free_ride potential revenue reporting
-    document.getElementById('fareAmount').textContent = fare ? `$${fare.toFixed(2)}` : '$0.00';
-    document.getElementById('fareZone').textContent   = fareRes.zone
-      ? `${fareRes.zone.name} • ${fareRes.distanceMiles} mi`
-      : '';
+    if (!skipFareDisplay) {
+      document.getElementById('fareAmount').textContent = fare ? `$${fare.toFixed(2)}` : '$0.00';
+      document.getElementById('fareZone').textContent   = fareRes.zone
+        ? `${fareRes.zone.name} • ${fareRes.distanceMiles} mi`
+        : '';
+    }
 
     // Store distMiles on rider row for smart pickup time calculation
     const distMiles = fareRes.distanceMiles || 0;
