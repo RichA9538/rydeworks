@@ -558,11 +558,19 @@ async function loadDashboard() {
     }
     if (doneTrips.length > 0) {
       html += `<div style="margin-top:16px;border-top:1px solid var(--gray-200);padding-top:12px;">
-        <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">
-          <i class="fas fa-archive"></i> Completed &amp; Canceled (${doneTrips.length})
-          <button onclick="toggleDoneTrips()" id="doneTripsToggle" style="background:none;border:none;color:var(--gray-500);cursor:pointer;font-size:11px;margin-left:8px;">show</button>
+        <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;display:flex;align-items:center;gap:8px;">
+          <span><i class="fas fa-archive"></i> Completed &amp; Canceled Today (${doneTrips.length})</span>
+          <button onclick="toggleDoneTrips()" id="doneTripsToggle" style="background:none;border:none;color:var(--gray-500);cursor:pointer;font-size:11px;">show</button>
+          <button onclick="showPastRidesModal()" style="background:none;border:1px solid var(--gray-300);border-radius:4px;color:var(--gray-500);cursor:pointer;font-size:11px;padding:2px 6px;margin-left:auto;"><i class="fas fa-history"></i> Past Rides</button>
         </div>
         <div id="doneTripsSection" style="display:none;">${doneTrips.map(tripRowHtml).join('')}</div>
+      </div>`;
+    } else {
+      html += `<div style="margin-top:16px;border-top:1px solid var(--gray-200);padding-top:12px;">
+        <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;display:flex;align-items:center;">
+          <span><i class="fas fa-archive"></i> Completed &amp; Canceled Today (0)</span>
+          <button onclick="showPastRidesModal()" style="background:none;border:1px solid var(--gray-300);border-radius:4px;color:var(--gray-500);cursor:pointer;font-size:11px;padding:2px 6px;margin-left:auto;"><i class="fas fa-history"></i> Past Rides</button>
+        </div>
       </div>`;
     }
     listEl.innerHTML = html;
@@ -616,6 +624,62 @@ function toggleDoneTrips() {
   const hidden = section.style.display === 'none';
   section.style.display = hidden ? 'block' : 'none';
   if (btn) btn.textContent = hidden ? 'hide' : 'show';
+}
+
+async function showPastRidesModal() {
+  openModal('pastRidesModal');
+  const listEl = document.getElementById('pastRidesList');
+  listEl.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div>';
+
+  const today = getEasternDateString();
+  const res = await ZakAuth.apiFetch(`/api/trips?status=completed,canceled`);
+  if (!res?.success) {
+    listEl.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Failed to load past rides.</p></div>';
+    return;
+  }
+
+  const pastTrips = (res.trips || []).filter(t => {
+    const tripDay = getEasternDateString(new Date(t.tripDate));
+    return tripDay < today;
+  });
+
+  if (pastTrips.length === 0) {
+    listEl.innerHTML = '<div class="empty-state"><i class="fas fa-history"></i><p>No past rides found.</p></div>';
+    return;
+  }
+
+  // Group by date
+  const byDate = {};
+  for (const t of pastTrips) {
+    const day = getEasternDateString(new Date(t.tripDate));
+    if (!byDate[day]) byDate[day] = [];
+    byDate[day].push(t);
+  }
+
+  const sortedDays = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+  let html = '';
+  for (const day of sortedDays) {
+    const label = new Date(`${day}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    html += `<div style="margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.05em;padding:6px 0;border-bottom:1px solid var(--gray-200);margin-bottom:8px;">${label} (${byDate[day].length})</div>`;
+    for (const t of byDate[day]) {
+      const firstPickup = t.stops?.find(s => s.type === 'pickup');
+      const timeStr = firstPickup?.scheduledTime ? formatTime(firstPickup.scheduledTime) : '';
+      const summary = summarizeTripPath(t);
+      html += `<div class="trip-row" onclick="viewTrip('${t._id}'); closeModal('pastRidesModal');" style="cursor:pointer;">
+        <div class="trip-row-info" style="display:grid;gap:4px;">
+          <span class="trip-driver"><i class="fas fa-user"></i> ${t.driver?.firstName || 'Unassigned'} ${t.driver?.lastName || ''}</span>
+          <span class="trip-stops"><i class="fas fa-users"></i> ${summary.riderCount} rider${summary.riderCount !== 1 ? 's' : ''}</span>
+          <span class="trip-stops"><i class="fas fa-arrow-up"></i> ${formatShortAddress(summary.pickupLabel)}</span>
+          <span class="trip-stops"><i class="fas fa-arrow-down"></i> ${formatShortAddress(summary.dropoffLabel)}</span>
+          ${timeStr ? `<span style="color:var(--green);font-size:13px;"><i class="fas fa-clock"></i> ${timeStr}</span>` : ''}
+        </div>
+        <div>${statusBadge(t.status)}</div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  listEl.innerHTML = html;
 }
 
 // ── HELPERS ──────────────────────────────────────────────

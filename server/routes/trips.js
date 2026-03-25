@@ -43,8 +43,11 @@ async function calculateFareZone(orgId, destLat, destLng, homeLat, homeLng) {
 
 
 function getEasternRange(dateStr) {
-  const start = new Date(`${dateStr}T00:00:00-05:00`);
-  const end = new Date(`${dateStr}T23:59:59.999-05:00`);
+  const noon = new Date(`${dateStr}T12:00:00`);
+  const isDST = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' }).format(noon).includes('EDT');
+  const offset = isDST ? '-04:00' : '-05:00';
+  const start = new Date(`${dateStr}T00:00:00${offset}`);
+  const end = new Date(`${dateStr}T23:59:59.999${offset}`);
   return { start, end };
 }
 
@@ -298,7 +301,7 @@ router.get('/', requireRole('admin', 'dispatcher'), async (req, res) => {
       if (dateTo)   { const { end } = getEasternRange(dateTo); query.tripDate.$lte = end; }
     }
     if (driverId) query.driver = driverId;
-    if (status)        query.status = status;
+    if (status)        query.status = status.includes(',') ? { $in: status.split(',') } : status;
     else if (excludeStatus) query.status = { $ne: excludeStatus };
 
     const trips = await Trip.find(query)
