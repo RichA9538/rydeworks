@@ -413,10 +413,9 @@
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Appointment / Work Time *</label>
-            <div style="display:flex;">
-              <input type="text" class="form-input" id="recurApptTime" placeholder="9:30" style="border-radius:8px 0 0 8px;border-right:none;" onblur="onBookTimeBlur(this);estimatePickupTime()">
-              <button type="button" id="recurApptAmPm" onclick="toggleAmPm(this)" style="padding:10px 12px;border:1.5px solid var(--gray-300);border-radius:0 8px 8px 0;background:var(--gray-100);color:var(--gray-700);font-weight:700;font-size:0.85rem;cursor:pointer;font-family:inherit;white-space:nowrap;">AM</button>
-            </div>
+            <select class="form-input" id="recurApptTime" onchange="estimatePickupTime()">
+              <option value="">-- Select a time --</option>
+            </select>
           </div>
           <div class="form-group">
             <label class="form-label">Trip Type</label>
@@ -428,18 +427,16 @@
         </div>
         <div class="form-group">
           <label class="form-label">Pickup Time <span style="font-weight:400;color:var(--gray-500)">(auto-estimated from appointment time)</span></label>
-          <div style="display:flex;">
-            <input type="text" class="form-input" id="recurPickupTime" placeholder="auto" style="border-radius:8px 0 0 8px;border-right:none;" onblur="onBookTimeBlur(this);checkBookingAvailability()">
-            <button type="button" id="recurPickupAmPm" onclick="toggleAmPm(this)" style="padding:10px 12px;border:1.5px solid var(--gray-300);border-radius:0 8px 8px 0;background:var(--gray-100);color:var(--gray-700);font-weight:700;font-size:0.85rem;cursor:pointer;font-family:inherit;white-space:nowrap;">AM</button>
-          </div>
+          <select class="form-input" id="recurPickupTime" onchange="checkBookingAvailability()">
+            <option value="">-- Select a time --</option>
+          </select>
           <div id="pickupTimeNote" style="display:none;font-size:0.78rem;color:#0369a1;margin-top:4px;"><i class="fas fa-info-circle"></i> Estimated — dispatcher will confirm your exact pickup time.</div>
         </div>
         <div class="form-group" id="recurReturnGroup" style="display:none">
           <label class="form-label">Return Pickup Time</label>
-          <div style="display:flex;">
-            <input type="text" class="form-input" id="recurReturnTime" placeholder="e.g. 5:00" style="border-radius:8px 0 0 8px;border-right:none;" onblur="onBookTimeBlur(this)">
-            <button type="button" id="recurReturnAmPm" onclick="toggleAmPm(this)" style="padding:10px 12px;border:1.5px solid var(--gray-300);border-radius:0 8px 8px 0;background:var(--gray-100);color:var(--gray-700);font-weight:700;font-size:0.85rem;cursor:pointer;font-family:inherit;white-space:nowrap;">PM</button>
-          </div>
+          <select class="form-input" id="recurReturnTime">
+            <option value="">-- Select a time --</option>
+          </select>
         </div>
         <div class="form-group">
           <label class="form-label">Repeat Days <span style="font-weight:400;color:var(--gray-500)">(leave blank for a one-time trip)</span></label>
@@ -650,49 +647,42 @@
     let orgConfig = {};
     let recurringData = null;
 
-    // ── Time input helpers ─────────────────────────────────
-    function toggleAmPm(btn) {
-      btn.textContent = btn.textContent.trim() === 'AM' ? 'PM' : 'AM';
-      estimatePickupTime();
-    }
-
-    function onBookTimeBlur(input) {
-      const val = input.value.trim();
-      if (!val) return;
-      const match = val.match(/^(\d{1,2}):?(\d{2})?$/);
-      if (match) {
-        const h = parseInt(match[1]);
-        const m = parseInt(match[2] || '0');
-        if (h >= 1 && h <= 12 && m >= 0 && m < 60) {
-          input.value = `${h}:${String(m).padStart(2, '0')}`;
+    // ── Time dropdown helpers ──────────────────────────────
+    function buildTimeOptions(selectId, selectedVal) {
+      const sel = document.getElementById(selectId);
+      if (!sel) return;
+      const current = selectedVal || sel.value;
+      sel.innerHTML = '<option value="">-- Select a time --</option>';
+      for (let h = 5; h <= 21; h++) {
+        for (let m = 0; m < 60; m += 15) {
+          const h24 = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+          const ampm = h < 12 ? 'AM' : 'PM';
+          const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+          const label = `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+          const opt = document.createElement('option');
+          opt.value = h24;
+          opt.textContent = label;
+          if (h24 === current) opt.selected = true;
+          sel.appendChild(opt);
         }
       }
     }
 
-    function getBookTime24h(inputId, ampmBtnId) {
-      const val = document.getElementById(inputId)?.value?.trim();
-      const ampm = document.getElementById(ampmBtnId)?.textContent?.trim() || 'AM';
-      if (!val) return null;
-      const match = val.match(/^(\d{1,2}):(\d{2})$/);
-      if (!match) return null;
-      let h = parseInt(match[1]);
-      const m = parseInt(match[2]);
-      if (ampm === 'PM' && h !== 12) h += 12;
-      if (ampm === 'AM' && h === 12) h = 0;
-      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    function getBookTime24h(inputId) {
+      return document.getElementById(inputId)?.value || null;
     }
 
-    function setBookTime12h(inputId, ampmBtnId, time24) {
-      const [hStr, mStr] = time24.split(':');
-      let h = parseInt(hStr);
-      const m = parseInt(mStr);
-      const ampm = h >= 12 ? 'PM' : 'AM';
-      if (h > 12) h -= 12;
-      if (h === 0) h = 12;
-      const input = document.getElementById(inputId);
-      const btn = document.getElementById(ampmBtnId);
-      if (input) input.value = `${h}:${String(m).padStart(2, '0')}`;
-      if (btn) btn.textContent = ampm;
+    function setBookTime12h(inputId, time24) {
+      const sel = document.getElementById(inputId);
+      if (!sel || !time24) return;
+      // Find closest 15-min slot
+      const [h, m] = time24.split(':').map(Number);
+      const rounded = Math.round(m / 15) * 15;
+      const adjH = rounded === 60 ? h + 1 : h;
+      const adjM = rounded === 60 ? 0 : rounded;
+      const key = `${String(adjH % 24).padStart(2,'0')}:${String(adjM).padStart(2,'0')}`;
+      if ([...sel.options].some(o => o.value === key)) sel.value = key;
+      else sel.value = time24; // fallback
     }
 
     async function geocodeBookAddress(address) {
@@ -729,7 +719,7 @@
         const totalMins = h * 60 + m - bufferMins;
         const pickupH = ((Math.floor(totalMins / 60)) % 24 + 24) % 24;
         const pickupM = ((totalMins % 60) + 60) % 60;
-        setBookTime12h('recurPickupTime', 'recurPickupAmPm', `${String(pickupH).padStart(2, '0')}:${String(pickupM).padStart(2, '0')}`);
+        setBookTime12h('recurPickupTime', `${String(pickupH).padStart(2, '0')}:${String(pickupM).padStart(2, '0')}`);
         const noteEl = document.getElementById('pickupTimeNote');
         if (noteEl) noteEl.style.display = 'block';
       } catch(e) {}
@@ -737,6 +727,9 @@
 
     // ── Init ───────────────────────────────────────────────
     async function init() {
+      buildTimeOptions('recurApptTime');
+      buildTimeOptions('recurPickupTime');
+      buildTimeOptions('recurReturnTime');
       await Promise.all([loadOrgConfig(), loadStripe()]);
     }
 
@@ -846,7 +839,7 @@
 
     async function checkBookingAvailability() {
       const date = document.getElementById('recurStartDate').value;
-      const time = getBookTime24h('recurPickupTime', 'recurPickupAmPm') || '';
+      const time = getBookTime24h('recurPickupTime') || '';
       const notice = document.getElementById('availabilityNotice');
       if (!date || !time) { notice.style.display = 'none'; return; }
       notice.style.display = 'block';
@@ -894,14 +887,14 @@
 
     function goToStep4FromRecurring() {
       const dest = document.getElementById('recurDestination').value.trim();
-      const time = getBookTime24h('recurPickupTime', 'recurPickupAmPm');
+      const time = getBookTime24h('recurPickupTime');
       const days = [...document.querySelectorAll('.recur-day:checked')].map(c => parseInt(c.value));
       const errEl = document.getElementById('step3-error');
-      const apptRaw = document.getElementById('recurApptTime').value.trim();
+      const apptRaw = document.getElementById('recurApptTime').value;
       const anyFilled = dest || apptRaw || time || days.length > 0;
       if (anyFilled) {
         if (!dest) { errEl.textContent = 'Please enter a destination address.'; errEl.style.display = 'block'; return; }
-        const apptTime = getBookTime24h('recurApptTime', 'recurApptAmPm');
+        const apptTime = getBookTime24h('recurApptTime');
         if (!apptTime && !time) { errEl.textContent = 'Please enter your appointment time or pickup time.'; errEl.style.display = 'block'; return; }
         if (days.length === 0 && !document.getElementById('recurStartDate').value) { errEl.textContent = 'Please select repeat days or a specific date for a one-time trip.'; errEl.style.display = 'block'; return; }
         const rPickupApt   = document.getElementById('recurPickupApt').value.trim();
@@ -917,9 +910,9 @@
         recurringData = {
           pickupAddress: fullPickup,
           destination: fullDest,
-          appointmentTime: getBookTime24h('recurApptTime', 'recurApptAmPm') || null,
+          appointmentTime: getBookTime24h('recurApptTime') || null,
           pickupTime: time || null,
-          returnTime: getBookTime24h('recurReturnTime', 'recurReturnAmPm') || null,
+          returnTime: getBookTime24h('recurReturnTime') || null,
           tripType: document.getElementById('recurTripType').value,
           repeatDays: days,
           startDate: document.getElementById('recurStartDate').value || null,
