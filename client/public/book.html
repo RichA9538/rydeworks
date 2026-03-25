@@ -653,7 +653,7 @@
       if (!sel) return;
       const current = selectedVal || sel.value;
       sel.innerHTML = '<option value="">-- Select a time --</option>';
-      for (let h = 5; h <= 21; h++) {
+      for (let h = 0; h <= 23; h++) {
         for (let m = 0; m < 60; m += 15) {
           const h24 = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
           const ampm = h < 12 ? 'AM' : 'PM';
