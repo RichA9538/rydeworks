@@ -361,11 +361,8 @@
     <!-- STEP 3: Recurring Schedule -->
     <div class="step" id="step3">
       <div class="card">
-        <h2><i class="fas fa-sync-alt" style="color:var(--primary)"></i> Optional: Schedule Recurring Trips</h2>
-        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#166534;">
-          <strong><i class="fas fa-info-circle"></i> This step is optional.</strong> You can skip it and call dispatch at <strong>(727) 313-1241</strong> to schedule your rides.
-        </div>
-        <p class="subtitle">If you have a regular schedule, enter it below — otherwise click <strong>Skip for Now</strong>.</p>
+        <h2><i class="fas fa-sync-alt" style="color:var(--primary)"></i> Schedule Your Trips</h2>
+        <p class="subtitle">Enter your regular schedule below. If you don't have a set schedule yet, leave this blank and click Continue — you can always call dispatch at (727) 313-1241 to book rides.</p>
         <div class="form-group">
           <label class="form-label">Pickup Street Address <span style="font-weight:400;color:var(--gray-500)">(auto-filled from Step 1)</span></label>
           <input type="text" class="form-input" id="recurPickup" placeholder="123 Main St">
@@ -462,7 +459,6 @@
         </div>
         <div style="display:flex;gap:12px;">
           <button class="btn btn-secondary" onclick="goToStep(2)"><i class="fas fa-arrow-left"></i> Back</button>
-          <button class="btn btn-primary" style="flex:1;justify-content:center;background:#10b981;border-color:#10b981;" onclick="skipRecurring()"><i class="fas fa-forward"></i> Skip for Now</button>
           <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="goToStep4FromRecurring()">
             Continue <i class="fas fa-arrow-right"></i>
           </button>
@@ -892,6 +888,12 @@
       const errEl = document.getElementById('step3-error');
       const apptRaw = document.getElementById('recurApptTime').value;
       const anyFilled = dest || apptRaw || time || days.length > 0;
+      if (!anyFilled) {
+        recurringData = null;
+        errEl.style.display = 'none';
+        goToStep(4);
+        return;
+      }
       if (anyFilled) {
         if (!dest) { errEl.textContent = 'Please enter a destination address.'; errEl.style.display = 'block'; return; }
         const apptTime = getBookTime24h('recurApptTime');
@@ -925,7 +927,7 @@
       goToStep(4);
     }
 
-    function goToStep2() {
+    async function goToStep2() {
       const fn     = document.getElementById('riderFirstName').value.trim();
       const ln     = document.getElementById('riderLastName').value.trim();
       const ph     = document.getElementById('riderPhone').value.trim();
@@ -940,6 +942,23 @@
         return;
       }
       err.style.display = 'none';
+      // Check if this phone already has an active subscription with payment on file
+      try {
+        const chk = await fetch(`/api/book/check-subscriber?phone=${encodeURIComponent(ph)}`);
+        const chkData = await chk.json();
+        if (chkData.exists && chkData.hasPaymentMethod) {
+          // Already enrolled with payment — skip straight to success
+          showSuccess({
+            freeRideCode: chkData.freeRideCode,
+            codeExpiresAt: chkData.codeExpiresAt,
+            creditBalance: 0,
+            enrollmentId: chkData.enrollmentId,
+            paymentMethodType: chkData.paymentMethodType,
+            alreadyEnrolled: true
+          });
+          return;
+        }
+      } catch (e) { /* non-fatal — proceed normally */ }
       goToStep(2);
     }
 
@@ -1115,7 +1134,15 @@
         cashapp: 'Cash App',
         payroll_deduction: 'Payroll Deduction'
       };
-      document.getElementById('successPaymentMethod').textContent = methodLabels[paymentMethod] || paymentMethod;
+      const method = data.paymentMethodType || paymentMethod;
+      document.getElementById('successPaymentMethod').textContent = methodLabels[method] || method || 'On file';
+      if (data.alreadyEnrolled) {
+        // Show a "welcome back" note instead of the new enrollment headline
+        const heading = document.querySelector('#step5 h2');
+        if (heading) heading.innerHTML = '<i class="fas fa-check-circle" style="color:var(--primary)"></i> You\'re Already Enrolled!';
+        const sub = document.querySelector('#step5 .subtitle');
+        if (sub) sub.textContent = 'Your account is active and your payment method is on file. Call (727) 313-1241 to schedule your next ride.';
+      }
       goToStep(5);
     }
 

@@ -78,6 +78,28 @@ router.get('/stripe-key', (req, res) => {
   res.json({ publishableKey: key });
 });
 
+// GET /api/book/check-subscriber?phone=... — check if phone already has active subscription
+router.get('/check-subscriber', async (req, res) => {
+  try {
+    const { phone } = req.query;
+    if (!phone) return res.json({ exists: false });
+    const clean = phone.replace(/\D/g, '');
+    const sub = await RiderSubscription.findOne({ phone: clean, status: 'active' });
+    if (!sub) return res.json({ exists: false });
+    res.json({
+      exists: true,
+      hasPaymentMethod: !!(sub.stripeCustomerId || sub.stripePaymentMethodId || sub.venmoHandle || sub.cashAppHandle || sub.employer?.name),
+      paymentMethodType: sub.paymentMethodType || null,
+      freeRideCode: sub.freeRideCode || null,
+      codeExpiresAt: sub.codeExpiresAt || null,
+      firstName: sub.firstName,
+      enrollmentId: sub._id
+    });
+  } catch (err) {
+    res.json({ exists: false });
+  }
+});
+
 // GET /api/book/check-availability
 router.get('/check-availability', async (req, res) => {
   try {
