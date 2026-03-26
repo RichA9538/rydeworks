@@ -159,6 +159,14 @@ app.get('/reset-password', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/public/reset-password.html'));
 });
 
+// /demo serves the standalone demo page (no auth required)
+app.get('/demo', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/public/demo.html'));
+});
+app.get('/demo.html', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/public/demo.html'));
+});
+
 // /app and everything else serves the dispatch app
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/public/app.html'));
