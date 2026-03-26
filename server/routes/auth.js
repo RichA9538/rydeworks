@@ -173,4 +173,18 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// POST /api/auth/demo-login — auto-login as demo dispatcher (no password required)
+router.post('/demo-login', async (req, res) => {
+  try {
+    const user = await User.findOne({ email: 'demo@rydeworks.com', isDemo: true, isActive: true })
+      .populate('organization')
+      .populate('driverInfo.vehicleAssigned');
+    if (!user) return res.status(404).json({ success: false, error: 'Demo account not available.' });
+    const token = signToken(user._id);
+    res.json({ success: true, token, user: user.toSafeObject() });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Server error.' });
+  }
+});
+
 module.exports = router;

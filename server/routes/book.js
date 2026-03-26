@@ -277,6 +277,63 @@ router.post('/enroll', async (req, res) => {
       console.error('AccessCode error (non-fatal):', codeErr.message);
     }
 
+    // Create pending trip from recurringData (if provided) and notify dispatch
+    if (recurringData && rider && org) {
+      try {
+        // Determine trip date: use startDate if given, otherwise today Eastern
+        let tripDateStr = recurringData.startDate;
+        if (!tripDateStr) {
+          const easternDate = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+          const [m, d, y] = easternDate.split('/');
+          tripDateStr = `${y}-${m}-${d}`;
+        }
+        const isDST = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' }).format(new Date()).includes('EDT');
+        const offset = isDST ? '-04:00' : '-05:00';
+        const tripDate = new Date(`${tripDateStr}T12:00:00${offset}`);
+
+        const stops = [];
+        let stopOrder = 0;
+        // Pickup stop
+        if (recurringData.pickupAddress) {
+          const pickupTime = recurringData.pickupTime ? new Date(`${tripDateStr}T${recurringData.pickupTime}:00${offset}`) : null;
+          const apptTime   = recurringData.appointmentTime ? new Date(`${tripDateStr}T${recurringData.appointmentTime}:00${offset}`) : null;
+          stops.push({ stopOrder: stopOrder++, type: 'pickup', address: recurringData.pickupAddress, riderId: rider._id, riderName: `${firstName} ${lastName}`, riderPhone: phone.replace(/\D/g,''), scheduledTime: pickupTime, appointmentTime: apptTime });
+        }
+        // Dropoff stop
+        if (recurringData.destination) {
+          stops.push({ stopOrder: stopOrder++, type: 'dropoff', address: recurringData.destination, riderId: rider._id, riderName: `${firstName} ${lastName}` });
+        }
+        // Return trip stops
+        if (recurringData.tripType === 'round_trip' && recurringData.returnTime && recurringData.destination) {
+          const returnTime = new Date(`${tripDateStr}T${recurringData.returnTime}:00${offset}`);
+          stops.push({ stopOrder: stopOrder++, type: 'pickup', address: recurringData.destination, riderId: rider._id, riderName: `${firstName} ${lastName}`, riderPhone: phone.replace(/\D/g,''), scheduledTime: returnTime });
+          stops.push({ stopOrder: stopOrder++, type: 'dropoff', address: recurringData.pickupAddress, riderId: rider._id, riderName: `${firstName} ${lastName}` });
+        }
+
+        const payType = paymentMethodType === 'payroll_deduction' ? 'none' : (paymentMethodType === 'venmo' || paymentMethodType === 'cashapp') ? 'self_pay' : 'self_pay';
+        await Trip.create({
+          organization: org._id,
+          rider: rider._id,
+          status: 'scheduled',
+          tripDate,
+          stops,
+          payment: { type: payType, estimatedFare: 0 },
+          notes: `Self-booked via booking portal. ${recurringData.repeatDays?.length ? 'Recurring: ' + recurringData.repeatDays.join(', ') + '.' : 'One-time trip.'} Payment: ${paymentMethodType}.`,
+          source: 'self_booked'
+        });
+
+        // Notify dispatch via SMS
+        const dispatchPhone = process.env.DISPATCH_PHONE || org?.phone;
+        if (dispatchPhone) {
+          const tripInfo = recurringData.pickupAddress ? `${recurringData.pickupAddress} → ${recurringData.destination || 'TBD'}` : 'See booking portal';
+          const schedInfo = recurringData.isOneTime ? `on ${tripDateStr}` : (recurringData.repeatDays?.join(', ') || 'schedule TBD');
+          await sendSms(dispatchPhone, `NEW SELF-BOOKING: ${firstName} ${lastName} (${phone}) needs a driver assigned. Trip: ${tripInfo}. ${schedInfo}. Free Ride Code: ${code}. Assign driver in dispatch app.`);
+        }
+      } catch (tripErr) {
+        console.error('Booking trip creation error (non-fatal):', tripErr.message);
+      }
+    }
+
     // Send welcome SMS
     const expStr = expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const payLabel = paymentMethodType === 'venmo' ? 'Venmo' :

@@ -106,6 +106,9 @@ const tripSchema = new mongoose.Schema({
   // Dispatcher notes
   notes: { type: String },
 
+  // Origin of the trip ('self_booked' = created via booking portal, no driver assigned yet)
+  source: { type: String, default: 'dispatcher' },
+
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }

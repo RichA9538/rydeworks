@@ -533,9 +533,12 @@ async function loadDashboard() {
     const timeStr = firstPickup?.scheduledTime ? formatTime(firstPickup.scheduledTime) : '';
     const summary = summarizeTripPath(t);
     const liveStatus = getDerivedTripStatus(t);
+    const needsDriver = !t.driver && t.source === 'self_booked';
+    const rowStyle = needsDriver ? 'border-left:3px solid #f59e0b;background:#fffbeb;' : '';
     return `
-    <div class="trip-row" onclick="viewTrip('${t._id}')">
+    <div class="trip-row" onclick="viewTrip('${t._id}')" style="${rowStyle}">
       <div class="trip-row-info" style="display:grid;gap:4px;">
+        ${needsDriver ? '<span style="color:#b45309;font-size:12px;font-weight:700;"><i class="fas fa-exclamation-triangle"></i> NEEDS DRIVER ASSIGNED</span>' : ''}
         <span class="trip-driver"><i class="fas fa-user"></i> ${t.driver?.firstName || 'Unassigned'} ${t.driver?.lastName || ''}</span>
         <span class="trip-vehicle"><i class="fas fa-shuttle-van"></i> ${t.vehicle?.name || 'No vehicle'}</span>
         <span class="trip-stops"><i class="fas fa-users"></i> ${summary.riderCount} rider${summary.riderCount !== 1 ? 's' : ''}</span>
@@ -731,9 +734,34 @@ function toggleAmPm(btn) {
   btn.style.borderColor  = isAm ? 'var(--green)' : 'var(--gray-300)';
 }
 
+// Builds 15-minute-interval 24h select options (same as book.html)
+function buildDispatchTimeOptions(selectId, selectedVal) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const current = selectedVal || sel.value;
+  sel.innerHTML = '<option value="">-- Select time --</option>';
+  for (let h = 0; h <= 23; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      const h24 = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      const ampm = h < 12 ? 'AM' : 'PM';
+      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      const label = `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+      const opt = document.createElement('option');
+      opt.value = h24;
+      opt.textContent = label;
+      if (h24 === current) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+}
+
 // Reads a 12h text input + AM/PM button and returns a 24h "HH:MM" string
+// Also handles <select> elements (value is already 24h)
 function getTime24h(inputId, amPmId) {
-  const val = (document.getElementById(inputId)?.value || '').trim();
+  const el = document.getElementById(inputId);
+  if (!el) return '';
+  if (el.tagName === 'SELECT') return el.value || '';
+  const val = (el.value || '').trim();
   if (!val) return '';
   const ampm = document.getElementById(amPmId)?.textContent?.trim() || 'AM';
   let h, m;
@@ -757,8 +785,19 @@ function getTime24h(inputId, amPmId) {
 }
 
 // Sets a 12h text input + AM/PM button from a 24h "HH:MM" string
+// Also handles <select> elements (snaps to nearest 15-min slot)
 function setTime12h(inputId, amPmId, time24h) {
   if (!time24h) return;
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  if (el.tagName === 'SELECT') {
+    const [hh, mm] = time24h.split(':').map(Number);
+    const rounded = Math.round(mm / 15) * 15;
+    const adjH = rounded === 60 ? hh + 1 : hh;
+    const adjM = rounded === 60 ? 0 : rounded;
+    el.value = `${String(adjH % 24).padStart(2,'0')}:${String(adjM).padStart(2,'0')}`;
+    return;
+  }
   const parts = time24h.split(':');
   const h24 = parseInt(parts[0], 10);
   const m   = parseInt(parts[1] || '0', 10);
@@ -766,9 +805,8 @@ function setTime12h(inputId, amPmId, time24h) {
   const ampm = h24 >= 12 ? 'PM' : 'AM';
   let h12    = h24 % 12;
   if (h12 === 0) h12 = 12;
-  const inputEl = document.getElementById(inputId);
   const amPmEl  = document.getElementById(amPmId);
-  if (inputEl) inputEl.value = `${h12}:${String(m).padStart(2, '0')}`;
+  el.value = `${h12}:${String(m).padStart(2, '0')}`;
   if (amPmEl) {
     amPmEl.textContent    = ampm;
     amPmEl.style.background  = ampm === 'PM' ? 'var(--green)' : '';
@@ -904,27 +942,11 @@ function addRiderRow() {
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Appt/Work Time <span style="color:var(--gray-400);font-size:11px;">(sets pickup estimate)</span></label>
-        <div style="display:flex;gap:4px;">
-          <input type="text" inputmode="numeric" maxlength="5" class="form-input" id="riderApptTime-${idx}"
-            placeholder="H:MM"
-            oninput="onTimeInput(this)"
-            onblur="onTimeBlur(this);onApptTimeChange(${idx})"
-            onkeydown="tabToNext(event,'riderPickupTime-${idx}')">
-          <button type="button" id="riderApptAmPm-${idx}" onclick="toggleAmPm(this)"
-            style="flex-shrink:0;width:50px;border:2px solid var(--gray-300);border-radius:8px;background:var(--white);font-weight:600;font-size:13px;cursor:pointer;color:var(--gray-700)">AM</button>
-        </div>
+        <select class="form-input" id="riderApptTime-${idx}" onchange="onApptTimeChange(${idx})"></select>
       </div>
       <div class="form-group">
         <label class="form-label">Pickup Time</label>
-        <div style="display:flex;gap:4px;">
-          <input type="text" inputmode="numeric" maxlength="5" class="form-input" id="riderPickupTime-${idx}"
-            placeholder="H:MM"
-            oninput="onTimeInput(this)"
-            onblur="onTimeBlur(this)"
-            onkeydown="tabToNext(event,'riderReturnTime-${idx}')">
-          <button type="button" id="riderPickupAmPm-${idx}" onclick="toggleAmPm(this)"
-            style="flex-shrink:0;width:50px;border:2px solid var(--gray-300);border-radius:8px;background:var(--white);font-weight:600;font-size:13px;cursor:pointer;color:var(--gray-700)">AM</button>
-        </div>
+        <select class="form-input" id="riderPickupTime-${idx}"></select>
       </div>
       <div class="form-group">
         <label class="form-label">Trip Type</label>
@@ -935,14 +957,7 @@ function addRiderRow() {
       </div>
       <div class="form-group" id="returnTimeGroup-${idx}">
         <label class="form-label">Return Pickup Time</label>
-        <div style="display:flex;gap:4px;">
-          <input type="text" inputmode="numeric" maxlength="5" class="form-input" id="riderReturnTime-${idx}"
-            placeholder="H:MM"
-            oninput="onTimeInput(this)"
-            onblur="onTimeBlur(this)">
-          <button type="button" id="riderReturnAmPm-${idx}" onclick="toggleAmPm(this)"
-            style="flex-shrink:0;width:50px;border:2px solid var(--gray-300);border-radius:8px;background:var(--white);font-weight:600;font-size:13px;cursor:pointer;color:var(--gray-700)">AM</button>
-        </div>
+        <select class="form-input" id="riderReturnTime-${idx}"></select>
         <small style="color:var(--gray-500);font-size:11px;margin-top:2px;display:block">Time driver picks up for return trip</small>
       </div>
     </div>
@@ -952,6 +967,11 @@ function addRiderRow() {
     </div>
   `;
   document.getElementById('ridersList').appendChild(row);
+
+  // Populate time selects
+  buildDispatchTimeOptions(`riderApptTime-${idx}`);
+  buildDispatchTimeOptions(`riderPickupTime-${idx}`);
+  buildDispatchTimeOptions(`riderReturnTime-${idx}`);
 
   // Populate rider dropdown
   loadRidersIntoSelect(`riderSelect-${idx}`);

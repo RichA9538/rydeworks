@@ -331,6 +331,7 @@
     </ul>
     <div class="nav-actions">
       <a href="/login.html" class="btn-ghost">Sign In</a>
+      <button class="btn-ghost" onclick="viewDemo()" style="cursor:pointer;border:1px solid currentColor;border-radius:6px;padding:8px 18px;background:transparent;font-size:inherit;">View Demo</button>
       <a href="https://cal.com/rich-alvarez-x7b4oz/free-discovery-call" target="_blank" rel="noopener noreferrer" class="btn-primary">Get Demo</a>
     </div>
   </div>
@@ -557,6 +558,22 @@
     entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
   }, { threshold: 0.1 });
   document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+  async function viewDemo() {
+    try {
+      const res = await fetch('/api/auth/demo-login', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const data = await res.json();
+      if (data.success && data.token) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        window.location.href = '/app.html';
+      } else {
+        alert('Demo unavailable. Please try again or sign in.');
+      }
+    } catch (e) {
+      alert('Demo unavailable. Please try again or sign in.');
+    }
+  }
 </script>
 </body>
 </html>
