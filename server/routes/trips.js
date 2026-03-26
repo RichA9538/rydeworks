@@ -770,7 +770,7 @@ router.post('/:id/complete', async (req, res) => {
     if (trip.vehicle) {
       await Vehicle.findByIdAndUpdate(trip.vehicle, { status: 'available', currentDriver: null });
     }
-    await User.findByIdAndUpdate(req.user._id, { 'driverInfo.isAvailable': false, updatedAt: Date.now() });
+    await User.findByIdAndUpdate(req.user._id, { 'driverInfo.isAvailable': true, updatedAt: Date.now() });
 
     res.json({ success: true, trip });
   } catch (err) {
