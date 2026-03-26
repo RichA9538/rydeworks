@@ -328,21 +328,8 @@ const seedInitialData = async () => {
     }
   }
 
-  // Create demo dispatcher account (read-only view, for landing page "View Demo" button)
-  const demoEmail = 'demo@rydeworks.com';
-  const demoExists = await User.findOne({ email: demoEmail });
-  if (!demoExists) {
-    await User.create({
-      firstName: 'Demo', lastName: 'User',
-      email: demoEmail,
-      password: 'RydeworksDemo2026!',
-      roles: ['dispatcher'],
-      organization: org._id,
-      isActive: true, emailVerified: true,
-      isDemo: true
-    });
-    console.log('✅ Demo dispatcher account created');
-  }
+  // Remove demo user if it was accidentally created in a previous deploy
+  await User.deleteOne({ email: 'demo@rydeworks.com' }).catch(() => {});
 
   // Create initial team — default password: ChangeMe123! (must change on first login)
   const DEFAULT_PASS = 'ChangeMe123!';

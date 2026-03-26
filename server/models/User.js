@@ -38,7 +38,6 @@ const userSchema = new mongoose.Schema({
   isActive:           { type: Boolean, default: true },
   emailVerified:      { type: Boolean, default: false },
   mustChangePassword: { type: Boolean, default: false },
-  isDemo:             { type: Boolean, default: false },
 
   // Password reset
   resetPasswordToken:   { type: String },
