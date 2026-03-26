@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RydeWorks Demo — Dispatch Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --teal:       #00D4C8;
+      --teal-dark:  #00B4AA;
+      --navy:       #0A1628;
+      --navy-light: #1a2a45;
+      --white:      #ffffff;
+      --gray-50:    #f8fafc;
+      --gray-100:   #f1f5f9;
+      --gray-200:   #e2e8f0;
+      --gray-300:   #cbd5e1;
+      --gray-400:   #94a3b8;
+      --gray-500:   #64748b;
+      --gray-600:   #475569;
+      --gray-700:   #334155;
+      --gray-900:   #0f172a;
+      --green:      #10b981;
+      --green-pale: #d1fae5;
+      --amber:      #f59e0b;
+      --amber-pale: #fef3c7;
+      --red:        #ef4444;
+      --red-pale:   #fee2e2;
+      --blue:       #3b82f6;
+      --blue-pale:  #dbeafe;
+      --radius:     10px;
+      --shadow:     0 2px 8px rgba(0,0,0,0.10);
+      --shadow-lg:  0 8px 32px rgba(0,0,0,0.14);
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Inter',sans-serif; background:var(--gray-100); color:var(--gray-900); min-height:100vh; }
+
+    /* ── HEADER ── */
+    .header {
+      background: var(--navy);
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .header-brand { display:flex; align-items:center; gap:10px; color:var(--white); font-weight:700; font-size:18px; }
+    .header-brand img { height:32px; }
+    .header-brand .org-name { color:var(--teal); font-size:13px; font-weight:500; margin-left:4px; }
+    .header-right { display:flex; align-items:center; gap:16px; }
+    .demo-badge {
+      background: linear-gradient(135deg, var(--amber), #f97316);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+    }
+    .header-user { color:var(--gray-300); font-size:13px; display:flex; align-items:center; gap:6px; }
+    .header-user i { color:var(--teal); }
+
+    /* ── LAYOUT ── */
+    .layout { display:flex; height:calc(100vh - 60px); }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 220px;
+      background: var(--navy-light);
+      padding: 20px 0;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+    .sidebar-nav a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 20px;
+      color: var(--gray-400);
+      text-decoration: none;
+      font-size: 14px;
+      transition: all 0.15s;
+      cursor: pointer;
+    }
+    .sidebar-nav a.active, .sidebar-nav a:hover {
+      background: rgba(0,212,200,0.1);
+      color: var(--teal);
+    }
+    .sidebar-nav a i { width:18px; text-align:center; }
+    .sidebar-section { padding: 16px 20px 6px; font-size:10px; font-weight:600; color:var(--gray-500); letter-spacing:1px; text-transform:uppercase; }
+
+    /* ── MAIN ── */
+    .main { flex:1; overflow-y:auto; padding:24px; }
+
+    /* ── STATS STRIP ── */
+    .stats-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+    .stat-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .stat-icon { width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+    .stat-icon.teal { background:rgba(0,212,200,0.12); color:var(--teal-dark); }
+    .stat-icon.green { background:var(--green-pale); color:var(--green); }
+    .stat-icon.amber { background:var(--amber-pale); color:var(--amber); }
+    .stat-icon.blue  { background:var(--blue-pale); color:var(--blue); }
+    .stat-val { font-size:28px; font-weight:700; line-height:1; }
+    .stat-label { font-size:12px; color:var(--gray-500); margin-top:2px; }
+
+    /* ── GRID ── */
+    .dashboard-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+
+    /* ── CARDS ── */
+    .card { background:var(--white); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .card-header h3 { font-size:15px; font-weight:600; display:flex; align-items:center; gap:8px; }
+    .card-header h3 i { color:var(--teal); }
+    .card-body { padding:16px; }
+    .empty-state { text-align:center; padding:32px 20px; color:var(--gray-400); }
+    .empty-state i { font-size:32px; margin-bottom:10px; display:block; }
+    .empty-state p { font-size:14px; }
+
+    /* ── TRIP ROWS ── */
+    .trip-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      border: 1px solid var(--gray-200);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .trip-row:hover { background:var(--gray-50); }
+    .trip-row-info { display:grid; gap:3px; }
+    .trip-row-info span { font-size:13px; color:var(--gray-600); }
+    .trip-row-info .trip-name { font-weight:600; color:var(--gray-900); font-size:14px; }
+    .trip-row-info .trip-time { color:var(--green); font-weight:600; }
+
+    /* ── BADGES ── */
+    .badge { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; white-space:nowrap; }
+    .badge-scheduled { background:var(--blue-pale); color:var(--blue); }
+    .badge-active    { background:var(--amber-pale); color:var(--amber); }
+    .badge-enroute   { background:#fef9c3; color:#854d0e; }
+    .badge-arrived   { background:#fce7f3; color:#9d174d; }
+    .badge-aboard    { background:#ede9fe; color:#6d28d9; }
+    .badge-completed { background:var(--green-pale); color:var(--green); }
+    .badge-canceled  { background:var(--red-pale); color:var(--red); }
+    .dot { width:7px; height:7px; border-radius:50%; display:inline-block; }
+    .dot-scheduled { background:var(--blue); }
+    .dot-active    { background:var(--amber); }
+    .dot-completed { background:var(--green); }
+
+    /* ── DRIVER STATUS ── */
+    .driver-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--gray-200);
+      margin-bottom: 8px;
+    }
+    .driver-avatar { width:40px; height:40px; border-radius:50%; background:var(--navy); display:flex; align-items:center; justify-content:center; color:var(--teal); font-weight:700; font-size:15px; flex-shrink:0; }
+    .driver-info { flex:1; }
+    .driver-name { font-weight:600; font-size:14px; }
+    .driver-vehicle { font-size:12px; color:var(--gray-500); }
+
+    /* ── BUTTONS ── */
+    .btn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:8px; font-size:13px; font-weight:600; border:none; cursor:pointer; transition:all 0.15s; }
+    .btn-primary { background:var(--teal); color:var(--navy); }
+    .btn-primary:hover { background:var(--teal-dark); }
+    .btn-secondary { background:var(--gray-100); color:var(--gray-700); border:1px solid var(--gray-200); }
+    .btn-secondary:hover { background:var(--gray-200); }
+    .btn-green { background:var(--green); color:#fff; }
+    .btn-green:hover { background:#059669; }
+    .btn-amber { background:var(--amber); color:#fff; }
+    .btn-sm { padding:5px 12px; font-size:12px; }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.open { display:flex; }
+    .modal {
+      background: var(--white);
+      border-radius: 14px;
+      width: 100%;
+      max-width: 560px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow-lg);
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .modal-header h2 { font-size:18px; font-weight:700; }
+    .modal-close { background:none; border:none; cursor:pointer; color:var(--gray-400); font-size:20px; padding:4px; }
+    .modal-close:hover { color:var(--gray-700); }
+    .modal-body { padding:24px; }
+    .modal-footer { padding:16px 24px; border-top:1px solid var(--gray-100); display:flex; gap:10px; justify-content:flex-end; }
+
+    /* ── FORM ── */
+    .form-group { margin-bottom:16px; }
+    .form-label { display:block; font-size:13px; font-weight:600; color:var(--gray-700); margin-bottom:6px; }
+    .form-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid var(--gray-300);
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--gray-900);
+      background: var(--white);
+      transition: border-color 0.15s;
+      appearance: none;
+    }
+    .form-input:focus { outline:none; border-color:var(--teal); }
+    .form-row { display:flex; gap:12px; }
+    .form-row .form-group { flex:1; }
+    .calc-note { font-size:12px; color:var(--green); margin-top:4px; font-weight:500; }
+
+    /* ── TRIP DETAIL ── */
+    .trip-detail-section { margin-bottom:20px; }
+    .trip-detail-section h4 { font-size:13px; font-weight:700; color:var(--gray-500); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; }
+    .detail-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--gray-100); font-size:14px; }
+    .detail-row:last-child { border-bottom:none; }
+    .detail-label { color:var(--gray-500); }
+    .detail-value { font-weight:600; }
+
+    .stage-buttons { display:flex; flex-direction:column; gap:10px; }
+    .stage-btn {
+      width:100%;
+      padding:14px;
+      border-radius:10px;
+      border:none;
+      font-size:15px;
+      font-weight:600;
+      cursor:pointer;
+      transition:all 0.2s;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+    }
+    .stage-btn:disabled { opacity:0.35; cursor:not-allowed; }
+    .stage-btn.go { background:var(--amber); color:#fff; }
+    .stage-btn.go:hover:not(:disabled) { background:#d97706; }
+    .stage-btn.arrived { background:#8b5cf6; color:#fff; }
+    .stage-btn.arrived:hover:not(:disabled) { background:#7c3aed; }
+    .stage-btn.aboard { background:#0ea5e9; color:#fff; }
+    .stage-btn.aboard:hover:not(:disabled) { background:#0284c7; }
+    .stage-btn.complete { background:var(--green); color:#fff; }
+    .stage-btn.complete:hover:not(:disabled) { background:#059669; }
+
+    .progress-bar-wrap { background:var(--gray-200); border-radius:8px; height:8px; margin:12px 0 4px; overflow:hidden; }
+    .progress-bar { height:100%; border-radius:8px; background:linear-gradient(90deg,var(--teal),var(--green)); transition:width 0.4s ease; }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--navy);
+      color: var(--white);
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight:500;
+      box-shadow: var(--shadow-lg);
+      z-index: 999;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      max-width: 340px;
+    }
+    .toast.show { display:flex; animation:slideUp 0.3s ease; }
+    .toast.success { border-left:4px solid var(--green); }
+    .toast.error   { border-left:4px solid var(--red); }
+    .toast.info    { border-left:4px solid var(--teal); }
+    @keyframes slideUp { from { transform:translateY(20px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+
+    /* ── GUIDED HINT ── */
+    .hint-bar {
+      background: linear-gradient(135deg, var(--navy), var(--navy-light));
+      color: var(--white);
+      padding: 12px 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+    }
+    .hint-bar i { color:var(--teal); font-size:18px; flex-shrink:0; }
+    .hint-bar strong { color:var(--teal); }
+
+    @media(max-width:768px) {
+      .stats-strip { grid-template-columns:1fr 1fr; }
+      .dashboard-grid { grid-template-columns:1fr; }
+      .sidebar { display:none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-brand">
+    <img src="/img/rydeworks-mark.svg" alt="RydeWorks">
+    <span>RydeWorks</span>
+    <span class="org-name">| Sunrise Community Transport</span>
+  </div>
+  <div class="header-right">
+    <span class="demo-badge"><i class="fas fa-play"></i> LIVE DEMO</span>
+    <div class="header-user"><i class="fas fa-user-circle"></i> Demo Dispatcher</div>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section">Main</div>
+    <nav class="sidebar-nav">
+      <a class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+      <a onclick="showToastMsg('In this demo, only the Dashboard is active.','info')"><i class="fas fa-list"></i> All Trips</a>
+      <a onclick="showToastMsg('In this demo, only the Dashboard is active.','info')"><i class="fas fa-users"></i> Riders</a>
+      <a onclick="showToastMsg('In this demo, only the Dashboard is active.','info')"><i class="fas fa-id-badge"></i> Drivers</a>
+      <a onclick="showToastMsg('In this demo, only the Dashboard is active.','info')"><i class="fas fa-shuttle-van"></i> Fleet</a>
+    </nav>
+    <div class="sidebar-section">Reports</div>
+    <nav class="sidebar-nav">
+      <a onclick="showToastMsg('In this demo, only the Dashboard is active.','info')"><i class="fas fa-chart-bar"></i> Reports</a>
+      <a onclick="showToastMsg('In this demo, only the Dashboard is active.','info')"><i class="fas fa-file-alt"></i> Billing</a>
+    </nav>
+    <div style="padding:24px 20px 0; margin-top:auto;">
+      <a href="/landing.html" style="display:flex;align-items:center;gap:8px;color:var(--gray-400);font-size:13px;text-decoration:none;">
+        <i class="fas fa-arrow-left"></i> Back to Site
+      </a>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+
+    <!-- GUIDED HINT -->
+    <div class="hint-bar" id="hintBar">
+      <i class="fas fa-lightbulb"></i>
+      <div id="hintText"><strong>Welcome to the RydeWorks demo!</strong> Click <strong>+ Schedule Trip</strong> below to see how easy it is to book and dispatch a ride.</div>
+    </div>
+
+    <!-- STATS STRIP -->
+    <div class="stats-strip">
+      <div class="stat-card">
+        <div class="stat-icon teal"><i class="fas fa-calendar-check"></i></div>
+        <div><div class="stat-val" id="statToday">0</div><div class="stat-label">Trips Today</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon amber"><i class="fas fa-road"></i></div>
+        <div><div class="stat-val" id="statActive">0</div><div class="stat-label">Active Rides</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green"><i class="fas fa-users"></i></div>
+        <div><div class="stat-val" id="statRiders">0</div><div class="stat-label">Riders Served</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon blue"><i class="fas fa-dollar-sign"></i></div>
+        <div><div class="stat-val" id="statRevenue">$0</div><div class="stat-label">Est. Revenue</div></div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD GRID -->
+    <div class="dashboard-grid">
+
+      <!-- TODAY'S TRIPS -->
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-calendar-day"></i> Today's Trips</h3>
+          <button class="btn btn-primary btn-sm" onclick="openScheduleModal()"><i class="fas fa-plus"></i> Schedule Trip</button>
+        </div>
+        <div class="card-body" id="todayList">
+          <div class="empty-state">
+            <i class="fas fa-calendar-plus"></i>
+            <p>No trips yet — click <strong>+ Schedule Trip</strong> to begin</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- DRIVER STATUS -->
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-id-badge"></i> Driver Status</h3>
+        </div>
+        <div class="card-body">
+          <div class="driver-card">
+            <div class="driver-avatar">MJ</div>
+            <div class="driver-info">
+              <div class="driver-name">Marcus Johnson</div>
+              <div class="driver-vehicle"><i class="fas fa-shuttle-van"></i> Van 1 — Chevy Express</div>
+            </div>
+            <span class="badge" id="driverBadge"><span class="dot dot-completed" style="background:var(--green)"></span> Available</span>
+          </div>
+          <div style="font-size:12px;color:var(--gray-400);margin-top:8px;padding:8px;background:var(--gray-50);border-radius:6px;">
+            <i class="fas fa-info-circle"></i> In the real app, you can track driver location live, manage multiple drivers, and receive real-time status updates.
+          </div>
+        </div>
+      </div>
+
+      <!-- FLEET SNAPSHOT -->
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-shuttle-van"></i> Fleet Snapshot</h3>
+        </div>
+        <div class="card-body">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;">
+            <div>
+              <div style="font-weight:600;font-size:14px;">Van 1 — Chevy Express</div>
+              <div style="font-size:12px;color:var(--gray-500);">7 seats · Marcus Johnson</div>
+            </div>
+            <span class="badge badge-completed" id="vanBadge">Available</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- COMPLETED TODAY -->
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-archive"></i> Completed &amp; Canceled Today</h3>
+        </div>
+        <div class="card-body" id="completedList">
+          <div class="empty-state">
+            <i class="fas fa-archive"></i>
+            <p>No completed or canceled rides yet today</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── SCHEDULE TRIP MODAL ── -->
+<div class="modal-overlay" id="scheduleModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2><i class="fas fa-calendar-plus" style="color:var(--teal);margin-right:8px;"></i> Schedule a Trip</h2>
+      <button class="modal-close" onclick="closeModal('scheduleModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+
+      <div class="form-group">
+        <label class="form-label">Select Rider</label>
+        <select class="form-input" id="riderSelect" onchange="onRiderSelect()">
+          <option value="">— Choose a rider —</option>
+          <option value="sarah">Sarah Williams</option>
+          <option value="robert">Robert Torres</option>
+          <option value="linda">Linda Chen</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Pickup Address</label>
+          <input class="form-input" id="pickupAddr" readonly placeholder="Select a rider above" style="background:var(--gray-50);">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Destination</label>
+        <input class="form-input" id="destAddr" value="BayCare Medical Group, 3200 McMullen Booth Rd, Clearwater, FL 34619" readonly style="background:var(--gray-50);">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Appointment Time <span style="font-size:11px;color:var(--gray-400);">(when rider must arrive)</span></label>
+          <select class="form-input" id="apptTime" onchange="calcPickupTime()">
+            <option value="">— Select time —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estimated Pickup Time</label>
+          <input class="form-input" id="pickupTime" readonly placeholder="Auto-calculated" style="background:var(--gray-50);font-weight:600;color:var(--green);">
+          <div class="calc-note" id="calcNote" style="display:none;"></div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Assigned Driver</label>
+        <input class="form-input" value="Marcus Johnson — Van 1" readonly style="background:var(--gray-50);">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Trip Type</label>
+        <select class="form-input" id="tripTypeSelect">
+          <option value="round_trip">Round Trip</option>
+          <option value="one_way">One Way</option>
+        </select>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('scheduleModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="scheduleTrip()"><i class="fas fa-check"></i> Schedule Trip</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── TRIP DETAIL MODAL ── -->
+<div class="modal-overlay" id="tripModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="tripModalTitle"><i class="fas fa-route" style="color:var(--teal);margin-right:8px;"></i> Trip Details</h2>
+      <button class="modal-close" onclick="closeModal('tripModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="trip-detail-section">
+        <h4>Trip Info</h4>
+        <div class="detail-row"><span class="detail-label">Rider</span><span class="detail-value" id="tdRider">—</span></div>
+        <div class="detail-row"><span class="detail-label">Pickup</span><span class="detail-value" id="tdPickup">—</span></div>
+        <div class="detail-row"><span class="detail-label">Destination</span><span class="detail-value" id="tdDest">—</span></div>
+        <div class="detail-row"><span class="detail-label">Pickup Time</span><span class="detail-value" id="tdPickupTime">—</span></div>
+        <div class="detail-row"><span class="detail-label">Appt Time</span><span class="detail-value" id="tdApptTime">—</span></div>
+        <div class="detail-row"><span class="detail-label">Driver</span><span class="detail-value">Marcus Johnson — Van 1</span></div>
+        <div class="detail-row"><span class="detail-label">Trip Type</span><span class="detail-value" id="tdTripType">—</span></div>
+        <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value" id="tdStatus">—</span></div>
+        <div class="detail-row"><span class="detail-label">Est. Fare</span><span class="detail-value" id="tdFare">—</span></div>
+        <div class="detail-row"><span class="detail-label">Est. Distance</span><span class="detail-value" id="tdDist">—</span></div>
+      </div>
+
+      <div class="trip-detail-section">
+        <h4><i class="fas fa-play-circle" style="color:var(--teal);"></i> Simulate Trip Progress</h4>
+        <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar" style="width:15%"></div></div>
+        <div style="font-size:12px;color:var(--gray-500);text-align:center;margin-bottom:14px;" id="progressLabel">Scheduled</div>
+        <div class="stage-buttons">
+          <button class="stage-btn go" id="btnEnRoute" onclick="advanceStage('en_route')">
+            <i class="fas fa-car"></i> Driver Heading to Pickup
+          </button>
+          <button class="stage-btn arrived" id="btnArrived" onclick="advanceStage('arrived')" disabled>
+            <i class="fas fa-map-marker-alt"></i> Driver Arrived at Pickup
+          </button>
+          <button class="stage-btn aboard" id="btnAboard" onclick="advanceStage('aboard')" disabled>
+            <i class="fas fa-user-check"></i> Rider Aboard — En Route to Destination
+          </button>
+          <button class="stage-btn complete" id="btnComplete" onclick="advanceStage('completed')" disabled>
+            <i class="fas fa-flag-checkered"></i> Trip Complete
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('tripModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── DEMO DATA ──────────────────────────────────────────────
+const RIDERS = {
+  sarah: {
+    name: 'Sarah Williams',
+    address: '1234 Oak St, St. Petersburg, FL 33705',
+    driveMins: 28,
+    distanceMiles: 21.4,
+    fare: 18
+  },
+  robert: {
+    name: 'Robert Torres',
+    address: '567 Maple Ave, Clearwater, FL 33755',
+    driveMins: 12,
+    distanceMiles: 7.8,
+    fare: 9
+  },
+  linda: {
+    name: 'Linda Chen',
+    address: '890 Pine Rd, Largo, FL 33770',
+    driveMins: 18,
+    distanceMiles: 13.2,
+    fare: 11
+  }
+};
+
+const DEST = 'BayCare Medical Group, 3200 McMullen Booth Rd, Clearwater, FL 34619';
+
+// ── STATE ──────────────────────────────────────────────────
+let scheduledTrip = null;
+let completedTrips = [];
+let currentStage = 'scheduled';
+
+// ── INIT ──────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  buildTimeOptions('apptTime');
+  updateStats();
+});
+
+function buildTimeOptions(selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  for (let h = 6; h <= 20; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      const h24 = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      const ampm = h < 12 ? 'AM' : 'PM';
+      const h12  = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      const label = `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+      const opt = document.createElement('option');
+      opt.value = h24;
+      opt.textContent = label;
+      sel.appendChild(opt);
+    }
+  }
+}
+
+// ── RIDER SELECT ──────────────────────────────────────────
+function onRiderSelect() {
+  const key = document.getElementById('riderSelect').value;
+  const rider = RIDERS[key];
+  document.getElementById('pickupAddr').value = rider ? rider.address : '';
+  document.getElementById('pickupTime').value = '';
+  document.getElementById('calcNote').style.display = 'none';
+  calcPickupTime();
+}
+
+// ── PICKUP TIME CALCULATION ───────────────────────────────
+function calcPickupTime() {
+  const riderKey = document.getElementById('riderSelect').value;
+  const apptVal  = document.getElementById('apptTime').value;
+  if (!riderKey || !apptVal) return;
+
+  const rider = RIDERS[riderKey];
+  const [h, m] = apptVal.split(':').map(Number);
+  const apptMins = h * 60 + m;
+
+  // Pickup = appointment time − drive time − 15 min buffer
+  const bufferMins = 15;
+  const pickupMins = apptMins - rider.driveMins - bufferMins;
+
+  if (pickupMins < 0) {
+    document.getElementById('pickupTime').value = 'Too early for this slot';
+    document.getElementById('calcNote').style.display = 'none';
+    return;
+  }
+
+  const pH = Math.floor(pickupMins / 60);
+  const pM = pickupMins % 60;
+  const ampm = pH < 12 ? 'AM' : 'PM';
+  const pH12 = pH === 0 ? 12 : pH > 12 ? pH - 12 : pH;
+  const pickupLabel = `${pH12}:${String(pM).padStart(2,'0')} ${ampm}`;
+
+  document.getElementById('pickupTime').value = pickupLabel;
+
+  const note = document.getElementById('calcNote');
+  note.style.display = 'block';
+  note.innerHTML = `<i class="fas fa-route"></i> ~${rider.distanceMiles} mi · ~${rider.driveMins} min drive + 15 min buffer`;
+}
+
+// ── SCHEDULE TRIP ─────────────────────────────────────────
+function scheduleTrip() {
+  const riderKey   = document.getElementById('riderSelect').value;
+  const apptVal    = document.getElementById('apptTime').value;
+  const pickupVal  = document.getElementById('pickupTime').value;
+  const tripType   = document.getElementById('tripTypeSelect').value;
+
+  if (!riderKey) { showToastMsg('Please select a rider.', 'error'); return; }
+  if (!apptVal)  { showToastMsg('Please select an appointment time.', 'error'); return; }
+  if (!pickupVal || pickupVal === 'Too early for this slot') { showToastMsg('Please select a valid appointment time.', 'error'); return; }
+  if (scheduledTrip && !['completed','canceled'].includes(scheduledTrip.status)) {
+    showToastMsg('Complete the current trip before scheduling another.', 'error'); return;
+  }
+
+  const rider = RIDERS[riderKey];
+  scheduledTrip = {
+    id: Date.now(),
+    riderKey,
+    riderName: rider.name,
+    pickup: rider.address,
+    dest: DEST,
+    apptTime: apptVal,
+    pickupTime: pickupVal,
+    tripType,
+    fare: tripType === 'round_trip' ? rider.fare * 2 : rider.fare,
+    distanceMiles: rider.distanceMiles,
+    status: 'scheduled'
+  };
+  currentStage = 'scheduled';
+
+  closeModal('scheduleModal');
+  renderDashboard();
+  updateStats();
+  showToastMsg(`Trip scheduled for ${rider.name}! Click the trip row to dispatch.`, 'success');
+  setHint(`<strong>Trip scheduled!</strong> Click the trip row in <strong>Today's Trips</strong> to open it and simulate the driver's progress.`);
+}
+
+// ── RENDER DASHBOARD ──────────────────────────────────────
+function renderDashboard() {
+  const todayEl    = document.getElementById('todayList');
+  const completedEl = document.getElementById('completedList');
+
+  // Active trip
+  if (scheduledTrip && !['completed','canceled'].includes(scheduledTrip.status)) {
+    todayEl.innerHTML = tripRowHtml(scheduledTrip);
+  } else {
+    todayEl.innerHTML = '<div class="empty-state"><i class="fas fa-calendar-plus"></i><p>No trips yet — click <strong>+ Schedule Trip</strong> to begin</p></div>';
+  }
+
+  // Completed trips
+  if (completedTrips.length > 0) {
+    completedEl.innerHTML = completedTrips.map(t => tripRowHtml(t, true)).join('');
+  } else {
+    completedEl.innerHTML = '<div class="empty-state"><i class="fas fa-archive"></i><p>No completed or canceled rides yet today</p></div>';
+  }
+
+  // Driver badge
+  const driverBadge = document.getElementById('driverBadge');
+  const vanBadge    = document.getElementById('vanBadge');
+  if (scheduledTrip && ['en_route','arrived','aboard'].includes(scheduledTrip.status)) {
+    driverBadge.className = 'badge badge-active';
+    driverBadge.innerHTML = '<span class="dot" style="background:var(--amber)"></span> On Trip';
+    vanBadge.className = 'badge badge-active';
+    vanBadge.textContent = 'In Use';
+  } else {
+    driverBadge.className = 'badge';
+    driverBadge.innerHTML = '<span class="dot dot-completed" style="background:var(--green)"></span> Available';
+    vanBadge.className = 'badge badge-completed';
+    vanBadge.textContent = 'Available';
+  }
+}
+
+function tripRowHtml(t, done) {
+  const badgeHtml = statusBadge(t.status);
+  return `
+  <div class="trip-row" onclick="viewTrip()">
+    <div class="trip-row-info">
+      <span class="trip-name">${t.riderName}</span>
+      <span><i class="fas fa-map-marker-alt" style="color:var(--teal);"></i> ${shortAddr(t.pickup)}</span>
+      <span><i class="fas fa-flag" style="color:var(--green);"></i> ${shortAddr(t.dest)}</span>
+      <span class="trip-time"><i class="fas fa-clock"></i> Pickup ${t.pickupTime} · Appt ${fmt12h(t.apptTime)}</span>
+    </div>
+    <div>${badgeHtml}</div>
+  </div>`;
+}
+
+function statusBadge(status) {
+  const map = {
+    scheduled: '<span class="badge badge-scheduled"><span class="dot dot-scheduled"></span> Scheduled</span>',
+    en_route:  '<span class="badge badge-enroute"><span class="dot" style="background:#854d0e"></span> En Route</span>',
+    arrived:   '<span class="badge badge-arrived"><span class="dot" style="background:#9d174d"></span> Arrived</span>',
+    aboard:    '<span class="badge badge-aboard"><span class="dot" style="background:#6d28d9"></span> Aboard</span>',
+    completed: '<span class="badge badge-completed"><span class="dot dot-completed"></span> Completed</span>',
+    canceled:  '<span class="badge badge-canceled">Canceled</span>',
+  };
+  return map[status] || `<span class="badge">${status}</span>`;
+}
+
+function shortAddr(addr) {
+  return addr ? addr.split(',')[0] : '—';
+}
+
+function fmt12h(val) {
+  if (!val) return '—';
+  const [h, m] = val.split(':').map(Number);
+  const ampm = h < 12 ? 'AM' : 'PM';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
+// ── VIEW TRIP ─────────────────────────────────────────────
+function viewTrip() {
+  if (!scheduledTrip) return;
+  const t = scheduledTrip;
+  document.getElementById('tripModalTitle').innerHTML = `<i class="fas fa-route" style="color:var(--teal);margin-right:8px;"></i> ${t.riderName}`;
+  document.getElementById('tdRider').textContent  = t.riderName;
+  document.getElementById('tdPickup').textContent = t.pickup;
+  document.getElementById('tdDest').textContent   = t.dest;
+  document.getElementById('tdPickupTime').textContent = t.pickupTime;
+  document.getElementById('tdApptTime').textContent   = fmt12h(t.apptTime);
+  document.getElementById('tdTripType').textContent   = t.tripType === 'round_trip' ? 'Round Trip' : 'One Way';
+  document.getElementById('tdFare').textContent  = `$${t.fare.toFixed(2)}`;
+  document.getElementById('tdDist').textContent  = `${t.distanceMiles} mi`;
+  document.getElementById('tdStatus').innerHTML  = statusBadge(t.status);
+
+  updateStageButtons(t.status);
+  openModal('tripModal');
+}
+
+// ── ADVANCE TRIP STAGE ────────────────────────────────────
+const STAGES = ['scheduled','en_route','arrived','aboard','completed'];
+const STAGE_PROGRESS = { scheduled:15, en_route:40, arrived:60, aboard:80, completed:100 };
+
+function advanceStage(newStage) {
+  if (!scheduledTrip) return;
+  scheduledTrip.status = newStage;
+  currentStage = newStage;
+
+  document.getElementById('tdStatus').innerHTML = statusBadge(newStage);
+  updateStageButtons(newStage);
+
+  const hints = {
+    en_route: `<strong>Driver dispatched!</strong> Marcus is heading to ${scheduledTrip.riderName}'s pickup address.`,
+    arrived:  `<strong>Driver arrived!</strong> Marcus is at the pickup location waiting for ${scheduledTrip.riderName.split(' ')[0]}.`,
+    aboard:   `<strong>${scheduledTrip.riderName.split(' ')[0]} is aboard!</strong> Van 1 is now heading to ${shortAddr(scheduledTrip.dest)}.`,
+    completed:`<strong>Trip complete!</strong> ${scheduledTrip.riderName} arrived at their appointment. The trip moved to Completed Today.`
+  };
+  if (hints[newStage]) setHint(hints[newStage]);
+
+  if (newStage === 'completed') {
+    completedTrips.push({ ...scheduledTrip });
+    scheduledTrip = { ...scheduledTrip };
+    closeModal('tripModal');
+    showToastMsg(`Trip completed! ${RIDERS[scheduledTrip.riderKey].name} arrived safely.`, 'success');
+  }
+
+  renderDashboard();
+  updateStats();
+}
+
+function updateStageButtons(status) {
+  const pct = STAGE_PROGRESS[status] || 15;
+  document.getElementById('progressBar').style.width = pct + '%';
+
+  const labels = { scheduled:'Scheduled', en_route:'En Route', arrived:'Driver Arrived', aboard:'Rider Aboard', completed:'Completed' };
+  document.getElementById('progressLabel').textContent = labels[status] || status;
+
+  const done = STAGES.indexOf(status);
+  document.getElementById('btnEnRoute').disabled  = done >= 1;
+  document.getElementById('btnArrived').disabled  = done < 1 || done >= 2;
+  document.getElementById('btnAboard').disabled   = done < 2 || done >= 3;
+  document.getElementById('btnComplete').disabled = done < 3 || done >= 4;
+}
+
+// ── STATS ─────────────────────────────────────────────────
+function updateStats() {
+  const activeCount = (scheduledTrip && !['completed','canceled'].includes(scheduledTrip.status)) ? 1 : 0;
+  const totalToday  = activeCount + completedTrips.length;
+  const ridersToday = totalToday;
+  const revenue     = completedTrips.reduce((s,t) => s + t.fare, 0) + (scheduledTrip && scheduledTrip.status !== 'canceled' ? (scheduledTrip?.fare || 0) : 0);
+
+  document.getElementById('statToday').textContent   = totalToday;
+  document.getElementById('statActive').textContent  = ['en_route','arrived','aboard'].includes(scheduledTrip?.status) ? 1 : 0;
+  document.getElementById('statRiders').textContent  = ridersToday;
+  document.getElementById('statRevenue').textContent = `$${revenue.toFixed(0)}`;
+}
+
+// ── MODAL HELPERS ─────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function openScheduleModal() {
+  document.getElementById('riderSelect').value = '';
+  document.getElementById('pickupAddr').value  = '';
+  document.getElementById('apptTime').value    = '';
+  document.getElementById('pickupTime').value  = '';
+  document.getElementById('calcNote').style.display = 'none';
+  openModal('scheduleModal');
+  setHint(`<strong>Schedule a Trip</strong> — Select a rider from the dropdown to auto-fill their address. Then pick an appointment time to automatically calculate pickup time.`);
+}
+
+// ── HINT BAR ──────────────────────────────────────────────
+function setHint(html) {
+  document.getElementById('hintText').innerHTML = html;
+}
+
+// ── TOAST ─────────────────────────────────────────────────
+function showToastMsg(msg, type='info') {
+  const t = document.getElementById('toast');
+  const icons = { success:'fas fa-check-circle', error:'fas fa-exclamation-circle', info:'fas fa-info-circle' };
+  t.className = `toast show ${type}`;
+  t.innerHTML = `<i class="${icons[type]||icons.info}"></i> ${msg}`;
+  setTimeout(() => { t.className = 'toast'; }, 3500);
+}
+</script>
+
+</body>
+</html>
