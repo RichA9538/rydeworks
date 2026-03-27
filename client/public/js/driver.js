@@ -158,9 +158,6 @@ function hasPersistedShiftStarted() {
 document.addEventListener('DOMContentLoaded', async () => {
   loadProfile();
   await loadTodayTrip();
-  if (!shiftStarted && !hasPersistedShiftStarted()) {
-    showScreen('start', false);
-  }
   startLocationTracking();
 
   // Show "Switch to Dispatch" button for multi-role users
@@ -240,7 +237,7 @@ async function loadTodayTrip() {
 
   window.appTrips = orderedTrips;
   currentTrip = trip;
-  shiftStarted = orderedTrips.some(t => t.status === 'in_progress') || hasPersistedShiftStarted();
+  shiftStarted = orderedTrips.some(t => t.status === 'in_progress') || hasPersistedShiftStarted() || ZakAuth.getUser()?.driverInfo?.isAvailable === true;
 
   document.getElementById('profileTripsToday').textContent = orderedTrips.length;
   const totalRiders = orderedTrips.reduce((sum, t) => sum + (t.stops?.length || 0), 0);
@@ -705,6 +702,9 @@ async function endShift() {
       method: 'POST',
       body: JSON.stringify({ isAvailable: false })
     });
+    const u = ZakAuth.getUser() || {};
+    if (u.driverInfo) u.driverInfo.isAvailable = false;
+    localStorage.setItem('zak_user', JSON.stringify(u));
     shiftStarted = false;
     persistShiftStarted(false);
     showToast('Shift ended. Have a good rest!', 'success');
@@ -723,6 +723,9 @@ async function endShift() {
       method: 'POST',
       body: JSON.stringify({ isAvailable: false })
     });
+    const u = ZakAuth.getUser() || {};
+    if (u.driverInfo) u.driverInfo.isAvailable = false;
+    localStorage.setItem('zak_user', JSON.stringify(u));
     currentTrip = null;
     shiftStarted = false;
     persistShiftStarted(false);
