@@ -340,6 +340,7 @@
     <span class="org-name">| Sunrise Community Transport</span>
   </div>
   <div class="header-right">
+    <button onclick="window.location.href='/landing.html'" style="background:#f59e0b; color:#fff; font-weight:700; border:none; border-radius:20px; padding:6px 16px; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px;"><i class="fas fa-arrow-left"></i> Exit Demo</button>
     <span class="demo-badge"><i class="fas fa-play"></i> LIVE DEMO</span>
     <div class="header-user"><i class="fas fa-user-circle"></i> Demo Dispatcher</div>
   </div>
@@ -362,109 +363,158 @@
       <a onclick="showToastMsg('In this demo, only the Dashboard is active.','info')"><i class="fas fa-chart-bar"></i> Reports</a>
       <a onclick="showToastMsg('In this demo, only the Dashboard is active.','info')"><i class="fas fa-file-alt"></i> Billing</a>
     </nav>
-    <div style="padding:24px 20px 0; margin-top:auto;">
-      <a href="/landing.html" style="display:flex;align-items:center;gap:8px;color:var(--gray-400);font-size:13px;text-decoration:none;">
-        <i class="fas fa-arrow-left"></i> Back to Site
-      </a>
-    </div>
   </div>
 
   <!-- MAIN CONTENT -->
   <div class="main">
 
-    <!-- GUIDED HINT -->
-    <div class="hint-bar" id="hintBar">
-      <i class="fas fa-lightbulb"></i>
-      <div id="hintText"><strong>Welcome to the RydeWorks demo!</strong> Click <strong>+ Schedule Trip</strong> below to see how easy it is to book and dispatch a ride.</div>
+    <!-- VIEW TOGGLE TABS -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button id="tabDispatch" onclick="switchView('dispatch')" style="padding:8px 20px;border-radius:8px;border:none;font-weight:700;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;background:var(--navy);color:#fff;">
+        <i class="fas fa-desktop"></i> Dispatch View
+      </button>
+      <button id="tabDriver" onclick="switchView('driver')" style="padding:8px 20px;border-radius:8px;border:1.5px solid var(--gray-300);font-weight:700;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;background:var(--white);color:var(--gray-700);">
+        <i class="fas fa-shuttle-van"></i> Driver App
+      </button>
     </div>
 
-    <!-- STATS STRIP -->
-    <div class="stats-strip">
-      <div class="stat-card">
-        <div class="stat-icon teal"><i class="fas fa-calendar-check"></i></div>
-        <div><div class="stat-val" id="statToday">0</div><div class="stat-label">Trips Today</div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon amber"><i class="fas fa-road"></i></div>
-        <div><div class="stat-val" id="statActive">0</div><div class="stat-label">Active Rides</div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon green"><i class="fas fa-users"></i></div>
-        <div><div class="stat-val" id="statRiders">0</div><div class="stat-label">Riders Served</div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon blue"><i class="fas fa-dollar-sign"></i></div>
-        <div><div class="stat-val" id="statRevenue">$0</div><div class="stat-label">Est. Revenue</div></div>
-      </div>
-    </div>
+    <div id="dispatchPanel">
 
-    <!-- DASHBOARD GRID -->
-    <div class="dashboard-grid">
+      <!-- GUIDED HINT -->
+      <div class="hint-bar" id="hintBar">
+        <i class="fas fa-lightbulb"></i>
+        <div id="hintText"><strong>Welcome to the RydeWorks demo!</strong> Click <strong>+ Schedule Trip</strong> below to see how easy it is to book and dispatch a ride.</div>
+      </div>
 
-      <!-- TODAY'S TRIPS -->
-      <div class="card">
-        <div class="card-header">
-          <h3><i class="fas fa-calendar-day"></i> Today's Trips</h3>
-          <button class="btn btn-primary btn-sm" onclick="openScheduleModal()"><i class="fas fa-plus"></i> Schedule Trip</button>
+      <!-- STATS STRIP -->
+      <div class="stats-strip">
+        <div class="stat-card">
+          <div class="stat-icon teal"><i class="fas fa-calendar-check"></i></div>
+          <div><div class="stat-val" id="statToday">0</div><div class="stat-label">Trips Today</div></div>
         </div>
-        <div class="card-body" id="todayList">
-          <div class="empty-state">
-            <i class="fas fa-calendar-plus"></i>
-            <p>No trips yet — click <strong>+ Schedule Trip</strong> to begin</p>
+        <div class="stat-card">
+          <div class="stat-icon amber"><i class="fas fa-road"></i></div>
+          <div><div class="stat-val" id="statActive">0</div><div class="stat-label">Active Rides</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green"><i class="fas fa-users"></i></div>
+          <div><div class="stat-val" id="statRiders">0</div><div class="stat-label">Riders Served</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon blue"><i class="fas fa-dollar-sign"></i></div>
+          <div><div class="stat-val" id="statRevenue">$0</div><div class="stat-label">Est. Revenue</div></div>
+        </div>
+      </div>
+
+      <!-- DASHBOARD GRID -->
+      <div class="dashboard-grid">
+
+        <!-- TODAY'S TRIPS -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fas fa-calendar-day"></i> Today's Trips</h3>
+            <button class="btn btn-primary btn-sm" onclick="openScheduleModal()"><i class="fas fa-plus"></i> Schedule Trip</button>
           </div>
-        </div>
-      </div>
-
-      <!-- DRIVER STATUS -->
-      <div class="card">
-        <div class="card-header">
-          <h3><i class="fas fa-id-badge"></i> Driver Status</h3>
-        </div>
-        <div class="card-body">
-          <div class="driver-card">
-            <div class="driver-avatar">MJ</div>
-            <div class="driver-info">
-              <div class="driver-name">Marcus Johnson</div>
-              <div class="driver-vehicle"><i class="fas fa-shuttle-van"></i> Van 1 — Chevy Express</div>
+          <div class="card-body" id="todayList">
+            <div class="empty-state">
+              <i class="fas fa-calendar-plus"></i>
+              <p>No trips yet — click <strong>+ Schedule Trip</strong> to begin</p>
             </div>
-            <span class="badge" id="driverBadge"><span class="dot dot-completed" style="background:var(--green)"></span> Available</span>
-          </div>
-          <div style="font-size:12px;color:var(--gray-400);margin-top:8px;padding:8px;background:var(--gray-50);border-radius:6px;">
-            <i class="fas fa-info-circle"></i> In the real app, you can track driver location live, manage multiple drivers, and receive real-time status updates.
           </div>
         </div>
-      </div>
 
-      <!-- FLEET SNAPSHOT -->
-      <div class="card">
-        <div class="card-header">
-          <h3><i class="fas fa-shuttle-van"></i> Fleet Snapshot</h3>
-        </div>
-        <div class="card-body">
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;">
-            <div>
-              <div style="font-weight:600;font-size:14px;">Van 1 — Chevy Express</div>
-              <div style="font-size:12px;color:var(--gray-500);">7 seats · Marcus Johnson</div>
+        <!-- DRIVER STATUS -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fas fa-id-badge"></i> Driver Status</h3>
+          </div>
+          <div class="card-body">
+            <div class="driver-card">
+              <div class="driver-avatar">MJ</div>
+              <div class="driver-info">
+                <div class="driver-name">Marcus Johnson</div>
+                <div class="driver-vehicle"><i class="fas fa-shuttle-van"></i> Van 1 — Chevy Express</div>
+              </div>
+              <span class="badge" id="driverBadge"><span class="dot dot-completed" style="background:var(--green)"></span> Available</span>
             </div>
-            <span class="badge badge-completed" id="vanBadge">Available</span>
+            <div style="font-size:12px;color:var(--gray-400);margin-top:8px;padding:8px;background:var(--gray-50);border-radius:6px;">
+              <i class="fas fa-info-circle"></i> In the real app, you can track driver location live, manage multiple drivers, and receive real-time status updates.
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- COMPLETED TODAY -->
-      <div class="card">
-        <div class="card-header">
-          <h3><i class="fas fa-archive"></i> Completed &amp; Canceled Today</h3>
-        </div>
-        <div class="card-body" id="completedList">
-          <div class="empty-state">
-            <i class="fas fa-archive"></i>
-            <p>No completed or canceled rides yet today</p>
+        <!-- FLEET SNAPSHOT -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fas fa-shuttle-van"></i> Fleet Snapshot</h3>
+          </div>
+          <div class="card-body">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;">
+              <div>
+                <div style="font-weight:600;font-size:14px;">Van 1 — Chevy Express</div>
+                <div style="font-size:12px;color:var(--gray-500);">7 seats · Marcus Johnson</div>
+              </div>
+              <span class="badge badge-completed" id="vanBadge">Available</span>
+            </div>
           </div>
         </div>
+
+        <!-- COMPLETED TODAY -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fas fa-archive"></i> Completed &amp; Canceled Today</h3>
+          </div>
+          <div class="card-body" id="completedList">
+            <div class="empty-state">
+              <i class="fas fa-archive"></i>
+              <p>No completed or canceled rides yet today</p>
+            </div>
+          </div>
+        </div>
+
       </div>
 
     </div>
+
+    <div id="driverPanel" style="display:none;">
+      <div class="hint-bar" id="driverHintBar">
+        <i class="fas fa-lightbulb"></i>
+        <div id="driverHintText"><strong>Driver App View</strong> — This is what Marcus Johnson sees on his phone. Schedule a trip from Dispatch View first, then come here to simulate driving the route.</div>
+      </div>
+      <div style="display:flex;justify-content:center;">
+        <div style="width:100%;max-width:380px;background:var(--navy);border-radius:36px;padding:8px;box-shadow:0 20px 60px rgba(0,0,0,0.35);border:6px solid #1e293b;">
+          <!-- phone notch -->
+          <div style="background:#1e293b;height:28px;border-radius:20px 20px 0 0;display:flex;align-items:center;justify-content:center;margin-bottom:2px;">
+            <div style="width:60px;height:6px;background:#0f172a;border-radius:4px;"></div>
+          </div>
+          <!-- phone screen -->
+          <div style="background:var(--gray-100);border-radius:0 0 28px 28px;overflow:hidden;min-height:580px;">
+            <!-- driver app header -->
+            <div style="background:var(--navy);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+              <div style="color:#fff;font-weight:700;font-size:15px;">RydeWorks Driver</div>
+              <div id="driverShiftBadge" style="background:rgba(16,185,129,0.2);color:#10b981;border:1px solid #10b981;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">ON SHIFT</div>
+            </div>
+            <div style="padding:14px;background:var(--navy-light);">
+              <div style="display:flex;align-items:center;gap:10px;color:#fff;">
+                <div style="width:38px;height:38px;border-radius:50%;background:rgba(0,212,200,0.15);display:flex;align-items:center;justify-content:center;color:var(--teal);font-weight:700;font-size:14px;">MJ</div>
+                <div>
+                  <div style="font-weight:700;font-size:14px;">Marcus Johnson</div>
+                  <div style="font-size:11px;color:rgba(255,255,255,0.6);"><i class="fas fa-shuttle-van"></i> Van 1 — Chevy Express</div>
+                </div>
+              </div>
+            </div>
+            <!-- driver content -->
+            <div id="driverContent" style="padding:14px;">
+              <div style="text-align:center;padding:40px 20px;color:var(--gray-400);">
+                <i class="fas fa-map-signs" style="font-size:40px;display:block;margin-bottom:12px;"></i>
+                <p style="font-size:14px;">No trips assigned yet.<br>Schedule one from <strong>Dispatch View</strong>.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -842,6 +892,7 @@ function advanceStage(newStage) {
 
   renderDashboard();
   updateStats();
+  if (document.getElementById('driverPanel')?.style.display !== 'none') renderDriverContent();
 }
 
 function updateStageButtons(status) {
@@ -897,6 +948,70 @@ function showToastMsg(msg, type='info') {
   t.className = `toast show ${type}`;
   t.innerHTML = `<i class="${icons[type]||icons.info}"></i> ${msg}`;
   setTimeout(() => { t.className = 'toast'; }, 3500);
+}
+
+// ── VIEW SWITCHER ──────────────────────────────────────────
+function switchView(view) {
+  const isDispatch = view === 'dispatch';
+  document.getElementById('dispatchPanel').style.display = isDispatch ? '' : 'none';
+  document.getElementById('driverPanel').style.display   = isDispatch ? 'none' : '';
+  document.getElementById('tabDispatch').style.background = isDispatch ? 'var(--navy)' : 'var(--white)';
+  document.getElementById('tabDispatch').style.color      = isDispatch ? '#fff' : 'var(--gray-700)';
+  document.getElementById('tabDispatch').style.border     = isDispatch ? 'none' : '1.5px solid var(--gray-300)';
+  document.getElementById('tabDriver').style.background   = isDispatch ? 'var(--white)' : 'var(--navy)';
+  document.getElementById('tabDriver').style.color        = isDispatch ? 'var(--gray-700)' : '#fff';
+  document.getElementById('tabDriver').style.border       = isDispatch ? '1.5px solid var(--gray-300)' : 'none';
+  if (!isDispatch) renderDriverContent();
+}
+
+// ── DRIVER VIEW RENDERER ───────────────────────────────────
+function renderDriverContent() {
+  const el = document.getElementById('driverContent');
+  if (!el) return;
+
+  if (!scheduledTrip || ['completed','canceled'].includes(scheduledTrip.status)) {
+    el.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--gray-400);">
+      <i class="fas fa-map-signs" style="font-size:40px;display:block;margin-bottom:12px;"></i>
+      <p style="font-size:14px;">No active trips.<br>${scheduledTrip?.status === 'completed' ? 'Last trip completed!' : 'Schedule one from <strong>Dispatch View</strong>.'}</p>
+    </div>`;
+    return;
+  }
+
+  const t = scheduledTrip;
+  const stageLabels = { scheduled:'Awaiting Dispatch', en_route:'Heading to Pickup', arrived:'At Pickup Location', aboard:'Rider Aboard — En Route' };
+  const stageColor  = { scheduled:'var(--blue)', en_route:'var(--amber)', arrived:'#8b5cf6', aboard:'#0ea5e9' };
+  const pct = STAGE_PROGRESS[t.status] || 15;
+
+  el.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+      <div style="font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;margin-bottom:8px;">Current Trip</div>
+      <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;background:${stageColor[t.status]}22;color:${stageColor[t.status]};border-radius:20px;font-size:11px;font-weight:700;margin-bottom:10px;">${stageLabels[t.status] || t.status}</div>
+      <div style="font-weight:700;font-size:15px;margin-bottom:8px;">${t.riderName}</div>
+      <div style="font-size:12px;color:var(--gray-600);margin-bottom:4px;"><i class="fas fa-map-pin" style="color:var(--teal);width:14px;"></i> ${t.pickup}</div>
+      <div style="font-size:12px;color:var(--gray-600);margin-bottom:10px;"><i class="fas fa-flag" style="color:var(--green);width:14px;"></i> ${t.dest.split(',')[0]}</div>
+      <div style="background:var(--gray-200);border-radius:6px;height:6px;margin-bottom:4px;overflow:hidden;"><div style="height:100%;border-radius:6px;background:linear-gradient(90deg,var(--teal),var(--green));width:${pct}%;transition:width 0.4s;"></div></div>
+      <div style="font-size:11px;color:var(--gray-400);text-align:center;margin-bottom:14px;">${pct}% complete</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      ${t.status === 'scheduled' ? `<button onclick="driverAdvance('en_route')" style="background:var(--amber);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;"><i class="fas fa-car"></i> Head to Pickup</button>` : ''}
+      ${t.status === 'en_route'  ? `<button onclick="driverAdvance('arrived')" style="background:#8b5cf6;color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;"><i class="fas fa-map-marker-alt"></i> I've Arrived</button>` : ''}
+      ${t.status === 'arrived'   ? `<button onclick="driverAdvance('aboard')" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;"><i class="fas fa-user-check"></i> Rider is Aboard</button>` : ''}
+      ${t.status === 'aboard'    ? `<button onclick="driverAdvance('completed')" style="background:var(--green);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;"><i class="fas fa-flag-checkered"></i> Complete Trip</button>` : ''}
+      <button onclick="switchView('dispatch')" style="background:var(--gray-100);color:var(--gray-700);border:1.5px solid var(--gray-200);border-radius:10px;padding:11px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;"><i class="fas fa-desktop"></i> Back to Dispatch</button>
+    </div>
+  `;
+}
+
+function driverAdvance(stage) {
+  advanceStage(stage);
+  renderDriverContent();
+  const msgs = {
+    en_route: `<strong>Heading to pickup!</strong> Marcus is now en route to ${scheduledTrip?.riderName}'s address. Switch to <strong>Dispatch View</strong> to see the status update.`,
+    arrived:  `<strong>Marcus arrived!</strong> He's at the pickup location. In the real app, the dispatcher sees this update live.`,
+    aboard:   `<strong>Rider is aboard!</strong> Marcus is heading to the destination now.`,
+    completed:`<strong>Trip complete!</strong> Great job. Check Dispatch View to see it move to Completed Today.`
+  };
+  if (msgs[stage]) document.getElementById('driverHintText').innerHTML = msgs[stage];
 }
 </script>
 
