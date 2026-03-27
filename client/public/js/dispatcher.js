@@ -506,6 +506,45 @@ document.addEventListener('change', (e) => {
   }
 });
 
+// ── BOOKING REQUESTS ──────────────────────────────────────
+async function loadBookingRequests() {
+  const res = await ZakAuth.apiFetch('/api/trips/booking-requests');
+  const card = document.getElementById('bookingRequestsCard');
+  const list = document.getElementById('bookingRequestsList');
+  const badge = document.getElementById('bookingRequestsBadge');
+  if (!card || !list) return;
+
+  const trips = res?.trips || [];
+  badge.textContent = trips.length;
+  card.style.display = trips.length > 0 ? 'block' : 'none';
+
+  if (trips.length === 0) { list.innerHTML = ''; return; }
+
+  list.innerHTML = trips.map(t => {
+    const pickup = t.stops?.find(s => s.type === 'pickup');
+    const dropoff = t.stops?.find(s => s.type === 'dropoff');
+    const riderName = pickup?.riderName || t.stops?.[0]?.riderName || 'Unknown Rider';
+    const riderPhone = pickup?.riderPhone ? pickup.riderPhone.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3') : '';
+    const pickupAddr = pickup?.address || 'Address on file';
+    const destAddr = dropoff?.address || 'TBD — contact rider';
+    const apptTime = pickup?.appointmentTime ? formatTime(pickup.appointmentTime) : null;
+    const pickupTime = pickup?.scheduledTime ? formatTime(pickup.scheduledTime) : null;
+    const dateStr = t.tripDate ? new Date(t.tripDate).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', timeZone:'America/New_York' }) : 'Date TBD';
+    return `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #fde68a;gap:12px;flex-wrap:wrap;">
+      <div style="display:grid;gap:4px;min-width:0;">
+        <span style="font-weight:700;font-size:15px;color:#92400e;"><i class="fas fa-user" style="margin-right:4px;"></i>${riderName}${riderPhone ? ' · ' + riderPhone : ''}</span>
+        <span style="font-size:13px;color:#57534e;"><i class="fas fa-map-marker-alt" style="color:#f59e0b;margin-right:4px;"></i>${pickupAddr}</span>
+        <span style="font-size:13px;color:#57534e;"><i class="fas fa-flag" style="color:#10b981;margin-right:4px;"></i>${destAddr}</span>
+        <span style="font-size:12px;color:#78716c;"><i class="fas fa-calendar" style="margin-right:4px;"></i>${dateStr}${pickupTime ? ' · Pickup ' + pickupTime : ''}${apptTime ? ' · Appt ' + apptTime : ''}</span>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="viewTrip('${t._id}')" style="flex-shrink:0;background:#f59e0b;border-color:#f59e0b;color:#fff;">
+        <i class="fas fa-user-plus"></i> Assign Driver
+      </button>
+    </div>`;
+  }).join('');
+}
+
 // ── DASHBOARD ─────────────────────────────────────────────
 async function loadDashboard() {
   const today = getEasternDateString();
@@ -601,6 +640,7 @@ async function loadDashboard() {
 
   initDashboardMap();
   loadMapTrips();
+  loadBookingRequests();
 }
 
 async function refreshActiveTrips() {

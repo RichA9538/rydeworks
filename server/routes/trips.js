@@ -332,6 +332,22 @@ router.get('/', requireRole('admin', 'dispatcher'), async (req, res) => {
   }
 });
 
+// GET /api/trips/booking-requests — unassigned self-booked trips needing a driver
+router.get('/booking-requests', requireRole('admin', 'dispatcher'), async (req, res) => {
+  try {
+    const trips = await Trip.find({
+      organization: req.organizationId,
+      source: 'self_booked',
+      driver: { $exists: false }
+    })
+      .populate('stops.riderId', 'firstName lastName phone')
+      .sort({ createdAt: -1 });
+    res.json({ success: true, trips });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET /api/trips/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -493,6 +509,7 @@ router.put('/:id', requireRole('admin', 'dispatcher'), async (req, res) => {
 
     // Safe field updates — only update what was explicitly sent
     const { driver, vehicle, notes, status, stopUpdates } = req.body;
+    const driverWasUnassigned = !trip.driver;
     if (driver  !== undefined) trip.driver  = driver;
     if (vehicle !== undefined) trip.vehicle = vehicle;
     if (notes   !== undefined) trip.notes   = notes;
@@ -517,6 +534,20 @@ router.put('/:id', requireRole('admin', 'dispatcher'), async (req, res) => {
       .populate('driver', 'firstName lastName phone')
       .populate('vehicle', 'name licensePlate')
       .populate('stops.riderId', 'firstName lastName phone');
+
+    // SMS driver when they are newly assigned to a trip
+    if (driver && driverWasUnassigned && populated.driver?.phone) {
+      try {
+        const firstPickup = populated.stops?.find(s => s.type === 'pickup');
+        const pickupAddr = firstPickup?.address || 'See dispatch app';
+        const pickupTime = firstPickup?.scheduledTime
+          ? new Date(firstPickup.scheduledTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })
+          : 'TBD';
+        await sendSms(populated.driver.phone, `RYDEWORKS: You have a new trip assigned. Pickup: ${pickupAddr} at ${pickupTime}. Open your driver app for details.`);
+      } catch (smsErr) {
+        console.error('[SMS] Driver assignment notification failed:', smsErr.message);
+      }
+    }
 
     res.json({ success: true, trip: populated });
   } catch (err) {
