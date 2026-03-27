@@ -942,7 +942,7 @@ router.post('/backfill-distances', requireRole('admin'), async (req, res) => {
     });
 
     let updated = 0;
-    let failed = 0;
+    const errors = [];
     for (const trip of trips) {
       try {
         const orderedStops = [...trip.stops].sort((a, b) => a.stopOrder - b.stopOrder);
@@ -969,11 +969,10 @@ router.post('/backfill-distances', requireRole('admin'), async (req, res) => {
         await trip.save();
         updated++;
       } catch (e) {
-        console.warn(`Backfill failed for trip ${trip._id}:`, e.message);
-        failed++;
+        errors.push({ tripId: trip._id, stops: trip.stops.map(s => s.address), error: e.message });
       }
     }
-    res.json({ success: true, updated, failed, total: trips.length });
+    res.json({ success: true, updated, failed: errors.length, total: trips.length, errors });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
