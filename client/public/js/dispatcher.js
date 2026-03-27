@@ -1780,7 +1780,7 @@ async function viewTrip(tripId) {
           <i class="fas fa-ban"></i> Cancel Trip
         </button>
         <button class="btn btn-secondary" onclick="openReassignDriver('${t._id}', '${t.driver?._id || ''}')">
-          <i class="fas fa-user-edit"></i> Reassign Driver
+          <i class="fas fa-user-edit"></i> ${t.driver ? 'Reassign Driver' : 'Assign Driver'}
         </button>
       `;
     }
@@ -1938,6 +1938,8 @@ async function openReassignDriver(tripId, currentDriverId) {
   const modal = document.getElementById('reassignDriverModal');
   if (!modal) return;
   document.getElementById('reassignTripId').value = tripId;
+  const titleEl = document.getElementById('reassignDriverModalTitle');
+  if (titleEl) titleEl.innerHTML = `<i class="fas fa-user-edit"></i> ${currentDriverId ? 'Reassign Driver' : 'Assign Driver'}`;
   const sel = document.getElementById('reassignDriverSel');
   sel.innerHTML = '<option value="">Select driver...</option>';
   const seenRD = new Set();
@@ -1964,11 +1966,12 @@ async function saveReassignDriver() {
     body: JSON.stringify({ driver: driverId })
   });
   if (res?.success) {
-    showToast('Driver reassigned!', 'success');
+    showToast('Driver assigned!', 'success');
     closeModal('reassignDriverModal');
+    loadDashboard();
     loadTrips();
   } else {
-    showToast(res?.error || 'Failed to reassign driver.', 'error');
+    showToast(res?.error || 'Failed to assign driver.', 'error');
   }
 }
 

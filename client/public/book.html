@@ -630,9 +630,7 @@
         <div class="alert alert-info" style="text-align:left;">
           <strong>How billing works:</strong> Your first 30 days are completely free. After that, on the first Friday following your free period, you'll be billed based on your average weekly usage during those 30 days — so you only pay for what you actually use. Every Friday after that, you're billed for that week's rides. Any unused balance rolls over automatically. You'll get a text confirmation each time a charge is processed.
         </div>
-        <a href="/" class="btn btn-secondary btn-full" style="margin-top:12px;text-decoration:none;">
-          <i class="fas fa-home"></i> Back to Rydeworks
-        </a>
+        <p style="margin-top:12px;font-size:0.82rem;color:var(--gray-500);">You can close this page.</p>
       </div>
     </div>
   </div>
@@ -945,7 +943,7 @@
       goToStep(4);
     }
 
-    function goToStep4FromRecurring() {
+    async function goToStep4FromRecurring() {
       const dest = document.getElementById('recurDestination').value.trim();
       const time = getBookTime24h('recurPickupTime');
       const days = [...document.querySelectorAll('.recur-day:checked')].map(c => parseInt(c.value));
@@ -955,6 +953,7 @@
       if (!anyFilled) {
         recurringData = null;
         errEl.style.display = 'none';
+        if (window._existingSubscriber) { await submitExistingSubscriberTrip(); return; }
         goToStep(4);
         return;
       }
@@ -988,7 +987,37 @@
         recurringData = null;
       }
       errEl.style.display = 'none';
+      if (window._existingSubscriber) { await submitExistingSubscriberTrip(); return; }
       goToStep(4);
+    }
+
+    async function submitExistingSubscriberTrip() {
+      const sub = window._existingSubscriber;
+      const fn     = document.getElementById('riderFirstName').value.trim();
+      const ln     = document.getElementById('riderLastName').value.trim();
+      const ph     = document.getElementById('riderPhone').value.trim();
+      const street = document.getElementById('riderStreet').value.trim();
+      const apt    = document.getElementById('riderApt').value.trim();
+      const city   = document.getElementById('riderCity').value.trim();
+      const state  = document.getElementById('riderState').value.trim();
+      const zip    = document.getElementById('riderZip').value.trim();
+      const homeAddress = [street, apt, city, state, zip].filter(Boolean).join(', ');
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const orgParam = params.get('org') || '';
+        const url = '/api/book/log-trip-request' + (orgParam ? `?org=${encodeURIComponent(orgParam)}` : '');
+        await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ firstName: fn, lastName: ln, phone: ph, homeAddress, recurringData })
+        });
+      } catch(e) { /* non-fatal */ }
+      showSuccess({
+        freeRideCode: sub.freeRideCode,
+        codeExpiresAt: sub.codeExpiresAt,
+        enrollmentId: sub.enrollmentId,
+        paymentMethodType: sub.paymentMethodType
+      });
     }
 
     async function goToStep2() {
@@ -1011,15 +1040,10 @@
         const chk = await fetch(`/api/book/check-subscriber?phone=${encodeURIComponent(ph)}`);
         const chkData = await chk.json();
         if (chkData.exists && chkData.hasPaymentMethod) {
-          // Already enrolled with payment — skip straight to success
-          showSuccess({
-            freeRideCode: chkData.freeRideCode,
-            codeExpiresAt: chkData.codeExpiresAt,
-            creditBalance: 0,
-            enrollmentId: chkData.enrollmentId,
-            paymentMethodType: chkData.paymentMethodType,
-            alreadyEnrolled: true
-          });
+          // Already enrolled — skip agreement (step 2) and payment (step 4), go straight to scheduling (step 3)
+          window._existingSubscriber = chkData;
+          goToStep(3);
+          goToStep3(); // pre-fills pickup address from home address
           return;
         }
       } catch (e) { /* non-fatal — proceed normally */ }
@@ -1200,13 +1224,6 @@
       };
       const method = data.paymentMethodType || paymentMethod;
       document.getElementById('successPaymentMethod').textContent = methodLabels[method] || method || 'On file';
-      if (data.alreadyEnrolled) {
-        // Show a "welcome back" note instead of the new enrollment headline
-        const heading = document.querySelector('#step5 h2');
-        if (heading) heading.innerHTML = '<i class="fas fa-check-circle" style="color:var(--primary)"></i> You\'re Already Enrolled!';
-        const sub = document.querySelector('#step5 .subtitle');
-        if (sub) sub.textContent = 'Your account is active and your payment method is on file. Call (727) 313-1241 to schedule your next ride.';
-      }
       goToStep(5);
     }
 

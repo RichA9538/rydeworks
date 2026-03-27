@@ -153,6 +153,73 @@ router.get('/check-availability', async (req, res) => {
   }
 });
 
+// POST /api/book/log-trip-request — create a new trip request for an existing subscriber (no re-enrollment)
+router.post('/log-trip-request', async (req, res) => {
+  try {
+    const { firstName, lastName, phone, homeAddress, recurringData } = req.body;
+    if (!firstName || !lastName || !phone) return res.json({ success: false });
+
+    const org = await getOrgFromRequest(req);
+    if (!org) return res.json({ success: false });
+
+    const rider = await Rider.findOne({ phone: phone.replace(/\D/g, ''), organization: org._id });
+    if (!rider) return res.json({ success: false, error: 'Rider not found.' });
+
+    const isDST = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' }).format(new Date()).includes('EDT');
+    const offset = isDST ? '-04:00' : '-05:00';
+    const easternDate = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const [m, d, y] = easternDate.split('/');
+    const todayStr = `${y}-${m}-${d}`;
+
+    const tripDateStr = recurringData?.startDate || todayStr;
+    const tripDate = new Date(`${tripDateStr}T12:00:00${offset}`);
+
+    const stops = [];
+    let stopOrder = 0;
+    if (recurringData?.pickupAddress) {
+      const pickupTime = recurringData.pickupTime ? new Date(`${tripDateStr}T${recurringData.pickupTime}:00${offset}`) : null;
+      const apptTime   = recurringData.appointmentTime ? new Date(`${tripDateStr}T${recurringData.appointmentTime}:00${offset}`) : null;
+      stops.push({ stopOrder: stopOrder++, type: 'pickup', address: recurringData.pickupAddress, riderId: rider._id, riderName: `${firstName} ${lastName}`, riderPhone: phone.replace(/\D/g,''), scheduledTime: pickupTime, appointmentTime: apptTime });
+      if (recurringData.destination) {
+        stops.push({ stopOrder: stopOrder++, type: 'dropoff', address: recurringData.destination, riderId: rider._id, riderName: `${firstName} ${lastName}` });
+      }
+      if (recurringData.tripType === 'round_trip' && recurringData.returnTime) {
+        const returnTime = new Date(`${tripDateStr}T${recurringData.returnTime}:00${offset}`);
+        stops.push({ stopOrder: stopOrder++, type: 'pickup', address: recurringData.destination, riderId: rider._id, riderName: `${firstName} ${lastName}`, riderPhone: phone.replace(/\D/g,''), scheduledTime: returnTime });
+        stops.push({ stopOrder: stopOrder++, type: 'dropoff', address: recurringData.pickupAddress, riderId: rider._id, riderName: `${firstName} ${lastName}` });
+      }
+    } else {
+      stops.push({ stopOrder: 0, type: 'pickup', address: homeAddress || 'See rider profile', riderId: rider._id, riderName: `${firstName} ${lastName}`, riderPhone: phone.replace(/\D/g,'') });
+    }
+
+    await Trip.create({
+      organization: org._id,
+      rider: rider._id,
+      status: 'scheduled',
+      tripDate,
+      stops,
+      payment: { type: 'self_pay', estimatedFare: 0 },
+      notes: recurringData
+        ? `Trip request via booking portal (existing subscriber). ${recurringData.repeatDays?.length ? 'Recurring: ' + recurringData.repeatDays.join(', ') + '.' : 'One-time trip.'}`
+        : `Trip request via booking portal (existing subscriber) — no schedule entered yet. Contact rider to confirm details.`,
+      source: 'self_booked'
+    });
+
+    const dispatchPhone = process.env.DISPATCH_PHONE || org?.phone;
+    if (dispatchPhone) {
+      const tripInfo = recurringData?.pickupAddress
+        ? `${recurringData.pickupAddress} → ${recurringData.destination || 'TBD'}`
+        : homeAddress || 'address on file';
+      await sendSms(dispatchPhone, `TRIP REQUEST: ${firstName} ${lastName} (${phone}) — existing subscriber needs a driver assigned. Pickup: ${tripInfo}. Assign driver in dispatch app.`);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('log-trip-request error:', err);
+    res.json({ success: false });
+  }
+});
+
 // POST /api/book/check-feasibility — check if a trip can be served given current driver availability + live traffic
 router.post('/check-feasibility', async (req, res) => {
   try {

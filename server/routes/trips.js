@@ -338,7 +338,7 @@ router.get('/booking-requests', requireRole('admin', 'dispatcher'), async (req, 
     const trips = await Trip.find({
       organization: req.organizationId,
       source: 'self_booked',
-      driver: { $exists: false }
+      $or: [{ driver: { $exists: false } }, { driver: null }]
     })
       .populate('stops.riderId', 'firstName lastName phone')
       .sort({ createdAt: -1 });
