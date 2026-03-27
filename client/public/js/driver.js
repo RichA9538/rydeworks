@@ -11,6 +11,28 @@ let shiftStarted = false;
 let screenHistory = ['route'];
 let selectedMapTarget = null;
 let MAPBOX_TOKEN = '';
+let _driverSocket = null;
+
+function initDriverSocket() {
+  if (typeof io === 'undefined') return;
+  _driverSocket = io({ transports: ['websocket', 'polling'] });
+
+  _driverSocket.on('connect', () => {
+    const user = ZakAuth.getUser();
+    const orgId = user?.organization;
+    if (orgId) _driverSocket.emit('join:org', orgId);
+  });
+
+  // Trip was updated by dispatcher (assignment, changes, etc.) — reload
+  _driverSocket.on('trip:updated', () => {
+    loadTodayTrip();
+  });
+
+  _driverSocket.on('trip:assigned', () => {
+    loadTodayTrip();
+    showToast('You have been assigned a new trip!', 'success');
+  });
+}
 
 // Fetch Mapbox token from server config
 (async () => {
@@ -159,6 +181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadProfile();
   await loadTodayTrip();
   startLocationTracking();
+  initDriverSocket();
 
   // Show "Switch to Dispatch" button for multi-role users
   const user = ZakAuth.getUser();
@@ -788,10 +811,21 @@ function startLocationTracking() {
 let lastLocationSent = 0;
 async function sendLocationUpdate(lat, lng) {
   const now = Date.now();
-  if (now - lastLocationSent < 30000) return; // throttle to 30s
+  if (now - lastLocationSent < 15000) return; // throttle to 15s (sockets are cheaper than HTTP)
   lastLocationSent = now;
 
-  // Update driver location via API (best effort, no error shown to driver)
+  const user = ZakAuth.getUser();
+  // Prefer socket emit (instant, low overhead)
+  if (_driverSocket?.connected && user?.organization) {
+    _driverSocket.emit('driver:location', {
+      orgId: user.organization,
+      driverId: user._id,
+      driverName: `${user.firstName} ${user.lastName}`,
+      lat, lng
+    });
+  }
+
+  // Always also persist to DB via HTTP so location survives a page refresh
   try {
     await ZakAuth.apiFetch('/api/trips/driver/location', {
       method: 'POST',

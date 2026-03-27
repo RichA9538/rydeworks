@@ -10,6 +10,18 @@ const { sendSms } = require('../sms');
 const { geocodeAddress, getDriveTime } = require('../services/routeOptimizer');
 const RiderSubscription = require('../models/RiderSubscription');
 const Stripe = require('stripe');
+const { getIo } = require('../socket');
+
+// Helper: emit a trip event to all clients in the org room
+function emitTripEvent(orgId, event, payload) {
+  try {
+    const io = getIo();
+    if (io && orgId) io.to(`org:${orgId}`).emit(event, payload);
+  } catch (e) { /* non-fatal */ }
+}
+
+// Notifications config — set NOTIFICATIONS_ENABLED=true in env to activate SMS/email
+const NOTIFICATIONS_ENABLED = process.env.NOTIFICATIONS_ENABLED === 'true';
 
 router.use(authenticate);
 
@@ -536,8 +548,14 @@ router.put('/:id', requireRole('admin', 'dispatcher'), async (req, res) => {
       .populate('vehicle', 'name licensePlate')
       .populate('stops.riderId', 'firstName lastName phone');
 
-    // SMS driver when they are newly assigned to a trip
-    if (driver && driverWasUnassigned && populated.driver?.phone) {
+    // Emit real-time event to org room
+    emitTripEvent(trip.organization, 'trip:updated', { tripId: trip._id.toString(), trip: populated });
+    if (driver && driverWasUnassigned) {
+      emitTripEvent(trip.organization, 'trip:assigned', { tripId: trip._id.toString(), driver: populated.driver });
+    }
+
+    // SMS/email driver when newly assigned (wired — activated by NOTIFICATIONS_ENABLED env flag)
+    if (NOTIFICATIONS_ENABLED && driver && driverWasUnassigned && populated.driver?.phone) {
       try {
         const firstPickup = populated.stops?.find(s => s.type === 'pickup');
         const pickupAddr = firstPickup?.address || 'See dispatch app';
@@ -679,6 +697,12 @@ router.post('/driver/location', async (req, res) => {
     await require('../models/User').findByIdAndUpdate(req.user._id, {
       'driverInfo.currentLocation': { lat, lng }
     });
+    // Broadcast to dispatcher via socket (faster than polling)
+    emitTripEvent(req.organizationId, 'driver:location', {
+      driverId: req.user._id.toString(),
+      driverName: `${req.user.firstName} ${req.user.lastName}`,
+      lat, lng
+    });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -699,6 +723,7 @@ router.post('/:id/start', async (req, res) => {
     trip.driverLog.startTime      = new Date();
     await trip.save();
     await User.findByIdAndUpdate(req.user._id, { 'driverInfo.isAvailable': false, updatedAt: Date.now() });
+    emitTripEvent(trip.organization, 'trip:updated', { tripId: trip._id.toString(), status: 'in_progress' });
 
     res.json({ success: true, trip });
   } catch (err) {
@@ -743,23 +768,30 @@ router.post('/:id/stops/:stopId/status', async (req, res) => {
     }
 
     await trip.save();
+    emitTripEvent(trip.organization, 'trip:updated', { tripId: trip._id.toString(), stopId: req.params.stopId, stopStatus: status, tripStatus: trip.status });
 
     if (status === 'arrived') {
-      try {
-        let riderPhone = stop.riderPhone;
-        let riderName = stop.riderName || 'your driver';
-        if ((!riderPhone || !riderName) && stop.riderId) {
-          const rider = await Rider.findById(stop.riderId).select('firstName phone');
-          if (rider) {
-            riderPhone = riderPhone || rider.phone;
-            riderName = rider.firstName || riderName;
+      // Emit arrival event for rider tracking
+      emitTripEvent(trip.organization, 'driver:arrived', { tripId: trip._id.toString(), stopId: req.params.stopId });
+
+      // SMS rider on arrival (wired — activated by NOTIFICATIONS_ENABLED env flag)
+      if (NOTIFICATIONS_ENABLED) {
+        try {
+          let riderPhone = stop.riderPhone;
+          let riderName = stop.riderName || 'your driver';
+          if ((!riderPhone || !riderName) && stop.riderId) {
+            const rider = await Rider.findById(stop.riderId).select('firstName phone');
+            if (rider) {
+              riderPhone = riderPhone || rider.phone;
+              riderName = rider.firstName || riderName;
+            }
           }
+          if (riderPhone) {
+            await sendSms(riderPhone, `Rydeworks: Your driver has arrived for pickup${riderName ? `, ${riderName}` : ''}. If you need help, call dispatch at 727-313-1241.`);
+          }
+        } catch (smsErr) {
+          console.error('[SMS] Arrival notification failed:', smsErr.message);
         }
-        if (riderPhone) {
-          await sendSms(riderPhone, `Rydeworks: Your driver has arrived for pickup${riderName ? `, ${riderName}` : ''}. If you need help, call dispatch at 727-313-1241.`);
-        }
-      } catch (smsErr) {
-        console.error('[SMS] Arrival notification failed:', smsErr.message);
       }
     }
 
@@ -839,6 +871,7 @@ router.post('/:id/complete', async (req, res) => {
       await Vehicle.findByIdAndUpdate(trip.vehicle, { status: 'available', currentDriver: null });
     }
     await User.findByIdAndUpdate(req.user._id, { 'driverInfo.isAvailable': true, updatedAt: Date.now() });
+    emitTripEvent(trip.organization, 'trip:updated', { tripId: trip._id.toString(), status: 'completed' });
 
     res.json({ success: true, trip });
   } catch (err) {
@@ -865,6 +898,7 @@ router.post('/:id/cancel', async (req, res) => {
     if (trip.vehicle) {
       await Vehicle.findByIdAndUpdate(trip.vehicle, { status: 'available', currentDriver: null });
     }
+    emitTripEvent(trip.organization, 'trip:updated', { tripId: trip._id.toString(), status: 'canceled' });
     res.json({ success: true, trip });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

@@ -8,6 +8,14 @@ const Organization = require('../models/Organization');
 const Trip = require('../models/Trip');
 const User = require('../models/User');
 const { geocodeAddress, getDriveTime } = require('../services/routeOptimizer');
+const { getIo } = require('../socket');
+
+function emitTripNew(orgId, trip) {
+  try {
+    const io = getIo();
+    if (io && orgId) io.to(`org:${orgId}`).emit('trip:new', { tripId: trip._id.toString(), trip });
+  } catch (e) { /* non-fatal */ }
+}
 
 function generateCode(prefix = 'FREE') {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -192,7 +200,7 @@ router.post('/log-trip-request', async (req, res) => {
       stops.push({ stopOrder: 0, type: 'pickup', address: homeAddress || 'See rider profile', riderId: rider._id, riderName: `${firstName} ${lastName}`, riderPhone: phone.replace(/\D/g,'') });
     }
 
-    await Trip.create({
+    const newTrip = await Trip.create({
       organization: org._id,
       rider: rider._id,
       status: 'scheduled',
@@ -204,6 +212,7 @@ router.post('/log-trip-request', async (req, res) => {
         : `Trip request via booking portal (existing subscriber) — no schedule entered yet. Contact rider to confirm details.`,
       source: 'self_booked'
     });
+    emitTripNew(org._id, newTrip);
 
     const dispatchPhone = process.env.DISPATCH_PHONE || org?.phone;
     if (dispatchPhone) {
@@ -512,7 +521,7 @@ router.post('/enroll', async (req, res) => {
         }
 
         const payType = (paymentMethodType === 'venmo' || paymentMethodType === 'cashapp' || paymentMethodType === 'self_pay') ? 'self_pay' : paymentMethodType === 'payroll_deduction' ? 'none' : 'self_pay';
-        await Trip.create({
+        const enrollTrip = await Trip.create({
           organization: org._id,
           rider: rider._id,
           status: 'scheduled',
@@ -524,6 +533,7 @@ router.post('/enroll', async (req, res) => {
             : `Self-booked via booking portal — no schedule entered yet. Contact rider to confirm trip details. Payment: ${paymentMethodType}.`,
           source: 'self_booked'
         });
+        emitTripNew(org._id, enrollTrip);
 
         // Notify dispatch via SMS
         const dispatchPhone = process.env.DISPATCH_PHONE || org?.phone;

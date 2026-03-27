@@ -278,6 +278,49 @@ function formatShortAddress(value) {
   return String(value).split(',').slice(0, 2).join(',');
 }
 
+// ── SOCKET.IO ─────────────────────────────────────────────
+let _socket = null;
+
+function initSocket() {
+  if (typeof io === 'undefined') return; // socket.io not loaded
+  _socket = io({ transports: ['websocket', 'polling'] });
+
+  _socket.on('connect', () => {
+    // Join org room once we have the org id
+    const orgId = appData.org?._id;
+    if (orgId) _socket.emit('join:org', orgId);
+  });
+
+  // New booking came in — refresh booking requests immediately
+  _socket.on('trip:new', () => {
+    loadTrips();
+    loadDashboard();
+    showToast('New trip request received!', 'info');
+  });
+
+  // Any trip was updated (status change, driver assigned, stop update, etc.)
+  _socket.on('trip:updated', () => {
+    refreshActiveTrips();
+  });
+
+  // Driver location update — refresh map markers without full reload
+  _socket.on('driver:location', (data) => {
+    updateDriverMarkerOnMap(data);
+  });
+
+  _socket.on('disconnect', () => {
+    // Fall back to polling while disconnected — reconnect is automatic
+    console.warn('[Socket] Disconnected — relying on fallback polling');
+  });
+}
+
+// Called after loadAppData so org._id is available
+function joinOrgRoom() {
+  if (_socket?.connected && appData.org?._id) {
+    _socket.emit('join:org', appData.org._id);
+  }
+}
+
 // ── INIT ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   updateDateDisplay();
@@ -286,7 +329,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   hideAdminOnlyIfNeeded();
   await loadAppData();
   loadDashboard();
-  setInterval(refreshActiveTrips, 30000); // refresh every 30s
+  initSocket();
+  joinOrgRoom();
+  // Fallback polling — longer interval since sockets handle real-time updates
+  setInterval(refreshActiveTrips, 60000);
 });
 
 function updateDateDisplay() {
@@ -2008,7 +2054,25 @@ function initMap() {
 
   // Load active trips and show driver locations
   loadMapTrips();
-  setInterval(loadMapTrips, 15000);
+  // Fallback polling for map — sockets handle real-time driver location updates
+  setInterval(loadMapTrips, 60000);
+}
+
+// Update a single driver marker on the map from a socket event (no full reload needed)
+let _driverMarkers = {};
+function updateDriverMarkerOnMap({ driverId, driverName, lat, lng }) {
+  if (!dispatchMap) return;
+  if (_driverMarkers[driverId]) {
+    _driverMarkers[driverId].setLatLng([lat, lng]);
+  } else {
+    _driverMarkers[driverId] = L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="background:#1a56db;color:white;padding:6px 10px;border-radius:8px;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3);">🚐 ${driverName || 'Driver'}</div>`,
+        iconAnchor: [0, 0]
+      })
+    }).addTo(dispatchMap);
+  }
 }
 
 async function geocodeForMap(address) {

@@ -1,4 +1,5 @@
 require('dotenv').config();
+const http       = require('http');
 const express    = require('express');
 const mongoose   = require('mongoose');
 const cors       = require('cors');
@@ -7,6 +8,7 @@ const rateLimit  = require('express-rate-limit');
 const path       = require('path');
 const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
+const socketModule = require('./socket');
 
 // Models (register with mongoose)
 require('./models/Organization');
@@ -27,7 +29,9 @@ const tripRoutes       = require('./routes/trips');
 const superAdminRoutes = require('./routes/superAdmin');
 const bookRoutes       = require('./routes/book');
 
-const app = express();
+const app        = express();
+const httpServer = http.createServer(app);
+socketModule.init(httpServer);
 app.set('trust proxy', 1); // Trust Railway's reverse proxy for correct IP detection
 
 // ── Security ──────────────────────────────────────────────
@@ -208,12 +212,13 @@ const startServer = async () => {
       console.log('⚠️  No MONGODB_URI — running without database');
     }
 
-    app.listen(PORT, () => {
+    httpServer.listen(PORT, () => {
       console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║          🚐  RydeWorks — Dispatch Platform  🚐             ║
 ║   Server: http://localhost:${PORT}                          ║
 ║   API:    http://localhost:${PORT}/api                      ║
+║   WS:     Socket.io ready                                  ║
 ╚═══════════════════════════════════════════════════════════╝`);
     });
   } catch (err) {
