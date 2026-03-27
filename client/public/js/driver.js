@@ -695,6 +695,10 @@ async function startShift() {
 async function endShift() {
   const endMileage = document.getElementById('endMileage').value;
   if (!endMileage) { showToast('Please enter your ending mileage', 'error'); return; }
+  if (!document.getElementById('shiftVerifyCheck')?.checked) {
+    showToast('Please check the verification box before completing your shift.', 'error');
+    return;
+  }
 
   // Standby mode — no active trip, just mark driver offline
   if (!currentTrip) {
