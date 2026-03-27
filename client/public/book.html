@@ -458,6 +458,10 @@
         <div class="alert alert-info" style="margin-bottom:12px;">
           <i class="fas fa-info-circle"></i> Recurring trips are requests — a dispatcher will confirm and assign a driver. You'll receive a text confirmation for each scheduled trip.
         </div>
+        <p id="termsReminder" style="font-size:12px;color:var(--gray-500);margin-bottom:14px;line-height:1.5;">
+          By continuing, you agree to our <a href="#" onclick="return false;" style="color:var(--primary);">Terms &amp; Conditions</a>.
+          If you have any questions, please call or text dispatch at <span id="termsDispatchPhone">(727) 313-1241</span>.
+        </p>
         <div style="display:flex;gap:12px;">
           <button class="btn btn-secondary" onclick="window._existingSubscriber ? goToStep(1) : goToStep(2)"><i class="fas fa-arrow-left"></i> Back</button>
           <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="goToStep4FromRecurring()">
@@ -830,6 +834,9 @@
         orgConfig = data;
         if (data.name) {
           document.getElementById('orgHeaderName').textContent = data.name;
+        }
+        if (data.org?.dispatchPhone) {
+          document.getElementById('termsDispatchPhone').textContent = data.org.dispatchPhone;
         }
         if (data.bookingSubdomain) {
           document.getElementById('orgBookingUrl').textContent = `${data.bookingSubdomain}.rydeworks.com/book`;

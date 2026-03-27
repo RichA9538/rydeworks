@@ -450,7 +450,10 @@ router.post('/enroll', async (req, res) => {
       codeExpiresAt: expiresAt,
       weeklyEstimatedFare: minimumCommitmentAmount,
       minimumCommitmentAmount,
-      status: 'active'
+      status: 'active',
+      termsAcceptedAt: new Date(),
+      termsAcceptedIp: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || null,
+      termsVersion: '2026-03-26'
     };
 
     if (paymentMethodType === 'payroll_deduction') {

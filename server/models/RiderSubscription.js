@@ -67,6 +67,11 @@ const riderSubscriptionSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
   }],
 
+  // Terms & Conditions acceptance record
+  termsAcceptedAt:  { type: Date },
+  termsAcceptedIp:  { type: String },
+  termsVersion:     { type: String },
+
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
