@@ -7,6 +7,7 @@ const Vehicle = require('../models/Vehicle');
 const User = require('../models/User');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { sendSms } = require('../sms');
+const { geocodeAddress, getDriveTime } = require('../services/routeOptimizer');
 const RiderSubscription = require('../models/RiderSubscription');
 const Stripe = require('stripe');
 
@@ -796,6 +797,38 @@ router.post('/:id/complete', async (req, res) => {
     trip.status = 'completed';
     trip.driverLog.endMileage = endMileage;
     trip.driverLog.endTime    = new Date();
+
+    // Calculate and store route distance if not already set by optimizer
+    if (!trip.optimizedRoute?.totalDistanceMiles) {
+      try {
+        const orderedStops = [...trip.stops].sort((a, b) => a.stopOrder - b.stopOrder);
+        // Ensure all stops have coordinates
+        for (const stop of orderedStops) {
+          if (!stop.lat || !stop.lng) {
+            const geo = await geocodeAddress(stop.address);
+            stop.lat = geo.lat;
+            stop.lng = geo.lng;
+          }
+        }
+        // Sum drive time + distance between consecutive stops
+        let totalMiles = 0;
+        let totalMins = 0;
+        for (let i = 0; i < orderedStops.length - 1; i++) {
+          const from = { lat: orderedStops[i].lat, lng: orderedStops[i].lng };
+          const to   = { lat: orderedStops[i + 1].lat, lng: orderedStops[i + 1].lng };
+          const leg = await getDriveTime(from, to);
+          totalMiles += leg.distanceMiles;
+          totalMins  += leg.durationMins;
+        }
+        trip.optimizedRoute = {
+          totalDistanceMiles: Math.round(totalMiles * 10) / 10,
+          totalDurationMins:  Math.round(totalMins)
+        };
+      } catch (distErr) {
+        console.warn('Could not calculate trip distance on complete:', distErr.message);
+      }
+    }
+
     await trip.save();
 
     if (trip.vehicle) {
@@ -891,6 +924,57 @@ router.post('/:id/optimize', requireRole('admin', 'dispatcher'), async (req, res
     res.json({ success: true, result });
   } catch (err) {
     console.error('Optimize route error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/trips/backfill-distances — admin only, calculates missing route distances for completed trips
+router.post('/backfill-distances', requireRole('admin'), async (req, res) => {
+  try {
+    const trips = await Trip.find({
+      organization: req.organizationId,
+      status: 'completed',
+      $or: [
+        { 'optimizedRoute.totalDistanceMiles': { $exists: false } },
+        { 'optimizedRoute.totalDistanceMiles': 0 },
+        { 'optimizedRoute.totalDistanceMiles': null }
+      ]
+    });
+
+    let updated = 0;
+    let failed = 0;
+    for (const trip of trips) {
+      try {
+        const orderedStops = [...trip.stops].sort((a, b) => a.stopOrder - b.stopOrder);
+        for (const stop of orderedStops) {
+          if (!stop.lat || !stop.lng) {
+            const geo = await geocodeAddress(stop.address);
+            stop.lat = geo.lat;
+            stop.lng = geo.lng;
+          }
+        }
+        let totalMiles = 0;
+        let totalMins = 0;
+        for (let i = 0; i < orderedStops.length - 1; i++) {
+          const from = { lat: orderedStops[i].lat, lng: orderedStops[i].lng };
+          const to   = { lat: orderedStops[i + 1].lat, lng: orderedStops[i + 1].lng };
+          const leg = await getDriveTime(from, to);
+          totalMiles += leg.distanceMiles;
+          totalMins  += leg.durationMins;
+        }
+        trip.optimizedRoute = {
+          totalDistanceMiles: Math.round(totalMiles * 10) / 10,
+          totalDurationMins:  Math.round(totalMins)
+        };
+        await trip.save();
+        updated++;
+      } catch (e) {
+        console.warn(`Backfill failed for trip ${trip._id}:`, e.message);
+        failed++;
+      }
+    }
+    res.json({ success: true, updated, failed, total: trips.length });
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
