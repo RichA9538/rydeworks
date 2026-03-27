@@ -1088,11 +1088,11 @@
       const recurCity        = document.getElementById('recurPickupCity');
       const recurState       = document.getElementById('recurPickupState');
       const recurZip         = document.getElementById('recurPickupZip');
-      if (street && !recurPickup.value) recurPickup.value = street;
-      if (apt) { const recurApt = document.getElementById('recurPickupApt'); if (!recurApt.value) recurApt.value = apt; }
-      if (city  && !recurCity.value)  recurCity.value  = city;
-      if (state && !recurState.value) recurState.value = state;
-      if (zip   && !recurZip.value)   recurZip.value   = zip;
+      if (street) recurPickup.value = street;
+      if (apt) { const recurApt = document.getElementById('recurPickupApt'); recurApt.value = apt; }
+      if (city)  recurCity.value  = city;
+      if (state) recurState.value = state;
+      if (zip)   recurZip.value   = zip;
       if (!document.getElementById('agreeCheck').checked) {
         const err = document.getElementById('step2-error');
         err.textContent = 'You must agree to the Terms & Conditions to continue.';

@@ -260,7 +260,12 @@ router.post('/check-feasibility', async (req, res) => {
     const bufferMins = 15;
     const suggestedPickupMs = apptDt.getTime() - (pickupToDest.durationMins + bufferMins) * 60 * 1000;
     const suggestedPickupDt = new Date(suggestedPickupMs);
-    const suggestedPickupTime = `${String(suggestedPickupDt.getUTCHours()).padStart(2,'0')}:${String(suggestedPickupDt.getUTCMinutes()).padStart(2,'0')}`;
+    // Format in Eastern time (same timezone as appointment)
+    const etFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
+    const etParts = etFormatter.formatToParts(suggestedPickupDt);
+    const etHour = etParts.find(p => p.type === 'hour').value;
+    const etMin  = etParts.find(p => p.type === 'minute').value;
+    const suggestedPickupTime = `${etHour.padStart(2,'0')}:${etMin.padStart(2,'0')}`;
 
     // Find available drivers in this org with GPS location
     const drivers = await User.find({
