@@ -6,6 +6,8 @@ const Rider   = require('../models/Rider');
 const AccessCode = require('../models/AccessCode');
 const Organization = require('../models/Organization');
 const Trip = require('../models/Trip');
+const User = require('../models/User');
+const { geocodeAddress, getDriveTime } = require('../services/routeOptimizer');
 
 function generateCode(prefix = 'FREE') {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -148,6 +150,109 @@ router.get('/check-availability', async (req, res) => {
     res.json({ available: tripsAtTime < 3, tripsAtTime, suggestions });
   } catch (err) {
     res.json({ available: true, tripsAtTime: 0 });
+  }
+});
+
+// POST /api/book/check-feasibility — check if a trip can be served given current driver availability + live traffic
+router.post('/check-feasibility', async (req, res) => {
+  try {
+    const { pickupAddress, destination, appointmentTime, date } = req.body;
+    if (!pickupAddress || !destination || !appointmentTime || !date) {
+      return res.json({ feasible: null, reason: 'missing_fields' });
+    }
+
+    const org = await getOrgFromRequest(req);
+    if (!org) return res.json({ feasible: null, reason: 'org_not_found' });
+
+    // Parse appointment datetime (Eastern time)
+    const isDST = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' }).format(new Date()).includes('EDT');
+    const offset = isDST ? '-04:00' : '-05:00';
+    const apptDt = new Date(`${date}T${appointmentTime}:00${offset}`);
+    const nowMs = Date.now();
+
+    // Geocode pickup and destination in parallel
+    let pickupCoords, destCoords;
+    try {
+      [pickupCoords, destCoords] = await Promise.all([
+        geocodeAddress(pickupAddress),
+        geocodeAddress(destination)
+      ]);
+    } catch (geoErr) {
+      return res.json({ feasible: null, reason: 'geocode_failed' });
+    }
+
+    // Calculate pickup→destination drive time (for suggested pickup time)
+    let pickupToDest;
+    try {
+      pickupToDest = await getDriveTime(pickupCoords, destCoords);
+    } catch (e) {
+      return res.json({ feasible: null, reason: 'routing_failed' });
+    }
+
+    // Suggested pickup time = appointment - (pickup→dest + 15 min buffer)
+    const bufferMins = 15;
+    const suggestedPickupMs = apptDt.getTime() - (pickupToDest.durationMins + bufferMins) * 60 * 1000;
+    const suggestedPickupDt = new Date(suggestedPickupMs);
+    const suggestedPickupTime = `${String(suggestedPickupDt.getUTCHours()).padStart(2,'0')}:${String(suggestedPickupDt.getUTCMinutes()).padStart(2,'0')}`;
+
+    // Find available drivers in this org with GPS location
+    const drivers = await User.find({
+      organization: org._id,
+      roles: { $in: ['driver', 'admin'] },
+      'driverInfo.isAvailable': true,
+      'driverInfo.currentLocation.lat': { $exists: true },
+      'driverInfo.currentLocation.lng': { $exists: true }
+    }).select('driverInfo.currentLocation firstName lastName');
+
+    if (drivers.length === 0) {
+      return res.json({
+        feasible: false,
+        reason: 'no_drivers_available',
+        suggestedPickupTime,
+        pickupToDest: pickupToDest.durationMins,
+        pendingDispatchNotification: false
+      });
+    }
+
+    // Check if any driver can reach pickup in time and deliver before appointment
+    let anyFeasible = false;
+    for (const driver of drivers) {
+      const driverLoc = driver.driverInfo.currentLocation;
+      let driverToPickup;
+      try {
+        driverToPickup = await getDriveTime(driverLoc, pickupCoords);
+      } catch (e) {
+        continue;
+      }
+      // Driver must reach pickup + buffer + drive to dest before appointment
+      const totalMins = driverToPickup.durationMins + bufferMins + pickupToDest.durationMins;
+      const earliestArrival = nowMs + totalMins * 60 * 1000;
+      if (earliestArrival <= apptDt.getTime()) {
+        anyFeasible = true;
+        break;
+      }
+    }
+
+    if (!anyFeasible) {
+      return res.json({
+        feasible: false,
+        reason: 'no_driver_in_time',
+        suggestedPickupTime,
+        pickupToDest: pickupToDest.durationMins,
+        pendingDispatchNotification: false
+      });
+    }
+
+    return res.json({
+      feasible: true,
+      suggestedPickupTime,
+      pickupToDest: pickupToDest.durationMins,
+      pendingDispatchNotification: false
+    });
+
+  } catch (err) {
+    console.error('check-feasibility error:', err);
+    res.json({ feasible: null, reason: 'server_error' });
   }
 });
 

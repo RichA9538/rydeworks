@@ -413,6 +413,7 @@
             <select class="form-input" id="recurApptTime" onchange="estimatePickupTime()">
               <option value="">-- Select a time --</option>
             </select>
+            <div id="feasibilityNotice" style="display:none;margin-top:6px;padding:10px 12px;border-radius:8px;font-size:13px;"></div>
           </div>
           <div class="form-group">
             <label class="form-label">Trip Type</label>
@@ -450,7 +451,7 @@
         </div>
         <div class="form-group">
           <label class="form-label">Start Date</label>
-          <input type="date" class="form-input" id="recurStartDate" onchange="checkBookingAvailability()">
+          <input type="date" class="form-input" id="recurStartDate" onchange="checkBookingAvailability(); estimatePickupTime();">
         </div>
         <div id="availabilityNotice" style="display:none;margin-bottom:12px;padding:12px 14px;border-radius:8px;font-size:13px;"></div>
         <div id="step3-error" class="alert alert-error" style="display:none;"></div>
@@ -697,28 +698,91 @@
     }
 
     async function estimatePickupTime() {
-      const apptTime24 = getBookTime24h('recurApptTime', 'recurApptAmPm');
-      if (!apptTime24) return;
+      const apptTime24 = getBookTime24h('recurApptTime');
+      const feasibilityEl = document.getElementById('feasibilityNotice');
+      if (!apptTime24) { if (feasibilityEl) feasibilityEl.style.display = 'none'; return; }
+
+      // Past-time check (client-side — if today selected and time already passed)
+      const dateVal = document.getElementById('recurStartDate').value;
+      const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local tz
+      if (dateVal === todayStr || !dateVal) {
+        const now = new Date();
+        const [apptH, apptM] = apptTime24.split(':').map(Number);
+        const apptTotalMins = apptH * 60 + apptM;
+        const nowTotalMins = now.getHours() * 60 + now.getMinutes();
+        if (apptTotalMins <= nowTotalMins) {
+          if (feasibilityEl) {
+            feasibilityEl.style.display = 'block';
+            feasibilityEl.style.background = '#fef2f2';
+            feasibilityEl.style.border = '1px solid #fca5a5';
+            feasibilityEl.style.color = '#991b1b';
+            feasibilityEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> That appointment time has already passed. Please select a future time or a different date.';
+          }
+          return;
+        }
+      }
+
       const pickup = [document.getElementById('recurPickup').value.trim(), document.getElementById('recurPickupCity').value.trim(), document.getElementById('recurPickupState').value.trim(), document.getElementById('recurPickupZip').value.trim()].filter(Boolean).join(', ');
       const dest   = [document.getElementById('recurDestination').value.trim(), document.getElementById('recurDestCity').value.trim(), document.getElementById('recurDestState').value.trim(), document.getElementById('recurDestZip').value.trim()].filter(Boolean).join(', ');
-      if (!pickup || pickup.length < 5 || !dest || dest.length < 5) return;
+      if (!pickup || pickup.length < 5 || !dest || dest.length < 5) {
+        if (feasibilityEl) feasibilityEl.style.display = 'none';
+        return;
+      }
+
+      // Show checking indicator
+      if (feasibilityEl) {
+        feasibilityEl.style.display = 'block';
+        feasibilityEl.style.background = '#f0f9ff';
+        feasibilityEl.style.border = '1px solid #bae6fd';
+        feasibilityEl.style.color = '#0369a1';
+        feasibilityEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking availability with live traffic...';
+      }
+
       try {
-        const [pickupCoords, destCoords] = await Promise.all([geocodeBookAddress(pickup), geocodeBookAddress(dest)]);
-        if (!pickupCoords || !destCoords) return;
-        const R = 3958.8;
-        const dLat = (destCoords.lat - pickupCoords.lat) * Math.PI / 180;
-        const dLng = (destCoords.lng - pickupCoords.lng) * Math.PI / 180;
-        const a = Math.sin(dLat/2)**2 + Math.cos(pickupCoords.lat * Math.PI/180) * Math.cos(destCoords.lat * Math.PI/180) * Math.sin(dLng/2)**2;
-        const distMiles = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const bufferMins = Math.max(30, Math.ceil((distMiles / 30) * 60) + 15);
-        const [h, m] = apptTime24.split(':').map(Number);
-        const totalMins = h * 60 + m - bufferMins;
-        const pickupH = ((Math.floor(totalMins / 60)) % 24 + 24) % 24;
-        const pickupM = ((totalMins % 60) + 60) % 60;
-        setBookTime12h('recurPickupTime', `${String(pickupH).padStart(2, '0')}:${String(pickupM).padStart(2, '0')}`);
-        const noteEl = document.getElementById('pickupTimeNote');
-        if (noteEl) noteEl.style.display = 'block';
-      } catch(e) {}
+        const params = new URLSearchParams(window.location.search);
+        const orgParam = params.get('org') || '';
+        const url = '/api/book/check-feasibility' + (orgParam ? `?org=${encodeURIComponent(orgParam)}` : '');
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pickupAddress: pickup, destination: dest, appointmentTime: apptTime24, date: dateVal || todayStr })
+        });
+        const data = await res.json();
+
+        // Set suggested pickup time if returned
+        if (data.suggestedPickupTime) {
+          setBookTime12h('recurPickupTime', data.suggestedPickupTime);
+          const noteEl = document.getElementById('pickupTimeNote');
+          if (noteEl) noteEl.style.display = 'block';
+        }
+
+        // Show feasibility notice
+        if (data.feasible === true) {
+          if (feasibilityEl) {
+            feasibilityEl.style.display = 'block';
+            feasibilityEl.style.background = '#f0fdf4';
+            feasibilityEl.style.border = '1px solid #86efac';
+            feasibilityEl.style.color = '#166534';
+            feasibilityEl.innerHTML = '<i class="fas fa-check-circle"></i> Great — a driver should be able to get you there on time.';
+          }
+        } else if (data.feasible === false) {
+          const msg = data.reason === 'no_drivers_available'
+            ? 'No drivers are currently available for this time slot. Please call or text dispatch at ' + (orgConfig?.org?.dispatchPhone || '(727) 313-1241') + ' to arrange your ride.'
+            : 'We may not be able to get you to your appointment on time given current traffic conditions. Please call or text dispatch at ' + (orgConfig?.org?.dispatchPhone || '(727) 313-1241') + ' to confirm.';
+          if (feasibilityEl) {
+            feasibilityEl.style.display = 'block';
+            feasibilityEl.style.background = '#fffbeb';
+            feasibilityEl.style.border = '1px solid #fcd34d';
+            feasibilityEl.style.color = '#92400e';
+            feasibilityEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ' + msg;
+          }
+        } else {
+          // feasible === null (couldn't determine) — just hide notice
+          if (feasibilityEl) feasibilityEl.style.display = 'none';
+        }
+      } catch(e) {
+        if (feasibilityEl) feasibilityEl.style.display = 'none';
+      }
     }
 
     // ── Init ───────────────────────────────────────────────
