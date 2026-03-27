@@ -102,8 +102,8 @@ router.get('/summary', async (req, res) => {
           if (new Date(s.actualArrival) <= new Date(s.scheduledTime)) onTimePickups++;
           else latePickups++;
         }
-        if (s.type === 'dropoff' && s.actualDeparture && s.appointmentTime) {
-          if (new Date(s.actualDeparture) <= new Date(s.appointmentTime)) onTimeDropoffs++;
+        if (s.type === 'dropoff' && s.actualArrival && s.appointmentTime) {
+          if (new Date(s.actualArrival) <= new Date(s.appointmentTime)) onTimeDropoffs++;
           else lateDropoffs++;
         }
       }
@@ -293,8 +293,8 @@ router.get('/grant', async (req, res) => {
           if (new Date(s.actualArrival) <= new Date(s.scheduledTime)) onTimePickups++;
           else latePickups++;
         }
-        if (s.type === 'dropoff' && s.actualDeparture && s.appointmentTime) {
-          if (new Date(s.actualDeparture) <= new Date(s.appointmentTime)) onTimeDropoffs++;
+        if (s.type === 'dropoff' && s.actualArrival && s.appointmentTime) {
+          if (new Date(s.actualArrival) <= new Date(s.appointmentTime)) onTimeDropoffs++;
           else lateDropoffs++;
         }
       }
