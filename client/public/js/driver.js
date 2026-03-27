@@ -218,7 +218,7 @@ async function loadTodayTrip() {
 
   if (!res?.success || res.trips.length === 0) {
     currentTrip = null;
-    shiftStarted = false;
+    shiftStarted = hasPersistedShiftStarted() || ZakAuth.getUser()?.driverInfo?.isAvailable === true;
     renderNoTrips();
     return;
   }
@@ -226,7 +226,7 @@ async function loadTodayTrip() {
   const actionableTrips = (res.trips || []).filter(t => !['canceled','completed'].includes(t.status));
   if (actionableTrips.length === 0) {
     currentTrip = null;
-    shiftStarted = false;
+    shiftStarted = hasPersistedShiftStarted() || ZakAuth.getUser()?.driverInfo?.isAvailable === true;
     window.appTrips = [];
     renderNoTrips();
     return;
