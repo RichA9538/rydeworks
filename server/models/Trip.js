@@ -100,7 +100,9 @@ const tripSchema = new mongoose.Schema({
     inspectionDone: { type: Boolean, default: false },
     inspectionNotes:{ type: String },
     startTime:      { type: Date },
-    endTime:        { type: Date }
+    endTime:        { type: Date },
+    shiftCertifiedAt: { type: Date },
+    shiftCertifiedIp: { type: String }
   },
 
   // Dispatcher notes

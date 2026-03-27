@@ -790,13 +790,17 @@ router.post('/:id/stops/:stopId/status', async (req, res) => {
 // POST /api/trips/:id/complete — driver ends the trip (logs end mileage)
 router.post('/:id/complete', async (req, res) => {
   try {
-    const { endMileage } = req.body;
+    const { endMileage, shiftCertified } = req.body;
     const trip = await Trip.findOne({ _id: req.params.id, driver: req.user._id });
     if (!trip) return res.status(404).json({ success: false, error: 'Trip not found.' });
 
     trip.status = 'completed';
     trip.driverLog.endMileage = endMileage;
     trip.driverLog.endTime    = new Date();
+    if (shiftCertified) {
+      trip.driverLog.shiftCertifiedAt = new Date();
+      trip.driverLog.shiftCertifiedIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || null;
+    }
 
     // Calculate and store route distance if not already set by optimizer
     if (!trip.optimizedRoute?.totalDistanceMiles) {

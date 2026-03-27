@@ -718,7 +718,7 @@ async function endShift() {
 
   const res = await ZakAuth.apiFetch(`/api/trips/${currentTrip._id}/complete`, {
     method: 'POST',
-    body: JSON.stringify({ endMileage: parseInt(endMileage) })
+    body: JSON.stringify({ endMileage: parseInt(endMileage), shiftCertified: true })
   });
 
   if (res?.success) {
