@@ -459,7 +459,7 @@
           <i class="fas fa-info-circle"></i> Recurring trips are requests — a dispatcher will confirm and assign a driver. You'll receive a text confirmation for each scheduled trip.
         </div>
         <div style="display:flex;gap:12px;">
-          <button class="btn btn-secondary" onclick="goToStep(2)"><i class="fas fa-arrow-left"></i> Back</button>
+          <button class="btn btn-secondary" onclick="window._existingSubscriber ? goToStep(1) : goToStep(2)"><i class="fas fa-arrow-left"></i> Back</button>
           <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="goToStep4FromRecurring()">
             Continue <i class="fas fa-arrow-right"></i>
           </button>
