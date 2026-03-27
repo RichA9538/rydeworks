@@ -251,8 +251,8 @@
           <input type="tel" class="form-input" id="riderPhone" placeholder="(727) 555-0100" required>
         </div>
         <div class="form-group">
-          <label class="form-label">Email Address</label>
-          <input type="email" class="form-input" id="riderEmail" placeholder="jane@example.com">
+          <label class="form-label">Email Address <span style="font-weight:400;color:var(--gray-500)">(optional)</span></label>
+          <input type="text" autocomplete="email" class="form-input" id="riderEmail" placeholder="jane@example.com">
         </div>
         <div class="form-group">
           <label class="form-label">Street Address *</label>
@@ -1045,7 +1045,7 @@
           const { setupIntent, error } = await stripe.confirmCardSetup(siData.clientSecret, {
             payment_method: {
               card: cardElement,
-              billing_details: { name: `${firstName} ${lastName}`, email, phone }
+              billing_details: { name: `${firstName} ${lastName}`, email: email || undefined, phone }
             }
           });
           if (error) throw new Error(error.message);
@@ -1075,7 +1075,7 @@
                 account_holder_type: 'individual',
                 account_type: achType
               },
-              billing_details: { name: achName, email, phone }
+              billing_details: { name: achName, email: email || undefined, phone }
             }
           });
           if (error) throw new Error(error.message);
